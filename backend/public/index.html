@@ -252,6 +252,54 @@
   let callTimerInterval = null;
   let micEnabled = true, camEnabled = true;
 
+  // ---------- Sonnerie d'appel entrant ----------
+  // Générée directement en code (deux tonalités alternées façon téléphone),
+  // donc pas besoin d'héberger un fichier audio séparé.
+  let ringAudioCtx = null;
+  let ringIntervalId = null;
+
+  // Les navigateurs bloquent le son tant qu'il n'y a pas eu d'interaction de
+  // l'utilisateur sur la page (clic, appui...). On "débloque" donc le contexte
+  // audio dès le premier clic, pour être prêt le moment venu d'un appel entrant.
+  document.addEventListener('click', function unlockRingAudio() {
+    if (!ringAudioCtx) {
+      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* ignore */ }
+    } else if (ringAudioCtx.state === 'suspended') {
+      ringAudioCtx.resume();
+    }
+  }, { once: false });
+
+  function playRingOnce() {
+    if (!ringAudioCtx) return;
+    const now = ringAudioCtx.currentTime;
+    [0, 0.35].forEach((delay) => {
+      const osc = ringAudioCtx.createOscillator();
+      const gain = ringAudioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 900;
+      gain.gain.setValueAtTime(0, now + delay);
+      gain.gain.linearRampToValueAtTime(0.25, now + delay + 0.02);
+      gain.gain.linearRampToValueAtTime(0, now + delay + 0.3);
+      osc.connect(gain).connect(ringAudioCtx.destination);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.32);
+    });
+  }
+
+  function startRingtone() {
+    if (!ringAudioCtx) {
+      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+    }
+    if (ringAudioCtx.state === 'suspended') ringAudioCtx.resume();
+    stopRingtone();
+    playRingOnce();
+    ringIntervalId = setInterval(playRingOnce, 1600);
+  }
+
+  function stopRingtone() {
+    if (ringIntervalId) { clearInterval(ringIntervalId); ringIntervalId = null; }
+  }
+
   // ---------- Helpers ----------
   const $ = (id) => document.getElementById(id);
 
@@ -389,6 +437,7 @@
       pendingIncomingCall = payload;
       $('incomingText').textContent = (payload.from?.name || 'Quelqu\'un') + ' vous appelle (' + (payload.type === 'audio' ? 'audio' : 'vidéo') + ')';
       $('incomingCall').classList.add('show');
+      startRingtone();
     });
 
     socket.on('call:user-joined', async ({ callId, socketId, userId, name }) => {
@@ -643,6 +692,7 @@
 
   $('acceptCallBtn').addEventListener('click', async () => {
     if (!pendingIncomingCall) return;
+    stopRingtone();
     const { conversationId, callId, type } = pendingIncomingCall;
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video', audio: true });
@@ -656,6 +706,7 @@
   });
 
   $('rejectCallBtn').addEventListener('click', () => {
+    stopRingtone();
     $('incomingCall').classList.remove('show');
     pendingIncomingCall = null;
   });
@@ -663,6 +714,7 @@
   $('hangupBtn').addEventListener('click', hangup);
 
   function hangup() {
+    stopRingtone();
     if (currentCall) socket.emit('call:leave', { callId: currentCall.callId });
     Object.keys(peerConnections).forEach(removePeer);
     if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
