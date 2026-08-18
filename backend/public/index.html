@@ -1,0 +1,690 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>seourouApps</title>
+<meta name="description" content="seourouApps — messagerie et appels audio/vidéo">
+<meta name="theme-color" content="#171a21">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon-192.png">
+<link rel="apple-touch-icon" href="/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="seourouApps">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --border:#2a2f3a;
+    --text:#e8eaed; --muted:#9aa2b1; --accent:#4f7cff; --accent2:#3a63d6;
+    --danger:#e5484d; --success:#2ecc71; --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;}
+  #app{display:flex;flex-direction:column;height:100vh;}
+
+  /* Top bar */
+  #topbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);font-size:13px;}
+  #topbar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:13px;width:220px;}
+  #topbar button{background:var(--accent);border:none;color:white;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;}
+  #topbar button:hover{background:var(--accent2);}
+  #statusDot{width:9px;height:9px;border-radius:50%;background:var(--danger);display:inline-block;}
+  #statusDot.ok{background:var(--success);}
+  #statusText{color:var(--muted);}
+  #whoami{margin-left:auto;color:var(--muted);}
+  #logoutBtn{background:var(--panel2);border:1px solid var(--border);}
+
+  /* Auth screen */
+  #authScreen{flex:1;display:flex;align-items:center;justify-content:center;}
+  .authCard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:340px;}
+  .authCard h1{font-size:18px;margin:0 0 4px;}
+  .authCard p.sub{color:var(--muted);font-size:13px;margin:0 0 18px;}
+  .tabs{display:flex;gap:6px;margin-bottom:16px;}
+  .tabs button{flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;font-size:13px;}
+  .tabs button.active{background:var(--accent);color:white;border-color:var(--accent);}
+  .authCard label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;}
+  .authCard input{width:100%;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+  .authCard .primaryBtn{width:100%;margin-top:18px;padding:10px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:14px;cursor:pointer;}
+  .authCard .primaryBtn:hover{background:var(--accent2);}
+  .errorMsg{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:16px;}
+
+  /* Main layout */
+  #mainScreen{flex:1;display:none;min-height:0;}
+  #mainScreen.show{display:flex;}
+  #sidebar{width:280px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;}
+  .sideSection{padding:12px 14px 6px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);}
+  #convList,#userList{overflow-y:auto;}
+  .listItem{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-left:3px solid transparent;}
+  .listItem:hover{background:var(--panel2);}
+  .listItem.active{background:var(--panel2);border-left-color:var(--accent);}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;}
+  .liText{min-width:0;}
+  .liName{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .liSub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
+  #userList{border-top:1px solid var(--border);}
+
+  #chatArea{flex:1;display:flex;flex-direction:column;min-width:0;}
+  #chatHeader{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
+  #chatHeader .title{font-size:15px;font-weight:600;}
+  #chatHeader .callBtns{margin-left:auto;display:flex;gap:8px;}
+  #chatHeader button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;}
+  #chatHeader button:hover{background:#282e3a;}
+  #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+  .msgRow{display:flex;}
+  .msgRow.mine{justify-content:flex-end;}
+  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:13.5px;line-height:1.4;}
+  .msgRow.mine .bubble{background:var(--accent);color:white;border-bottom-right-radius:4px;}
+  .msgRow:not(.mine) .bubble{background:var(--panel2);border-bottom-left-radius:4px;}
+  .bubble .sender{font-size:11px;color:var(--muted);margin-bottom:2px;}
+  .msgRow.mine .bubble .sender{color:rgba(255,255,255,.75);}
+  .bubble .time{font-size:10px;opacity:.6;margin-top:3px;}
+  #typingIndicator{padding:0 18px 4px;font-size:12px;color:var(--muted);min-height:16px;}
+  #composer{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border);}
+  #composer input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+  #composer button{background:var(--accent);border:none;color:white;border-radius:8px;padding:0 18px;cursor:pointer;font-size:14px;}
+  #composer button:hover{background:var(--accent2);}
+  #emptyState{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;}
+
+  /* Incoming call banner */
+  #incomingCall{position:fixed;top:56px;right:20px;background:var(--panel);border:1px solid var(--accent);border-radius:var(--radius);padding:14px 16px;display:none;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  #incomingCall.show{display:block;}
+  #incomingCall .row{display:flex;gap:8px;margin-top:10px;}
+  #incomingCall button{flex:1;border:none;border-radius:6px;padding:7px 0;cursor:pointer;font-size:13px;}
+  #incomingCall .accept{background:var(--success);color:white;}
+  #incomingCall .reject{background:var(--danger);color:white;}
+
+  /* Call overlay */
+  #callOverlay{position:fixed;inset:0;background:rgba(6,7,10,.95);display:none;flex-direction:column;z-index:100;}
+  #callOverlay.show{display:flex;}
+  #callHeader{padding:14px 20px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;}
+  #videosGrid{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;padding:0 20px;overflow:auto;align-content:start;}
+  .videoTile{background:#000;border-radius:10px;overflow:hidden;position:relative;aspect-ratio:4/3;}
+  .videoTile video{width:100%;height:100%;object-fit:cover;}
+  .videoTile .label{position:absolute;bottom:6px;left:8px;font-size:12px;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:10px;}
+  #callControls{padding:18px;display:flex;justify-content:center;gap:14px;}
+  #callControls button{width:50px;height:50px;border-radius:50%;border:none;font-size:18px;cursor:pointer;background:var(--panel2);color:white;}
+  #callControls button.hangup{background:var(--danger);}
+  #callControls button.muted{background:var(--danger);}
+
+  ::-webkit-scrollbar{width:8px;}
+  ::-webkit-scrollbar-thumb{background:#333a47;border-radius:4px;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="topbar">
+    <span id="statusDot"></span>
+    <span id="statusText">Backend non testé</span>
+    <input id="apiBaseInput" value="" spellcheck="false" title="URL de l'API (laisser vide = même serveur)">
+    <button id="testBackendBtn">Tester la connexion</button>
+    <span id="whoami"></span>
+    <button id="logoutBtn" style="display:none;">Se déconnecter</button>
+  </div>
+
+  <!-- AUTH -->
+  <div id="authScreen">
+    <div class="authCard">
+      <h1>seourouApps — Testeur</h1>
+      <p class="sub">Connectez-vous ou créez un compte pour tester le chat et les appels.</p>
+      <div class="tabs">
+        <button id="tabLogin" class="active">Connexion</button>
+        <button id="tabRegister">Inscription</button>
+      </div>
+
+      <div id="loginForm">
+        <label>Email</label>
+        <input id="loginEmail" type="email" placeholder="vous@example.com">
+        <label>Mot de passe</label>
+        <input id="loginPassword" type="password" placeholder="••••••••">
+        <button class="primaryBtn" id="loginBtn">Se connecter</button>
+      </div>
+
+      <div id="registerForm" style="display:none;">
+        <label>Nom</label>
+        <input id="regName" type="text" placeholder="Votre nom">
+        <label>Email</label>
+        <input id="regEmail" type="email" placeholder="vous@example.com">
+        <label>Mot de passe</label>
+        <input id="regPassword" type="password" placeholder="6 caractères minimum">
+        <button class="primaryBtn" id="registerBtn">Créer le compte</button>
+      </div>
+
+      <div class="errorMsg" id="authError"></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div id="mainScreen">
+    <div id="sidebar">
+      <div class="sideSection">Conversations</div>
+      <div id="convList"></div>
+      <div class="sideSection">Autres utilisateurs</div>
+      <div id="userList"></div>
+    </div>
+    <div id="chatArea">
+      <div id="emptyState">Choisissez un utilisateur à gauche pour démarrer une conversation.</div>
+      <div id="activeChat" style="display:none;flex-direction:column;flex:1;min-height:0;">
+        <div id="chatHeader">
+          <div class="avatar" id="chatAvatar">?</div>
+          <div class="title" id="chatTitle">—</div>
+          <div class="callBtns">
+            <button id="audioCallBtn">📞 Audio</button>
+            <button id="videoCallBtn">🎥 Vidéo</button>
+          </div>
+        </div>
+        <div id="messages"></div>
+        <div id="typingIndicator"></div>
+        <div id="composer">
+          <input id="msgInput" type="text" placeholder="Écrire un message…" autocomplete="off">
+          <button id="sendBtn">Envoyer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="incomingCall">
+    <div id="incomingText">Appel entrant…</div>
+    <div class="row">
+      <button class="accept" id="acceptCallBtn">Répondre</button>
+      <button class="reject" id="rejectCallBtn">Ignorer</button>
+    </div>
+  </div>
+
+  <div id="callOverlay">
+    <div id="callHeader">
+      <span id="callInfo">Appel en cours…</span>
+      <span id="callTimer">00:00</span>
+    </div>
+    <div id="videosGrid"></div>
+    <div id="callControls">
+      <button id="toggleMicBtn" title="Micro">🎤</button>
+      <button id="toggleCamBtn" title="Caméra">🎥</button>
+      <button class="hangup" id="hangupBtn" title="Raccrocher">☎</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------- State ----------
+  // La page est servie par le même serveur Express que l'API et le socket
+  // (voir backend/src/index.js), donc par défaut on utilise la même origine
+  // (protocole + domaine + port) que celle utilisée pour charger la page.
+  // Le champ en haut permet de le remplacer manuellement si besoin (ex: pour
+  // tester contre un backend différent pendant le développement).
+  document.getElementById('apiBaseInput').value = location.origin;
+  let apiBase = document.getElementById('apiBaseInput').value.replace(/\/$/, '');
+  let token = null;
+  let me = null;
+  let socket = null;
+  let conversations = [];
+  let users = [];
+  let activeConversationId = null;
+  let messagesByConv = {}; // conversationId -> [messages]
+  let typingTimeout = null;
+
+  // Call state
+  const ICE_SERVERS = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+  ];
+  let localStream = null;
+  let currentCall = null; // { callId, conversationId, type }
+  let peerConnections = {}; // socketId -> RTCPeerConnection
+  let callTimerInterval = null;
+  let micEnabled = true, camEnabled = true;
+
+  // ---------- Helpers ----------
+  const $ = (id) => document.getElementById(id);
+
+  function setStatus(ok, text) {
+    $('statusDot').className = ok ? 'ok' : '';
+    $('statusText').textContent = text;
+  }
+
+  function showAuthError(msg) { $('authError').textContent = msg || ''; }
+
+  function initials(name) {
+    if (!name) return '?';
+    const parts = name.trim().split(/\s+/);
+    return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || name[0].toUpperCase();
+  }
+
+  function fmtTime(d) {
+    const date = new Date(d);
+    return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  }
+
+  async function api(path, opts = {}) {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(apiBase + path, Object.assign({}, opts, { headers }));
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* no body */ }
+    if (!res.ok) {
+      throw new Error((data && data.error) || ('Erreur HTTP ' + res.status));
+    }
+    return data;
+  }
+
+  // ---------- Backend test ----------
+  async function testBackend() {
+    apiBase = $('apiBaseInput').value.replace(/\/$/, '');
+    setStatus(false, 'Test en cours…');
+    try {
+      const res = await fetch(apiBase + '/health');
+      const data = await res.json();
+      if (data && data.status === 'ok') {
+        setStatus(true, 'Backend connecté (' + apiBase + ')');
+      } else {
+        setStatus(false, 'Réponse inattendue du backend');
+      }
+    } catch (err) {
+      setStatus(false, 'Impossible de joindre le backend — vérifiez qu\'il tourne (npm run dev) et l\'URL ci-dessus.');
+    }
+  }
+  $('testBackendBtn').addEventListener('click', testBackend);
+
+  // ---------- Auth tabs ----------
+  $('tabLogin').addEventListener('click', () => {
+    $('tabLogin').classList.add('active'); $('tabRegister').classList.remove('active');
+    $('loginForm').style.display = 'block'; $('registerForm').style.display = 'none';
+    showAuthError('');
+  });
+  $('tabRegister').addEventListener('click', () => {
+    $('tabRegister').classList.add('active'); $('tabLogin').classList.remove('active');
+    $('registerForm').style.display = 'block'; $('loginForm').style.display = 'none';
+    showAuthError('');
+  });
+
+  $('loginBtn').addEventListener('click', async () => {
+    showAuthError('');
+    apiBase = $('apiBaseInput').value.replace(/\/$/, '');
+    const email = $('loginEmail').value.trim();
+    const password = $('loginPassword').value;
+    if (!email || !password) return showAuthError('Email et mot de passe requis.');
+    try {
+      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      onAuthSuccess(data);
+    } catch (err) { showAuthError(err.message); }
+  });
+
+  $('registerBtn').addEventListener('click', async () => {
+    showAuthError('');
+    apiBase = $('apiBaseInput').value.replace(/\/$/, '');
+    const name = $('regName').value.trim();
+    const email = $('regEmail').value.trim();
+    const password = $('regPassword').value;
+    if (!name || !email || !password) return showAuthError('Nom, email et mot de passe requis.');
+    try {
+      const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+      onAuthSuccess(data);
+    } catch (err) { showAuthError(err.message); }
+  });
+
+  function onAuthSuccess(data) {
+    token = data.token;
+    me = data.user;
+    $('authScreen').style.display = 'none';
+    $('mainScreen').classList.add('show');
+    $('whoami').textContent = me.name + ' (' + me.email + ')';
+    $('logoutBtn').style.display = 'inline-block';
+    connectSocket();
+    loadUsers();
+    loadConversations();
+  }
+
+  $('logoutBtn').addEventListener('click', () => {
+    if (socket) socket.disconnect();
+    token = null; me = null; activeConversationId = null;
+    conversations = []; users = []; messagesByConv = {};
+    $('mainScreen').classList.remove('show');
+    $('authScreen').style.display = 'flex';
+    $('whoami').textContent = '';
+    $('logoutBtn').style.display = 'none';
+    $('convList').innerHTML = ''; $('userList').innerHTML = '';
+    $('emptyState').style.display = 'flex'; $('activeChat').style.display = 'none';
+  });
+
+  // ---------- Socket ----------
+  function connectSocket() {
+    socket = io(apiBase, { auth: { token } });
+
+    socket.on('connect', () => setStatus(true, 'Connecté en temps réel (' + apiBase + ')'));
+    socket.on('connect_error', (err) => setStatus(false, 'Erreur socket: ' + err.message));
+    socket.on('disconnect', () => setStatus(false, 'Déconnecté du serveur temps réel'));
+
+    socket.on('message:new', (msg) => {
+      if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
+      messagesByConv[msg.conversationId].push(msg);
+      bumpConversationPreview(msg.conversationId, msg);
+      if (msg.conversationId === activeConversationId) renderMessages();
+    });
+
+    socket.on('typing', ({ conversationId, userId, isTyping }) => {
+      if (conversationId !== activeConversationId || userId === me.id) return;
+      $('typingIndicator').textContent = isTyping ? 'en train d\'écrire…' : '';
+    });
+
+    // Calls
+    socket.on('call:incoming', (payload) => {
+      pendingIncomingCall = payload;
+      $('incomingText').textContent = (payload.from?.name || 'Quelqu\'un') + ' vous appelle (' + (payload.type === 'audio' ? 'audio' : 'vidéo') + ')';
+      $('incomingCall').classList.add('show');
+    });
+
+    socket.on('call:user-joined', async ({ callId, socketId, userId, name }) => {
+      if (!currentCall || currentCall.callId !== callId) return;
+      await createPeerConnection(socketId, name, true);
+    });
+
+    socket.on('call:signal', async ({ from, signal }) => {
+      if (!currentCall) return;
+      let pc = peerConnections[from];
+      if (!pc) pc = await createPeerConnection(from, null, false);
+
+      if (signal.sdp) {
+        await pc.setRemoteDescription(new RTCSessionDescription(signal.sdp));
+        if (signal.sdp.type === 'offer') {
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          socket.emit('call:signal', { callId: currentCall.callId, to: from, signal: { sdp: pc.localDescription } });
+        }
+      } else if (signal.candidate) {
+        try { await pc.addIceCandidate(new RTCIceCandidate(signal.candidate)); } catch (e) { /* ignore */ }
+      }
+    });
+
+    socket.on('call:user-left', ({ socketId }) => {
+      removePeer(socketId);
+    });
+  }
+
+  let pendingIncomingCall = null;
+
+  // ---------- Users & conversations ----------
+  async function loadUsers() {
+    try {
+      const data = await api('/api/users');
+      users = data.users;
+      renderUserList();
+    } catch (err) { console.error(err); }
+  }
+
+  async function loadConversations() {
+    try {
+      const data = await api('/api/conversations');
+      conversations = data.conversations;
+      renderConvList();
+    } catch (err) { console.error(err); }
+  }
+
+  function renderUserList() {
+    const el = $('userList');
+    el.innerHTML = '';
+    users.forEach((u) => {
+      const div = document.createElement('div');
+      div.className = 'listItem';
+      div.innerHTML = `<div class="avatar">${initials(u.name)}</div>
+        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.email)}</div></div>`;
+      div.addEventListener('click', () => startConversationWith(u.id));
+      el.appendChild(div);
+    });
+  }
+
+  function renderConvList() {
+    const el = $('convList');
+    el.innerHTML = '';
+    conversations.forEach((c) => {
+      const other = c.participants.find((p) => p.id !== me.id) || c.participants[0];
+      const label = c.isGroup ? (c.name || 'Groupe') : (other ? other.name : '—');
+      const div = document.createElement('div');
+      div.className = 'listItem' + (c.id === activeConversationId ? ' active' : '');
+      div.dataset.convId = c.id;
+      div.innerHTML = `<div class="avatar">${initials(label)}</div>
+        <div class="liText"><div class="liName">${escapeHtml(label)}</div>
+        <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>`;
+      div.addEventListener('click', () => openConversation(c.id));
+      el.appendChild(div);
+    });
+  }
+
+  function bumpConversationPreview(convId, msg) {
+    const c = conversations.find((c) => c.id === convId);
+    if (c) { c.lastMessage = msg; renderConvList(); }
+  }
+
+  async function startConversationWith(userId) {
+    try {
+      const data = await api('/api/conversations', { method: 'POST', body: JSON.stringify({ participantIds: [userId] }) });
+      const conv = data.conversation;
+      if (!conversations.find((c) => c.id === conv.id)) conversations.unshift(conv);
+      renderConvList();
+      openConversation(conv.id);
+    } catch (err) { alert('Erreur: ' + err.message); }
+  }
+
+  async function openConversation(convId) {
+    activeConversationId = convId;
+    renderConvList();
+    $('emptyState').style.display = 'none';
+    $('activeChat').style.display = 'flex';
+
+    socket.emit('conversation:join', { conversationId: convId });
+
+    const conv = conversations.find((c) => c.id === convId);
+    const other = conv.participants.find((p) => p.id !== me.id) || conv.participants[0];
+    const label = conv.isGroup ? (conv.name || 'Groupe') : (other ? other.name : '—');
+    $('chatTitle').textContent = label;
+    $('chatAvatar').textContent = initials(label);
+    $('typingIndicator').textContent = '';
+
+    if (!messagesByConv[convId]) {
+      try {
+        const data = await api('/api/conversations/' + convId + '/messages');
+        messagesByConv[convId] = data.messages;
+      } catch (err) { messagesByConv[convId] = []; }
+    }
+    renderMessages();
+  }
+
+  function renderMessages() {
+    const el = $('messages');
+    el.innerHTML = '';
+    const list = messagesByConv[activeConversationId] || [];
+    list.forEach((m) => {
+      const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
+      const row = document.createElement('div');
+      row.className = 'msgRow' + (mine ? ' mine' : '');
+      row.innerHTML = `<div class="bubble">${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
+        <div>${escapeHtml(m.content)}</div><div class="time">${fmtTime(m.createdAt)}</div></div>`;
+      el.appendChild(row);
+    });
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function escapeHtml(s) {
+    return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  $('sendBtn').addEventListener('click', sendMessage);
+  $('msgInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
+  $('msgInput').addEventListener('input', () => {
+    if (!activeConversationId) return;
+    socket.emit('typing', { conversationId: activeConversationId, isTyping: true });
+    clearTimeout(typingTimeout);
+    typingTimeout = setTimeout(() => socket.emit('typing', { conversationId: activeConversationId, isTyping: false }), 1200);
+  });
+
+  function sendMessage() {
+    const input = $('msgInput');
+    const content = input.value.trim();
+    if (!content || !activeConversationId) return;
+    socket.emit('message:send', { conversationId: activeConversationId, content }, (res) => {
+      if (res && res.error) alert('Erreur envoi: ' + res.error);
+    });
+    input.value = '';
+  }
+
+  // ---------- Calls ----------
+  $('audioCallBtn').addEventListener('click', () => startCall('audio'));
+  $('videoCallBtn').addEventListener('click', () => startCall('video'));
+
+  async function startCall(type) {
+    if (!activeConversationId) return;
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video', audio: true });
+    } catch (err) {
+      alert('Impossible d\'accéder à la caméra/micro : ' + err.message);
+      return;
+    }
+    joinCallRoom(activeConversationId, null, type);
+  }
+
+  function joinCallRoom(conversationId, callId, type) {
+    socket.emit('call:join', { conversationId, callId, type }, async (res) => {
+      if (res && res.error) { alert('Erreur appel: ' + res.error); return; }
+      currentCall = { callId: res.callId, conversationId, type };
+      openCallOverlay(type);
+      addLocalVideoTile();
+      for (const peer of res.peers) {
+        await createPeerConnection(peer.socketId, peer.name, false);
+      }
+    });
+  }
+
+  function openCallOverlay(type) {
+    $('incomingCall').classList.remove('show');
+    $('callOverlay').classList.add('show');
+    $('callInfo').textContent = (type === 'audio' ? 'Appel audio' : 'Appel vidéo') + ' en cours';
+    let secs = 0;
+    clearInterval(callTimerInterval);
+    callTimerInterval = setInterval(() => {
+      secs++;
+      const m = String(Math.floor(secs / 60)).padStart(2, '0');
+      const s = String(secs % 60).padStart(2, '0');
+      $('callTimer').textContent = m + ':' + s;
+    }, 1000);
+  }
+
+  function addLocalVideoTile() {
+    const grid = $('videosGrid');
+    grid.innerHTML = '';
+    const tile = document.createElement('div');
+    tile.className = 'videoTile';
+    tile.id = 'tile-local';
+    tile.innerHTML = `<video autoplay muted playsinline></video><div class="label">Vous</div>`;
+    tile.querySelector('video').srcObject = localStream;
+    grid.appendChild(tile);
+  }
+
+  async function createPeerConnection(socketId, name, initiator) {
+    const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+    peerConnections[socketId] = pc;
+
+    if (localStream) {
+      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+    }
+
+    pc.onicecandidate = (e) => {
+      if (e.candidate) {
+        socket.emit('call:signal', { callId: currentCall.callId, to: socketId, signal: { candidate: e.candidate } });
+      }
+    };
+
+    pc.ontrack = (e) => {
+      addRemoteVideoTile(socketId, name, e.streams[0]);
+    };
+
+    if (initiator) {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      socket.emit('call:signal', { callId: currentCall.callId, to: socketId, signal: { sdp: pc.localDescription } });
+    }
+
+    return pc;
+  }
+
+  function addRemoteVideoTile(socketId, name, stream) {
+    let tile = document.getElementById('tile-' + socketId);
+    if (!tile) {
+      tile = document.createElement('div');
+      tile.className = 'videoTile';
+      tile.id = 'tile-' + socketId;
+      tile.innerHTML = `<video autoplay playsinline></video><div class="label">${escapeHtml(name || 'Participant')}</div>`;
+      $('videosGrid').appendChild(tile);
+    }
+    tile.querySelector('video').srcObject = stream;
+  }
+
+  function removePeer(socketId) {
+    if (peerConnections[socketId]) { peerConnections[socketId].close(); delete peerConnections[socketId]; }
+    const tile = document.getElementById('tile-' + socketId);
+    if (tile) tile.remove();
+  }
+
+  $('acceptCallBtn').addEventListener('click', async () => {
+    if (!pendingIncomingCall) return;
+    const { conversationId, callId, type } = pendingIncomingCall;
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video', audio: true });
+    } catch (err) {
+      alert('Impossible d\'accéder à la caméra/micro : ' + err.message);
+      return;
+    }
+    $('incomingCall').classList.remove('show');
+    joinCallRoom(conversationId, callId, type);
+    pendingIncomingCall = null;
+  });
+
+  $('rejectCallBtn').addEventListener('click', () => {
+    $('incomingCall').classList.remove('show');
+    pendingIncomingCall = null;
+  });
+
+  $('hangupBtn').addEventListener('click', hangup);
+
+  function hangup() {
+    if (currentCall) socket.emit('call:leave', { callId: currentCall.callId });
+    Object.keys(peerConnections).forEach(removePeer);
+    if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+    currentCall = null;
+    clearInterval(callTimerInterval);
+    $('callOverlay').classList.remove('show');
+    $('videosGrid').innerHTML = '';
+  }
+
+  $('toggleMicBtn').addEventListener('click', () => {
+    if (!localStream) return;
+    micEnabled = !micEnabled;
+    localStream.getAudioTracks().forEach((t) => t.enabled = micEnabled);
+    $('toggleMicBtn').classList.toggle('muted', !micEnabled);
+  });
+  $('toggleCamBtn').addEventListener('click', () => {
+    if (!localStream) return;
+    camEnabled = !camEnabled;
+    localStream.getVideoTracks().forEach((t) => t.enabled = camEnabled);
+    $('toggleCamBtn').classList.toggle('muted', !camEnabled);
+  });
+
+  // Auto test backend on load
+  testBackend();
+
+  // ---------- PWA : enregistrement du service worker ----------
+  // Permet d'installer l'app sur l'écran d'accueil (Android/iPhone/PC) et de
+  // recharger plus vite. N'intercepte pas les appels API/socket (voir sw.js).
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('Service worker non enregistré :', err.message);
+      });
+    });
+  }
+})();
+</script>
+</body>
+</html>

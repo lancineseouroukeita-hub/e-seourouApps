@@ -1,0 +1,8 @@
+node_modules/
+.env
+
+# Le dossier mobile/ (code source RN) et TempRN/ (projet natif généré, très volumineux)
+# ne sont pas nécessaires pour déployer la version web/PWA — on ne les suit pas ici
+# pour garder le dépôt léger et rapide à pousser sur GitHub.
+mobile/
+TempRN/
