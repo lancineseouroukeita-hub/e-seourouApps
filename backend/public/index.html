@@ -19,6 +19,13 @@
     --text:#e8eaed; --muted:#9aa2b1; --accent:#4f7cff; --accent2:#3a63d6;
     --danger:#e5484d; --success:#2ecc71; --radius:10px;
   }
+  /* Thème clair (Paramètres → Apparence), activé via une classe sur <body> et
+     mémorisé dans ce navigateur — mêmes couleurs d'accent/danger/succès, seules
+     les surfaces (fond, panneaux, texte) changent pour rester lisible. */
+  body.theme-light{
+    --bg:#f3f4f7; --panel:#ffffff; --panel2:#eef0f5; --border:#dde1e9;
+    --text:#1b1f27; --muted:#5c6470;
+  }
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;}
   #app{display:flex;flex-direction:column;height:100vh;}
@@ -145,6 +152,39 @@
   #callControls button.hangup{background:var(--danger);}
   #callControls button.muted{background:var(--danger);}
 
+  /* ---------- Paramètres ---------- */
+  #settingsBtn{background:var(--panel2);border:1px solid var(--border);font-size:15px;padding:5px 9px;}
+  #settingsOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;z-index:110;padding:20px;}
+  #settingsOverlay.show{display:flex;}
+  #settingsCard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #settingsHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);}
+  #settingsHeader h2{margin:0;font-size:16px;}
+  #settingsHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #settingsBody{padding:6px 18px 18px;overflow-y:auto;}
+  .settingsSection{padding:16px 0;border-bottom:1px solid var(--border);}
+  .settingsSection:last-child{border-bottom:none;}
+  .settingsSection h3{margin:0 0 12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  .settingsAvatarRow{display:flex;align-items:center;gap:14px;}
+  .settingsAvatarRow .avatar{width:56px;height:56px;font-size:20px;cursor:pointer;flex-shrink:0;}
+  .settingsAvatarField{flex:1;}
+  .settingsAvatarField label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+  .settingsInlineRow{display:flex;gap:8px;}
+  .settingsInlineRow input{flex:1;min-width:0;}
+  #settingsBody input[type="text"],#settingsBody input[type="password"]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:8px;}
+  #settingsBody button{background:var(--accent);border:none;color:white;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:13px;white-space:nowrap;}
+  #settingsBody button:hover{background:var(--accent2);}
+  .settingsStatic{margin-top:12px;font-size:13px;color:var(--muted);}
+  .settingsMsg{margin-top:8px;font-size:12.5px;min-height:16px;}
+  .settingsMsg.error{color:var(--danger);}
+  .settingsMsg.success{color:var(--success);}
+  .switchRow{display:flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;margin-bottom:12px;}
+  .switchRow:last-child{margin-bottom:0;}
+  .switchRow input{position:absolute;opacity:0;width:0;height:0;}
+  .switchTrack{position:relative;width:38px;height:22px;border-radius:11px;background:var(--panel2);border:1px solid var(--border);flex-shrink:0;transition:background .15s;}
+  .switchTrack::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s;}
+  .switchRow input:checked + .switchTrack{background:var(--accent);border-color:var(--accent);}
+  .switchRow input:checked + .switchTrack::after{transform:translateX(16px);background:white;}
+
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:#333a47;border-radius:4px;}
 
@@ -190,6 +230,7 @@
       <div class="avatar avatarSmall" id="myAvatar" title="Changer ma photo"></div>
       <span id="whoamiText"></span>
     </span>
+    <button id="settingsBtn" style="display:none;" title="Paramètres">⚙️</button>
     <button id="logoutBtn" style="display:none;">Se déconnecter</button>
   </div>
 
@@ -285,6 +326,56 @@
     </div>
   </div>
 
+  <!-- ---------- Paramètres ---------- -->
+  <div id="settingsOverlay">
+    <div id="settingsCard">
+      <div id="settingsHeader">
+        <h2>Paramètres</h2>
+        <button id="closeSettingsBtn" title="Fermer">✕</button>
+      </div>
+      <div id="settingsBody">
+
+        <section class="settingsSection">
+          <h3>Profil</h3>
+          <div class="settingsAvatarRow">
+            <div class="avatar avatarPhoto" id="settingsAvatar" title="Changer ma photo"></div>
+            <div class="settingsAvatarField">
+              <label>Nom</label>
+              <div class="settingsInlineRow">
+                <input id="settingsNameInput" type="text" maxlength="80">
+                <button id="saveNameBtn">Enregistrer</button>
+              </div>
+            </div>
+          </div>
+          <div class="settingsStatic">Téléphone : <span id="settingsPhoneText"></span></div>
+          <div class="settingsMsg" id="settingsProfileMsg"></div>
+        </section>
+
+        <section class="settingsSection">
+          <h3>Notifications</h3>
+          <label class="switchRow"><input type="checkbox" id="notifToggle"><span class="switchTrack"></span> Notifications push (nouveaux messages, appels)</label>
+          <label class="switchRow"><input type="checkbox" id="ringtoneToggle"><span class="switchTrack"></span> Sonnerie d'appel entrant</label>
+          <div class="settingsMsg" id="settingsNotifMsg"></div>
+        </section>
+
+        <section class="settingsSection">
+          <h3>Apparence</h3>
+          <label class="switchRow"><input type="checkbox" id="themeToggle"><span class="switchTrack"></span> Thème clair</label>
+        </section>
+
+        <section class="settingsSection">
+          <h3>Mot de passe</h3>
+          <input id="currentPasswordInput" type="password" placeholder="Mot de passe actuel" autocomplete="current-password">
+          <input id="newPasswordInput" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password">
+          <input id="confirmPasswordInput" type="password" placeholder="Confirmer le nouveau mot de passe" autocomplete="new-password">
+          <button id="changePasswordBtn">Changer le mot de passe</button>
+          <div class="settingsMsg" id="settingsPasswordMsg"></div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -311,6 +402,12 @@
   // "?c=<conversationId>" à l'URL d'ouverture : on retrouve la conversation visée ici.
   let pendingConversationIdFromNotification = new URLSearchParams(location.search).get('c') || null;
   let typingTimeout = null;
+
+  // ---------- Préférences locales (Paramètres) ----------
+  // Propres à cet appareil/navigateur, pas au compte : pas besoin d'être connecté
+  // pour les appliquer (le thème doit déjà être bon sur l'écran de connexion).
+  let ringtoneMuted = localStorage.getItem('seourou_ringtone_muted') === '1';
+  if (localStorage.getItem('seourou_theme') === 'light') document.body.classList.add('theme-light');
 
   // Pièces jointes (photo, fichier, message vocal) : taille max côté client,
   // doit rester cohérente avec la limite vérifiée côté serveur (chat.js).
@@ -419,6 +516,9 @@
   }
 
   function startRingtone() {
+    // Préférence "Sonnerie d'appel" désactivée dans Paramètres : on garde quand
+    // même la notif d'appel entrant à l'écran, juste sans son ni vibration.
+    if (ringtoneMuted) return;
     if (!ringAudioCtx) {
       try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* ignore */ }
     }
@@ -544,6 +644,7 @@
     $('whoamiText').textContent = me.name + ' (' + me.phone + ')';
     renderMyAvatar();
     $('logoutBtn').style.display = 'inline-block';
+    $('settingsBtn').style.display = 'inline-block';
     connectSocket();
     loadUsers();
     loadConversations();
@@ -560,6 +661,8 @@
     $('whoamiText').textContent = '';
     renderMyAvatar();
     $('logoutBtn').style.display = 'none';
+    $('settingsBtn').style.display = 'none';
+    $('settingsOverlay').classList.remove('show');
     $('convList').innerHTML = ''; $('userList').innerHTML = '';
     $('emptyState').style.display = 'flex'; $('activeChat').style.display = 'none';
   });
@@ -1247,11 +1350,13 @@
 
   // ---------- Photo de profil ----------
   function renderMyAvatar() {
-    const el = $('myAvatar');
     const avatarUrl = me && me.avatarUrl;
-    el.className = 'avatar avatarSmall' + (avatarUrl ? ' avatarPhoto' : '');
-    el.style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
-    el.textContent = avatarUrl ? '' : initials(me ? me.name : '');
+    [{ el: $('myAvatar'), extraClass: 'avatarSmall' }, { el: $('settingsAvatar'), extraClass: '' }].forEach(({ el, extraClass }) => {
+      if (!el) return;
+      el.className = ('avatar' + (extraClass ? ' ' + extraClass : '')) + (avatarUrl ? ' avatarPhoto' : '');
+      el.style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
+      el.textContent = avatarUrl ? '' : initials(me ? me.name : '');
+    });
   }
 
   $('myAvatar').addEventListener('click', () => {
@@ -1355,14 +1460,18 @@
     try {
       if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
 
-      const { publicKey, enabled } = await api('/api/push/vapid-public-key');
-      if (!enabled || !publicKey) return; // pas encore configuré côté serveur (clés VAPID absentes)
-
+      // Important pour Safari/iOS : demander la permission tout de suite, en
+      // premier, sans await avant — certains navigateurs n'affichent la
+      // popup d'autorisation que si l'appel est encore "proche" du geste de
+      // l'utilisateur (clic sur le bouton) qui a déclenché cette fonction.
       if (Notification.permission === 'denied') return;
       if (Notification.permission === 'default') {
         const perm = await Notification.requestPermission();
         if (perm !== 'granted') return;
       }
+
+      const { publicKey, enabled } = await api('/api/push/vapid-public-key');
+      if (!enabled || !publicKey) return; // pas encore configuré côté serveur (clés VAPID absentes)
 
       const registration = await navigator.serviceWorker.ready;
       let subscription = await registration.pushManager.getSubscription();
@@ -1403,6 +1512,138 @@
   });
   window.addEventListener('focus', () => {
     if (me) clearNotificationsAndBadge();
+  });
+
+  // ---------- Paramètres ----------
+  function showSettingsMsg(id, text, isError) {
+    const el = $(id);
+    el.textContent = text;
+    el.className = 'settingsMsg' + (isError ? ' error' : text ? ' success' : '');
+  }
+
+  async function openSettings() {
+    if (!me) return;
+    $('settingsNameInput').value = me.name;
+    $('settingsPhoneText').textContent = me.phone;
+    showSettingsMsg('settingsProfileMsg', '');
+    showSettingsMsg('settingsPasswordMsg', '');
+    $('currentPasswordInput').value = '';
+    $('newPasswordInput').value = '';
+    $('confirmPasswordInput').value = '';
+    $('ringtoneToggle').checked = !ringtoneMuted;
+    $('themeToggle').checked = document.body.classList.contains('theme-light');
+    $('settingsOverlay').classList.add('show');
+    refreshNotifToggleState();
+  }
+
+  function closeSettings() {
+    $('settingsOverlay').classList.remove('show');
+  }
+
+  $('settingsBtn').addEventListener('click', openSettings);
+  $('closeSettingsBtn').addEventListener('click', closeSettings);
+  $('settingsOverlay').addEventListener('click', (e) => {
+    if (e.target === $('settingsOverlay')) closeSettings();
+  });
+  $('settingsAvatar').addEventListener('click', () => { if (me) $('avatarInput').click(); });
+
+  $('saveNameBtn').addEventListener('click', async () => {
+    const name = $('settingsNameInput').value.trim();
+    if (!name) return showSettingsMsg('settingsProfileMsg', 'Le nom ne peut pas être vide.', true);
+    try {
+      const data = await api('/api/users/me/name', { method: 'PATCH', body: JSON.stringify({ name }) });
+      me.name = data.user.name;
+      $('whoamiText').textContent = me.name + ' (' + me.phone + ')';
+      renderMyAvatar();
+      showSettingsMsg('settingsProfileMsg', 'Nom mis à jour.');
+    } catch (err) {
+      showSettingsMsg('settingsProfileMsg', err.message, true);
+    }
+  });
+
+  $('changePasswordBtn').addEventListener('click', async () => {
+    const currentPassword = $('currentPasswordInput').value;
+    const newPassword = $('newPasswordInput').value;
+    const confirmPassword = $('confirmPasswordInput').value;
+    if (!currentPassword || !newPassword) {
+      return showSettingsMsg('settingsPasswordMsg', 'Mot de passe actuel et nouveau mot de passe requis.', true);
+    }
+    if (newPassword.length < 6) {
+      return showSettingsMsg('settingsPasswordMsg', 'Le nouveau mot de passe doit contenir au moins 6 caractères.', true);
+    }
+    if (newPassword !== confirmPassword) {
+      return showSettingsMsg('settingsPasswordMsg', 'La confirmation ne correspond pas au nouveau mot de passe.', true);
+    }
+    try {
+      await api('/api/users/me/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
+      $('currentPasswordInput').value = '';
+      $('newPasswordInput').value = '';
+      $('confirmPasswordInput').value = '';
+      showSettingsMsg('settingsPasswordMsg', 'Mot de passe changé avec succès.');
+    } catch (err) {
+      showSettingsMsg('settingsPasswordMsg', err.message, true);
+    }
+  });
+
+  $('ringtoneToggle').addEventListener('change', () => {
+    ringtoneMuted = !$('ringtoneToggle').checked;
+    localStorage.setItem('seourou_ringtone_muted', ringtoneMuted ? '1' : '0');
+  });
+
+  $('themeToggle').addEventListener('change', () => {
+    const light = $('themeToggle').checked;
+    document.body.classList.toggle('theme-light', light);
+    localStorage.setItem('seourou_theme', light ? 'light' : 'dark');
+  });
+
+  // Reflète l'état réel de l'abonnement (permission + abonnement navigateur
+  // actif), plutôt qu'une simple préférence mémorisée : évite d'afficher le
+  // bouton "activé" alors que la permission a été retirée depuis les réglages
+  // du téléphone sans passer par cette application.
+  async function refreshNotifToggleState() {
+    const toggle = $('notifToggle');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
+      toggle.checked = false;
+      toggle.disabled = true;
+      showSettingsMsg('settingsNotifMsg', 'Notifications non disponibles sur cet appareil/navigateur.', true);
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      toggle.checked = false;
+      toggle.disabled = true;
+      showSettingsMsg('settingsNotifMsg', 'Notifications bloquées dans les réglages du téléphone/navigateur.', true);
+      return;
+    }
+    toggle.disabled = false;
+    showSettingsMsg('settingsNotifMsg', '');
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = registration ? await registration.pushManager.getSubscription() : null;
+      toggle.checked = Boolean(subscription);
+    } catch (err) {
+      toggle.checked = false;
+    }
+  }
+
+  $('notifToggle').addEventListener('change', async () => {
+    const toggle = $('notifToggle');
+    toggle.disabled = true;
+    try {
+      if (toggle.checked) {
+        await setupPushNotifications();
+      } else {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const subscription = registration ? await registration.pushManager.getSubscription() : null;
+        if (subscription) {
+          await api('/api/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: subscription.endpoint }) });
+          await subscription.unsubscribe();
+        }
+      }
+    } catch (err) {
+      showSettingsMsg('settingsNotifMsg', err.message, true);
+    } finally {
+      await refreshNotifToggleState();
+    }
   });
 })();
 </script>

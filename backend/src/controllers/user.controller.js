@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
 
@@ -43,4 +44,49 @@ async function updateMyAvatar(req, res) {
   }
 }
 
-module.exports = { listUsers, updateMyAvatar };
+// Met à jour le nom affiché de l'utilisateur connecté (onglet Paramètres).
+async function updateMyName(req, res) {
+  try {
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'Le nom ne peut pas être vide.' });
+    if (name.length > 80) return res.status(400).json({ error: 'Nom trop long (80 caractères maximum).' });
+
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { name },
+    });
+    return res.json({ user: toPublicUser(user) });
+  } catch (err) {
+    console.error('updateMyName error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la mise à jour du nom.' });
+  }
+}
+
+// Change le mot de passe de l'utilisateur connecté : vérifie l'ancien avant
+// d'enregistrer le nouveau, comme n'importe quel changement de mot de passe.
+async function updateMyPassword(req, res) {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Mot de passe actuel et nouveau mot de passe requis.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 6 caractères.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) return res.status(401).json({ error: 'Mot de passe actuel incorrect.' });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: req.user.id }, data: { password: hashed } });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('updateMyPassword error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors du changement de mot de passe.' });
+  }
+}
+
+module.exports = { listUsers, updateMyAvatar, updateMyName, updateMyPassword };
