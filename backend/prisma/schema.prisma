@@ -22,6 +22,7 @@ model User {
   participations ConversationParticipant[]
   messages        Message[]
   callParticipations CallParticipant[]
+  pushSubscriptions  PushSubscription[]
 }
 
 model Conversation {
@@ -90,5 +91,19 @@ model CallParticipant {
   leftAt   DateTime?
 
   call Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Abonnement du navigateur/appareil aux notifications push (Web Push standard).
+// Un même utilisateur peut avoir plusieurs abonnements (un par appareil/navigateur
+// où il s'est connecté et a autorisé les notifications).
+model PushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

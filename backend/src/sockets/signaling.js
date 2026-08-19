@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma');
 const { roomName } = require('./chat');
+const { sendPushToUser } = require('../utils/push');
 
 // État en mémoire des appels en cours : callId -> Map<socketId, { userId, name }>
 // Pour un déploiement multi-instances, il faudrait déplacer cet état dans Redis (ou utiliser
@@ -46,6 +47,12 @@ function registerSignalingHandlers(io, socket) {
           conversationId,
           type: call.type,
           from: { id: userId, name: userName },
+        });
+
+        // Notification push : utile si l'app n'est pas ouverte au moment de
+        // l'appel (le "call:incoming" ci-dessus ne touche que les sockets connectés).
+        notifyIncomingCall(conversationId, userId, userName, call.type).catch((err) => {
+          console.error('push notify (call) error:', err);
         });
       }
 
@@ -126,6 +133,21 @@ async function leaveCall(io, socket, callId) {
   } catch (err) {
     console.error('leaveCall cleanup error:', err);
   }
+}
+
+async function notifyIncomingCall(conversationId, callerId, callerName, type) {
+  const others = await prisma.conversationParticipant.findMany({
+    where: { conversationId, userId: { not: callerId } },
+    select: { userId: true },
+  });
+  const label = type === 'video' ? 'Appel vidéo entrant' : 'Appel audio entrant';
+  await Promise.all(others.map((p) => sendPushToUser(p.userId, {
+    title: label,
+    body: callerName,
+    tag: 'call:' + conversationId,
+    requireInteraction: true,
+    data: { type: 'call', conversationId },
+  })));
 }
 
 function callRoomName(callId) {

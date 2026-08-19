@@ -1,5 +1,7 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('../controllers/auth.controller');
+const { previewLabel } = require('../controllers/conversation.controller');
+const { sendPushToUser } = require('../utils/push');
 
 // Taille max d'un fichier joint (avant encodage) : 5 Mo. Une fois encodé en
 // base64, une chaîne grossit d'environ 33% (4 caractères pour 3 octets), d'où
@@ -91,6 +93,13 @@ function registerChatHandlers(io, socket) {
 
       io.to(roomName(conversationId)).emit('message:new', payload);
       callback && callback({ message: payload });
+
+      // Notification push : prévient les autres participants même si l'app est
+      // fermée (le socket ci-dessus ne touche que ceux qui ont l'app ouverte).
+      // Ne doit jamais faire échouer l'envoi du message si ça plante.
+      notifyNewMessage(conversationId, userId, message).catch((err) => {
+        console.error('push notify (message) error:', err);
+      });
     } catch (err) {
       console.error('message:send error:', err);
       callback && callback({ error: 'Erreur serveur lors de l\'envoi du message.' });
@@ -105,6 +114,27 @@ function registerChatHandlers(io, socket) {
       isTyping: Boolean(isTyping),
     });
   });
+}
+
+// Envoie une notification push à tous les autres participants de la conversation
+// (le service worker décide lui-même de l'afficher ou non si l'app est déjà au premier plan).
+async function notifyNewMessage(conversationId, senderId, message) {
+  const [sender, others] = await Promise.all([
+    prisma.user.findUnique({ where: { id: senderId } }),
+    prisma.conversationParticipant.findMany({
+      where: { conversationId, userId: { not: senderId } },
+      select: { userId: true },
+    }),
+  ]);
+  if (!sender || others.length === 0) return;
+
+  const body = previewLabel(message);
+  await Promise.all(others.map((p) => sendPushToUser(p.userId, {
+    title: sender.name,
+    body,
+    tag: 'conversation:' + conversationId,
+    data: { type: 'message', conversationId },
+  })));
 }
 
 function roomName(conversationId) {

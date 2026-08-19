@@ -44,3 +44,58 @@ self.addEventListener('fetch', (event) => {
       .catch(() => caches.match(req).then((cached) => cached || caches.match('/')))
   );
 });
+
+// ---------- Notifications push ----------
+// Reçoit une notification envoyée par le serveur (nouveau message ou appel
+// entrant) et l'affiche au niveau du système, même si l'application n'est pas
+// ouverte à ce moment-là.
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch (err) {
+    payload = { title: 'seourouApps', body: event.data ? event.data.text() : '' };
+  }
+
+  const title = payload.title || 'seourouApps';
+  const options = {
+    body: payload.body || '',
+    icon: '/icon-192.png',
+    badge: '/icon-192.png',
+    tag: payload.tag,
+    requireInteraction: Boolean(payload.requireInteraction),
+    data: payload.data || {},
+  };
+
+  event.waitUntil(
+    // Si une fenêtre de l'app est déjà ouverte ET affichée à l'écran (l'utilisateur
+    // est déjà en train de discuter), pas besoin d'une notification système en plus :
+    // le message/l'appel apparaît déjà en direct dans l'interface (via Socket.io).
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      const appVisible = clients.some((c) => c.visibilityState === 'visible' && c.focused);
+      if (appVisible) return;
+      return self.registration.showNotification(title, options);
+    })
+  );
+});
+
+// Clic sur une notification : ramène au premier plan un onglet déjà ouvert de
+// l'app si possible, sinon en ouvre un nouveau.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const data = event.notification.data || {};
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ('focus' in client) {
+          client.focus();
+          client.postMessage({ type: 'notification-click', data });
+          return;
+        }
+      }
+      const url = data.conversationId ? '/?c=' + encodeURIComponent(data.conversationId) : '/';
+      return self.clients.openWindow(url);
+    })
+  );
+});

@@ -298,6 +298,10 @@
   let users = [];
   let activeConversationId = null;
   let messagesByConv = {}; // conversationId -> [messages]
+  // Si l'app a été ouverte depuis une notification (clic sur "nouveau message"/"appel
+  // entrant" alors qu'aucun onglet n'était déjà ouvert), le service worker ajoute
+  // "?c=<conversationId>" à l'URL d'ouverture : on retrouve la conversation visée ici.
+  let pendingConversationIdFromNotification = new URLSearchParams(location.search).get('c') || null;
   let typingTimeout = null;
 
   // Pièces jointes (photo, fichier, message vocal) : taille max côté client,
@@ -535,6 +539,7 @@
     connectSocket();
     loadUsers();
     loadConversations();
+    setupPushNotifications();
   }
 
   $('logoutBtn').addEventListener('click', () => {
@@ -636,7 +641,19 @@
       const data = await api('/api/conversations');
       conversations = data.conversations;
       renderConvList();
+      maybeOpenPendingConversation();
     } catch (err) { console.error(err); }
+  }
+
+  // Ouvre automatiquement la conversation visée par une notification cliquée
+  // (message ou appel), une fois que la liste des conversations est chargée.
+  function maybeOpenPendingConversation() {
+    if (!pendingConversationIdFromNotification) return;
+    const id = pendingConversationIdFromNotification;
+    if (conversations.find((c) => c.id === id)) {
+      pendingConversationIdFromNotification = null;
+      openConversation(id);
+    }
   }
 
   // Rend le HTML d'un avatar : la vraie photo si l'utilisateur en a une,
@@ -1228,6 +1245,63 @@
         console.warn('Service worker non enregistré :', err.message);
       });
     });
+
+    // Clic sur une notification alors qu'un onglet de l'app était déjà ouvert :
+    // le service worker (sw.js) l'a ramené au premier plan et nous transmet ici
+    // la conversation visée, pour l'ouvrir directement sans recharger la page.
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      const msg = event.data;
+      if (msg && msg.type === 'notification-click' && msg.data && msg.data.conversationId) {
+        pendingConversationIdFromNotification = msg.data.conversationId;
+        maybeOpenPendingConversation();
+      }
+    });
+  }
+
+  // ---------- Notifications push ----------
+  // Convertit la clé publique VAPID (texte base64 "URL-safe") au format binaire
+  // attendu par pushManager.subscribe. C'est le format d'échange standard de
+  // l'écosystème Web Push, il n'y a pas d'alternative plus simple ici.
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  // Demande la permission puis abonne ce navigateur/appareil aux notifications
+  // push, et enregistre l'abonnement côté serveur pour l'utilisateur connecté.
+  // N'affiche jamais d'erreur bloquante : si ça échoue (permission refusée,
+  // navigateur non compatible, ex: Safari en onglet normal sur iPhone plutôt
+  // qu'installé sur l'écran d'accueil...), l'app continue de fonctionner sans.
+  async function setupPushNotifications() {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+      const { publicKey, enabled } = await api('/api/push/vapid-public-key');
+      if (!enabled || !publicKey) return; // pas encore configuré côté serveur (clés VAPID absentes)
+
+      if (Notification.permission === 'denied') return;
+      if (Notification.permission === 'default') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
+      }
+
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+
+      await api('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription.toJSON()) });
+    } catch (err) {
+      console.warn('Notifications push non activées :', err.message);
+    }
   }
 })();
 </script>

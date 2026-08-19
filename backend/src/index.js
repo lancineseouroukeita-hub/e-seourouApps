@@ -8,6 +8,7 @@ const { Server } = require('socket.io');
 const authRoutes = require('./routes/auth.routes');
 const userRoutes = require('./routes/user.routes');
 const conversationRoutes = require('./routes/conversation.routes');
+const pushRoutes = require('./routes/push.routes');
 const { setupSocket } = require('./sockets');
 
 const app = express();
@@ -26,6 +27,7 @@ app.get('/health', (req, res) => res.json({ status: 'ok' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/conversations', conversationRoutes);
+app.use('/api/push', pushRoutes);
 
 // Sert l'application web (testeur/PWA) : le dossier public/ contient index.html,
 // le manifest PWA, le service worker et les icônes. Comme c'est servi par ce même

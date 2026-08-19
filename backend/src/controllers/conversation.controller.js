@@ -120,4 +120,4 @@ async function getMessages(req, res) {
   });
 }
 
-module.exports = { listConversations, createConversation, getMessages };
+module.exports = { listConversations, createConversation, getMessages, previewLabel };
