@@ -41,6 +41,10 @@ model ConversationParticipant {
   conversationId String
   userId         String
   joinedAt       DateTime @default(now())
+  // Dernière fois que cet utilisateur a ouvert/vu la conversation : sert à savoir
+  // quels messages envoyés par les AUTRES participants ont été "lus" par lui
+  // (affichage des doubles coches ✓✓, comme WhatsApp/iMessage).
+  lastReadAt     DateTime?
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -66,6 +70,11 @@ model Message {
   attachmentName  String? // nom du fichier d'origine
   attachmentSize  Int?    // taille en octets du fichier d'origine
   duration        Int?    // durée en secondes, pour les messages vocaux
+
+  // Suppression "douce" : la ligne reste (pour ne pas casser l'historique/les
+  // aperçus), mais le contenu et la pièce jointe sont effacés et remplacés par
+  // un texte de substitution ("Message supprimé") côté client.
+  deleted         Boolean @default(false)
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)

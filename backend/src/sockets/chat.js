@@ -80,6 +80,7 @@ function registerChatHandlers(io, socket) {
         conversationId,
         content: message.content,
         type: message.type,
+        deleted: false,
         attachment: hasAttachment ? {
           data: message.attachmentData,
           mime: message.attachmentMime,
@@ -113,6 +114,65 @@ function registerChatHandlers(io, socket) {
       userId,
       isTyping: Boolean(isTyping),
     });
+  });
+
+  // Suppression d'un message : seul son auteur peut le faire. On garde la ligne
+  // en base (suppression "douce") mais on efface le contenu/la pièce jointe, et
+  // on prévient tout le monde dans la conversation pour que l'affichage se
+  // remplace par "Message supprimé" en direct, des deux côtés.
+  socket.on('message:delete', async ({ messageId }, callback) => {
+    try {
+      if (!messageId) return callback && callback({ error: 'messageId requis.' });
+
+      const message = await prisma.message.findUnique({ where: { id: messageId } });
+      if (!message) return callback && callback({ error: 'Message introuvable.' });
+      if (message.senderId !== userId) {
+        return callback && callback({ error: 'Vous ne pouvez supprimer que vos propres messages.' });
+      }
+
+      await prisma.message.update({
+        where: { id: messageId },
+        data: {
+          deleted: true,
+          content: '',
+          attachmentData: null,
+          attachmentMime: null,
+          attachmentName: null,
+          attachmentSize: null,
+          duration: null,
+        },
+      });
+
+      io.to(roomName(message.conversationId)).emit('message:deleted', {
+        conversationId: message.conversationId,
+        messageId,
+      });
+      callback && callback({ ok: true });
+    } catch (err) {
+      console.error('message:delete error:', err);
+      callback && callback({ error: 'Erreur serveur lors de la suppression du message.' });
+    }
+  });
+
+  // Marque la conversation comme lue par l'utilisateur courant à cet instant.
+  // Sert à afficher les doubles coches (✓✓) sur les messages envoyés par les
+  // autres participants dès qu'ils ont ouvert la conversation (comme WhatsApp).
+  socket.on('conversation:read', async ({ conversationId }) => {
+    if (!conversationId) return;
+    try {
+      const readAt = new Date();
+      await prisma.conversationParticipant.updateMany({
+        where: { conversationId, userId },
+        data: { lastReadAt: readAt },
+      });
+      socket.to(roomName(conversationId)).emit('conversation:read-receipt', {
+        conversationId,
+        userId,
+        readAt,
+      });
+    } catch (err) {
+      console.error('conversation:read error:', err);
+    }
   });
 }
 

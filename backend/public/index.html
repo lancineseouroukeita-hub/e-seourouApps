@@ -89,7 +89,15 @@
   .msgRow:not(.mine) .bubble{background:var(--panel2);border-bottom-left-radius:4px;}
   .bubble .sender{font-size:11px;color:var(--muted);margin-bottom:2px;}
   .msgRow.mine .bubble .sender{color:rgba(255,255,255,.75);}
-  .bubble .time{font-size:10px;opacity:.6;margin-top:3px;}
+  .msgMeta{display:flex;align-items:center;gap:5px;margin-top:3px;}
+  .bubble .time{font-size:10px;opacity:.6;}
+  /* Coche simple = envoyé, double coche = lu par le(s) destinataire(s) (comme
+     WhatsApp/iMessage) ; affichée uniquement sur nos propres messages. */
+  .ticks{font-size:11px;opacity:.7;}
+  .ticks.read{opacity:1;color:#63d4ff;}
+  .deleteMsgBtn{background:none;border:none;cursor:pointer;font-size:11px;opacity:.55;padding:0;line-height:1;color:inherit;}
+  .deleteMsgBtn:hover{opacity:1;}
+  .msgDeleted{font-style:italic;opacity:.65;font-size:13px;}
   #typingIndicator{padding:0 18px 4px;font-size:12px;color:var(--muted);min-height:16px;}
   /* padding-bottom en plus : sur iPhone/Android récents, la barre de geste du bas
      (home indicator) peut chevaucher le bouton "Envoyer" sans cette marge de sécurité. */
@@ -575,7 +583,37 @@
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
       messagesByConv[msg.conversationId].push(msg);
       bumpConversationPreview(msg.conversationId, msg);
-      if (msg.conversationId === activeConversationId) renderMessages();
+      if (msg.conversationId === activeConversationId) {
+        renderMessages();
+        // On voit déjà la conversation en direct : on la marque comme lue tout de
+        // suite (sauf si c'est notre propre message qui revient via le broadcast).
+        if (msg.sender?.id !== me.id) socket.emit('conversation:read', { conversationId: msg.conversationId });
+      }
+    });
+
+    // Un message a été supprimé (par son auteur, sur cet appareil ou un autre) :
+    // on remplace son contenu par le texte de substitution et on ré-affiche.
+    socket.on('message:deleted', ({ conversationId, messageId }) => {
+      const list = messagesByConv[conversationId];
+      const m = list && list.find((x) => x.id === messageId);
+      if (m) { m.deleted = true; m.content = ''; m.attachment = null; }
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
+        conv.lastMessage.content = '🚫 Message supprimé';
+        renderConvList();
+      }
+      if (conversationId === activeConversationId) renderMessages();
+    });
+
+    // L'autre participant vient d'ouvrir/lire la conversation : on met à jour
+    // son "lastReadAt" localement pour afficher les doubles coches sur nos messages.
+    socket.on('conversation:read-receipt', ({ conversationId, userId, readAt }) => {
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (conv) {
+        const p = conv.participants.find((pp) => pp.id === userId);
+        if (p) p.lastReadAt = readAt;
+      }
+      if (conversationId === activeConversationId) renderMessages();
     });
 
     socket.on('typing', ({ conversationId, userId, isTyping }) => {
@@ -726,6 +764,7 @@
     $('mainScreen').classList.add('chatOpen'); // n'a d'effet que sur téléphone (voir media query)
 
     socket.emit('conversation:join', { conversationId: convId });
+    socket.emit('conversation:read', { conversationId: convId });
 
     const conv = conversations.find((c) => c.id === convId);
     const other = conv.participants.find((p) => p.id !== me.id) || conv.participants[0];
@@ -750,15 +789,34 @@
     const el = $('messages');
     el.innerHTML = '';
     const list = messagesByConv[activeConversationId] || [];
+    const conv = conversations.find((c) => c.id === activeConversationId);
     list.forEach((m) => {
       const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
       const row = document.createElement('div');
       row.className = 'msgRow' + (mine ? ' mine' : '');
+      const body = m.deleted ? `<div class="msgDeleted">🚫 Message supprimé</div>` : renderMessageBody(m);
+      const deleteBtn = (mine && !m.deleted)
+        ? `<button class="deleteMsgBtn" data-id="${m.id}" title="Supprimer ce message">🗑️</button>`
+        : '';
+      const ticks = (mine && !m.deleted)
+        ? (() => { const read = isReadByOthers(m, conv); return `<span class="ticks${read ? ' read' : ''}">${read ? '✓✓' : '✓'}</span>`; })()
+        : '';
       row.innerHTML = `<div class="bubble">${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
-        ${renderMessageBody(m)}<div class="time">${fmtTime(m.createdAt)}</div></div>`;
+        ${body}<div class="msgMeta">${deleteBtn}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
       el.appendChild(row);
     });
     el.scrollTop = el.scrollHeight;
+  }
+
+  // Un message envoyé par moi est considéré "lu" quand TOUS les autres
+  // participants de la conversation ont un lastReadAt postérieur à son envoi
+  // (pour une conversation à 2, ça revient simplement à l'autre personne).
+  function isReadByOthers(m, conv) {
+    if (!conv) return false;
+    const others = conv.participants.filter((p) => p.id !== me.id);
+    if (others.length === 0) return false;
+    const sentAt = new Date(m.createdAt).getTime();
+    return others.every((p) => p.lastReadAt && new Date(p.lastReadAt).getTime() >= sentAt);
   }
 
   // Construit le contenu d'une bulle selon le type de message (texte, photo,
@@ -810,6 +868,7 @@
   // Aperçu texte utilisé dans la liste des conversations quand un message
   // arrive en temps réel (miroir de previewLabel() côté serveur).
   function messagePreviewText(m) {
+    if (m.deleted) return '🚫 Message supprimé';
     if (m.type === 'image') return '📷 Photo';
     if (m.type === 'voice') return '🎤 Message vocal';
     if (m.type === 'file') return '📎 ' + (m.attachment && m.attachment.name ? m.attachment.name : 'Fichier');
@@ -831,6 +890,21 @@
     socket.emit('typing', { conversationId: activeConversationId, isTyping: true });
     clearTimeout(typingTimeout);
     typingTimeout = setTimeout(() => socket.emit('typing', { conversationId: activeConversationId, isTyping: false }), 1200);
+  });
+
+  // Clic sur l'icône 🗑️ d'un de nos propres messages (texte, photo, fichier ou
+  // vocal) : demande confirmation puis supprime pour tout le monde. Écouteur
+  // unique posé sur le conteneur (délégation d'événement), car les messages
+  // sont entièrement reconstruits à chaque renderMessages().
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.deleteMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    if (!messageId) return;
+    if (!confirm('Supprimer ce message ? Cette action est irréversible.')) return;
+    socket.emit('message:delete', { messageId }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+    });
   });
 
   // "attachment", s'il est fourni, a la forme { data (base64), mime, name, size, duration?, type }.

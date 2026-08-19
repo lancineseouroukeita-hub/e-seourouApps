@@ -4,6 +4,7 @@ const { toPublicUser } = require('./auth.controller');
 // Texte d'aperçu affiché dans la liste des conversations pour un message avec
 // pièce jointe (pas de texte, ou en complément d'une légende).
 function previewLabel(message) {
+  if (message.deleted) return '🚫 Message supprimé';
   if (message.type === 'image') return '📷 Photo';
   if (message.type === 'voice') return '🎤 Message vocal';
   if (message.type === 'file') return '📎 ' + (message.attachmentName || 'Fichier');
@@ -16,7 +17,10 @@ function serializeConversation(conv, currentUserId) {
     isGroup: conv.isGroup,
     name: conv.name,
     createdAt: conv.createdAt,
-    participants: conv.participants.map((p) => toPublicUser(p.user)),
+    // On inclut lastReadAt (par participant) en plus des infos publiques de
+    // l'utilisateur : c'est ce qui permet au client d'afficher une coche simple
+    // (envoyé) ou double (lu par le destinataire), comme WhatsApp/iMessage.
+    participants: conv.participants.map((p) => Object.assign({}, toPublicUser(p.user), { lastReadAt: p.lastReadAt })),
     lastMessage: conv.messages && conv.messages[0]
       ? {
         id: conv.messages[0].id,
@@ -107,7 +111,8 @@ async function getMessages(req, res) {
       conversationId: m.conversationId,
       content: m.content,
       type: m.type,
-      attachment: m.type !== 'text' ? {
+      deleted: m.deleted,
+      attachment: (m.type !== 'text' && !m.deleted) ? {
         data: m.attachmentData,
         mime: m.attachmentMime,
         name: m.attachmentName,
