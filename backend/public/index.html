@@ -218,6 +218,11 @@
     </div>
   </div>
 
+  <!-- Sonnerie d'appel entrant : un vrai fichier audio, plus fiable pour être
+       débloqué par les navigateurs que le son généré par Web Audio seul (voir
+       unlockRingAudio ci-dessous). Gardé en plus, pas à la place. -->
+  <audio id="ringtoneAudio" src="/ringtone.wav" loop preload="auto" style="display:none"></audio>
+
   <div id="callOverlay">
     <div id="callHeader">
       <span id="callInfo">Appel en cours…</span>
@@ -284,27 +289,38 @@
   let micEnabled = true, camEnabled = true;
 
   // ---------- Sonnerie d'appel entrant ----------
-  // Générée directement en code (deux tonalités alternées façon téléphone),
-  // donc pas besoin d'héberger un fichier audio séparé.
+  // Deux mécanismes en parallèle, pour maximiser les chances qu'au moins un
+  // fonctionne selon le navigateur :
+  //  1) Un vrai fichier audio (<audio src="/ringtone.wav">) : le "jouer puis
+  //     mettre en pause aussitôt" pendant un clic réel est le contournement
+  //     standard le plus fiable pour débloquer la lecture audio future
+  //     (reconnu par tous les navigateurs, plus robuste que Web Audio seul).
+  //  2) Un son généré par Web Audio (comme avant) + une vibration sur mobile.
+  const ringtoneAudioEl = document.getElementById('ringtoneAudio');
+  let ringtoneUnlocked = false;
   let ringAudioCtx = null;
   let ringIntervalId = null;
 
   // Les navigateurs bloquent le son tant qu'il n'y a pas eu d'interaction de
-  // l'utilisateur sur la page (clic, appui...). On "débloque" donc le contexte
-  // audio dès la première interaction, pour être prêt le moment venu d'un appel entrant.
-  //
-  // Bug corrigé : sur certains navigateurs (Safari/iOS notamment), un AudioContext
-  // fraîchement créé démarre déjà en état "suspended" même s'il a été créé pendant
-  // un clic — il faut alors appeler resume() explicitement juste après l'avoir créé,
-  // pas seulement lors des clics suivants. Avant ce correctif, seul le cas "le
-  // contexte existe déjà et est suspendu" appelait resume(), donc le tout premier
-  // clic ne débloquait pas vraiment le son sur ces navigateurs.
+  // l'utilisateur sur la page (clic, appui...). On "débloque" donc dès la
+  // première interaction, pour être prêt le moment venu d'un appel entrant.
   function unlockRingAudio() {
     if (!ringAudioCtx) {
-      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* ignore */ }
     }
-    if (ringAudioCtx.state === 'suspended') {
+    if (ringAudioCtx && ringAudioCtx.state === 'suspended') {
       ringAudioCtx.resume().catch(() => { /* ignore */ });
+    }
+
+    if (!ringtoneUnlocked && ringtoneAudioEl) {
+      const p = ringtoneAudioEl.play();
+      if (p && p.then) {
+        p.then(() => {
+          ringtoneAudioEl.pause();
+          ringtoneAudioEl.currentTime = 0;
+          ringtoneUnlocked = true;
+        }).catch(() => { /* toujours bloqué, on retentera à la prochaine interaction */ });
+      }
     }
   }
   // On écoute plusieurs types d'interaction (souris ET tactile ET clavier) car
@@ -338,17 +354,32 @@
 
   function startRingtone() {
     if (!ringAudioCtx) {
-      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
+      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* ignore */ }
     }
-    if (ringAudioCtx.state === 'suspended') ringAudioCtx.resume();
-    stopRingtone();
+    if (ringAudioCtx && ringAudioCtx.state === 'suspended') ringAudioCtx.resume().catch(() => { /* ignore */ });
+
+    if (ringtoneAudioEl) {
+      ringtoneAudioEl.currentTime = 0;
+      ringtoneAudioEl.play().catch((err) => {
+        // Pas une "vraie" erreur : juste le navigateur qui bloque encore la
+        // lecture (aucune interaction n'a eu lieu sur cette page pour l'instant).
+        console.warn('Sonnerie audio bloquée par le navigateur (pas encore débloquée par un clic/appui) :', err && err.name);
+      });
+    }
+
+    stopRingtoneOscillator();
     playRingOnce();
     ringIntervalId = setInterval(playRingOnce, 1600);
   }
 
-  function stopRingtone() {
+  function stopRingtoneOscillator() {
     if (ringIntervalId) { clearInterval(ringIntervalId); ringIntervalId = null; }
+  }
+
+  function stopRingtone() {
+    stopRingtoneOscillator();
     if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) { /* ignore */ } }
+    if (ringtoneAudioEl) { ringtoneAudioEl.pause(); ringtoneAudioEl.currentTime = 0; }
   }
 
   // ---------- Helpers ----------
