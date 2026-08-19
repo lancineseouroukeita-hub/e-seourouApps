@@ -540,6 +540,7 @@
     loadUsers();
     loadConversations();
     setupPushNotifications();
+    clearNotificationsAndBadge();
   }
 
   $('logoutBtn').addEventListener('click', () => {
@@ -1303,6 +1304,32 @@
       console.warn('Notifications push non activées :', err.message);
     }
   }
+
+  // ---------- Badge sur l'icône de l'app (petit rond avec un chiffre, comme WhatsApp) ----------
+  // Dès que l'utilisateur revient sur l'app (elle redevient visible/au premier plan),
+  // on considère qu'il a "vu" les notifications en attente : on les referme et on
+  // remet le badge à zéro, comme le ferait n'importe quelle appli de messagerie.
+  async function clearNotificationsAndBadge() {
+    try {
+      if ('clearAppBadge' in navigator) navigator.clearAppBadge().catch(() => {});
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration && registration.getNotifications) {
+          const notifs = await registration.getNotifications();
+          notifs.forEach((n) => n.close());
+        }
+      }
+    } catch (err) {
+      // Pas grave si ça échoue (API non supportée) : ça n'affecte que le badge, pas le chat.
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && me) clearNotificationsAndBadge();
+  });
+  window.addEventListener('focus', () => {
+    if (me) clearNotificationsAndBadge();
+  });
 })();
 </script>
 </body>

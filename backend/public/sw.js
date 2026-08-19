@@ -71,9 +71,19 @@ self.addEventListener('push', (event) => {
     // Si une fenêtre de l'app est déjà ouverte ET affichée à l'écran (l'utilisateur
     // est déjà en train de discuter), pas besoin d'une notification système en plus :
     // le message/l'appel apparaît déjà en direct dans l'interface (via Socket.io).
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(async (clients) => {
       const appVisible = clients.some((c) => c.visibilityState === 'visible' && c.focused);
       if (appVisible) return;
+
+      // Badge sur l'icône de l'app (le petit rond avec un chiffre, comme WhatsApp) :
+      // on compte les notifications déjà affichées (pas encore lues/fermées) et on
+      // ajoute celle-ci. Pas besoin de stocker un compteur séparé : dès que
+      // l'utilisateur lit/ferme une notification, le décompte se met à jour tout seul.
+      if ('setAppBadge' in self.navigator) {
+        const existing = await self.registration.getNotifications();
+        self.navigator.setAppBadge(existing.length + 1).catch(() => {});
+      }
+
       return self.registration.showNotification(title, options);
     })
   );
@@ -86,16 +96,31 @@ self.addEventListener('notificationclick', (event) => {
   const data = event.notification.data || {};
 
   event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
-      for (const client of clients) {
-        if ('focus' in client) {
-          client.focus();
-          client.postMessage({ type: 'notification-click', data });
-          return;
+    Promise.all([
+      updateBadgeFromRemainingNotifications(),
+      self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clients) => {
+        for (const client of clients) {
+          if ('focus' in client) {
+            client.focus();
+            client.postMessage({ type: 'notification-click', data });
+            return;
+          }
         }
-      }
-      const url = data.conversationId ? '/?c=' + encodeURIComponent(data.conversationId) : '/';
-      return self.clients.openWindow(url);
-    })
+        const url = data.conversationId ? '/?c=' + encodeURIComponent(data.conversationId) : '/';
+        return self.clients.openWindow(url);
+      }),
+    ])
   );
 });
+
+// Recalcule le badge de l'icône à partir des notifications encore affichées
+// (après qu'une notification a été fermée/lue), ou l'efface s'il n'en reste aucune.
+async function updateBadgeFromRemainingNotifications() {
+  if (!('setAppBadge' in self.navigator)) return;
+  const remaining = await self.registration.getNotifications();
+  if (remaining.length > 0) {
+    self.navigator.setAppBadge(remaining.length).catch(() => {});
+  } else if ('clearAppBadge' in self.navigator) {
+    self.navigator.clearAppBadge().catch(() => {});
+  }
+}
