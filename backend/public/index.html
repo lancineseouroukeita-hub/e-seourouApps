@@ -67,7 +67,8 @@
 
   #chatArea{flex:1;display:flex;flex-direction:column;min-width:0;}
   #chatHeader{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
-  #chatHeader .title{font-size:15px;font-weight:600;}
+  #chatHeader .title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #backToListBtn{display:none;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:15px;flex-shrink:0;}
   #chatHeader .callBtns{margin-left:auto;display:flex;gap:8px;}
   #chatHeader button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;}
   #chatHeader button:hover{background:#282e3a;}
@@ -127,6 +128,34 @@
 
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:#333a47;border-radius:4px;}
+
+  /* ---------- Écrans étroits (téléphone) ---------- */
+  /* Avant : la liste des conversations ET la conversation ouverte étaient
+     toujours affichées côte à côte (mise en page pensée pour un écran large),
+     ce qui obligeait à zoomer/dézoomer sur téléphone pour tout voir. On passe
+     ici à une navigation "une page à la fois", comme les applis de
+     messagerie habituelles : soit la liste, soit la conversation ouverte,
+     avec un bouton retour pour revenir à la liste. */
+  @media (max-width: 700px) {
+    /* Les champs de test/débogage (URL de l'API) ne servent qu'en dev, pas au quotidien. */
+    #apiBaseInput, #testBackendBtn, #statusText{display:none;}
+    #topbar{gap:8px;padding:8px 10px;}
+    #whoami{gap:6px;}
+    #whoamiText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34vw;}
+    #logoutBtn{padding:6px 8px;font-size:12px;}
+
+    #mainScreen.show{position:relative;overflow:hidden;}
+    #sidebar{width:100%;border-right:none;position:absolute;inset:0;z-index:1;}
+    #chatArea{position:absolute;inset:0;z-index:2;display:none;}
+    /* Une fois une conversation ouverte, on affiche le panneau de chat par-dessus
+       (en plein écran) et on cache la liste, plutôt que de les serrer côte à côte. */
+    #mainScreen.show.chatOpen #sidebar{display:none;}
+    #mainScreen.show.chatOpen #chatArea{display:flex;}
+
+    #backToListBtn{display:inline-flex;align-items:center;justify-content:center;}
+    .bubble{max-width:82%;}
+    .msgImage{max-width:min(240px, 70vw);max-height:min(240px, 70vw);}
+  }
 </style>
 </head>
 <body>
@@ -189,6 +218,7 @@
       <div id="emptyState">Choisissez un utilisateur à gauche pour démarrer une conversation.</div>
       <div id="activeChat" style="display:none;flex-direction:column;flex:1;min-height:0;">
         <div id="chatHeader">
+          <button id="backToListBtn" title="Retour à la liste">←</button>
           <div class="avatar" id="chatAvatar">?</div>
           <div class="title" id="chatTitle">—</div>
           <div class="callBtns">
@@ -487,13 +517,20 @@
     if (socket) socket.disconnect();
     token = null; me = null; activeConversationId = null;
     conversations = []; users = []; messagesByConv = {};
-    $('mainScreen').classList.remove('show');
+    $('mainScreen').classList.remove('show', 'chatOpen');
     $('authScreen').style.display = 'flex';
     $('whoamiText').textContent = '';
     renderMyAvatar();
     $('logoutBtn').style.display = 'none';
     $('convList').innerHTML = ''; $('userList').innerHTML = '';
     $('emptyState').style.display = 'flex'; $('activeChat').style.display = 'none';
+  });
+
+  // Sur téléphone (écran étroit), la conversation ouverte s'affiche par-dessus
+  // la liste plutôt qu'à côté (voir la media query dans <style>) ; ce bouton
+  // permet d'y revenir sans perdre la conversation (juste masquée).
+  $('backToListBtn').addEventListener('click', () => {
+    $('mainScreen').classList.remove('chatOpen');
   });
 
   // ---------- Socket ----------
@@ -636,6 +673,7 @@
     renderConvList();
     $('emptyState').style.display = 'none';
     $('activeChat').style.display = 'flex';
+    $('mainScreen').classList.add('chatOpen'); // n'a d'effet que sur téléphone (voir media query)
 
     socket.emit('conversation:join', { conversationId: convId });
 
