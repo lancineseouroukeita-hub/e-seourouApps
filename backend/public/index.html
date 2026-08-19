@@ -27,7 +27,13 @@
   /* padding-top/left/right tiennent compte de l'encoche/barre d'état du téléphone
      (voir le "viewport-fit=cover" dans <head>) : sans ça, sur un iPhone installé en
      PWA, l'heure/le réseau du téléphone se superposent au contenu de la barre. */
-  #topbar{display:flex;align-items:center;gap:10px;padding:max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));background:var(--panel);border-bottom:1px solid var(--border);font-size:13px;}
+  /* Le minimum est volontairement plus haut que sur iPhone (28px au lieu de 8px) :
+     sur Android, la variable env(safe-area-inset-top) ne reflète souvent que
+     l'encoche/le poinçon caméra, pas la barre de statut classique (qui, elle,
+     n'a pas de hauteur "officiellement" annoncée au navigateur). Un minimum fixe
+     plus généreux garantit que la barre de statut ne chevauche jamais le bandeau,
+     même quand env() renvoie 0. */
+  #topbar{display:flex;align-items:center;gap:10px;padding:max(28px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));background:var(--panel);border-bottom:1px solid var(--border);font-size:13px;}
   #topbar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:13px;width:220px;}
   #topbar button{background:var(--accent);border:none;color:white;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;}
   #topbar button:hover{background:var(--accent2);}
@@ -144,7 +150,7 @@
   @media (max-width: 700px) {
     /* Les champs de test/débogage (URL de l'API) ne servent qu'en dev, pas au quotidien. */
     #apiBaseInput, #testBackendBtn, #statusText{display:none;}
-    #topbar{gap:8px;padding:max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left));}
+    #topbar{gap:8px;padding:max(28px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left));}
     #whoami{gap:6px;}
     #whoamiText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34vw;}
     #logoutBtn{padding:6px 8px;font-size:12px;}
