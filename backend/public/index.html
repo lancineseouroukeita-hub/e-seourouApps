@@ -316,6 +316,7 @@
   let currentCall = null; // { callId, conversationId, type }
   let peerConnections = {}; // socketId -> RTCPeerConnection
   let callTimerInterval = null;
+  let callBaseInfoText = '';
   let micEnabled = true, camEnabled = true;
 
   // ---------- Sonnerie d'appel entrant ----------
@@ -585,6 +586,14 @@
 
     socket.on('call:user-left', ({ socketId }) => {
       removePeer(socketId);
+      // Cas d'un appel à deux (le plus courant ici) : si l'autre personne vient
+      // de raccrocher, il ne reste plus aucun pair connecté de notre côté — on
+      // referme donc aussi l'appel automatiquement, sans attendre que la
+      // personne encore "dans l'appel" clique elle-même sur raccrocher.
+      // (Pour un appel de groupe, l'appel continue tant qu'il reste des pairs.)
+      if (currentCall && Object.keys(peerConnections).length === 0) {
+        hangup();
+      }
     });
   }
 
@@ -962,7 +971,8 @@
   function openCallOverlay(type) {
     $('incomingCall').classList.remove('show');
     $('callOverlay').classList.add('show');
-    $('callInfo').textContent = (type === 'audio' ? 'Appel audio' : 'Appel vidéo') + ' en cours';
+    callBaseInfoText = (type === 'audio' ? 'Appel audio' : 'Appel vidéo') + ' en cours';
+    updateCallInfoText('connexion en cours…');
     let secs = 0;
     clearInterval(callTimerInterval);
     callTimerInterval = setInterval(() => {
@@ -971,6 +981,13 @@
       const s = String(secs % 60).padStart(2, '0');
       $('callTimer').textContent = m + ':' + s;
     }, 1000);
+  }
+
+  // Affiche l'état réel de la connexion directement dans l'écran d'appel (pas
+  // besoin d'ouvrir la Console) : utile car un chrono qui avance ne veut pas
+  // forcément dire que le son/l'image passe vraiment entre les deux appareils.
+  function updateCallInfoText(statusSuffix) {
+    $('callInfo').textContent = callBaseInfoText + (statusSuffix ? ' — ' + statusSuffix : '');
   }
 
   function addLocalVideoTile() {
@@ -1003,7 +1020,17 @@
     // "completed") ou si elle reste bloquée ("checking"/"failed") — un problème
     // réseau (pare-feu, NAT strict) plutôt qu'un problème de lecture audio.
     pc.oniceconnectionstatechange = () => {
-      console.log('[appel] État connexion avec ' + (name || socketId) + ' :', pc.iceConnectionState);
+      const state = pc.iceConnectionState;
+      console.log('[appel] État connexion avec ' + (name || socketId) + ' :', state);
+      if (state === 'connected' || state === 'completed') {
+        updateCallInfoText('connecté');
+      } else if (state === 'checking') {
+        updateCallInfoText('connexion en cours…');
+      } else if (state === 'disconnected') {
+        updateCallInfoText('connexion instable…');
+      } else if (state === 'failed') {
+        updateCallInfoText('échec de connexion réseau ⚠️');
+      }
     };
 
     pc.ontrack = (e) => {
