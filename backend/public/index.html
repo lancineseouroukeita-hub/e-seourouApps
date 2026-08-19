@@ -24,7 +24,10 @@
   #app{display:flex;flex-direction:column;height:100vh;}
 
   /* Top bar */
-  #topbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);font-size:13px;}
+  /* padding-top/left/right tiennent compte de l'encoche/barre d'état du téléphone
+     (voir le "viewport-fit=cover" dans <head>) : sans ça, sur un iPhone installé en
+     PWA, l'heure/le réseau du téléphone se superposent au contenu de la barre. */
+  #topbar{display:flex;align-items:center;gap:10px;padding:max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));background:var(--panel);border-bottom:1px solid var(--border);font-size:13px;}
   #topbar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:13px;width:220px;}
   #topbar button{background:var(--accent);border:none;color:white;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;}
   #topbar button:hover{background:var(--accent2);}
@@ -82,7 +85,9 @@
   .msgRow.mine .bubble .sender{color:rgba(255,255,255,.75);}
   .bubble .time{font-size:10px;opacity:.6;margin-top:3px;}
   #typingIndicator{padding:0 18px 4px;font-size:12px;color:var(--muted);min-height:16px;}
-  #composer{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--border);}
+  /* padding-bottom en plus : sur iPhone/Android récents, la barre de geste du bas
+     (home indicator) peut chevaucher le bouton "Envoyer" sans cette marge de sécurité. */
+  #composer{display:flex;align-items:center;gap:8px;padding:12px 18px max(12px, env(safe-area-inset-bottom)) 18px;border-top:1px solid var(--border);}
   #composer input[type="text"]{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
   #composer button{background:var(--accent);border:none;color:white;border-radius:8px;padding:0 18px;cursor:pointer;font-size:14px;}
   #composer button:hover{background:var(--accent2);}
@@ -139,7 +144,7 @@
   @media (max-width: 700px) {
     /* Les champs de test/débogage (URL de l'API) ne servent qu'en dev, pas au quotidien. */
     #apiBaseInput, #testBackendBtn, #statusText{display:none;}
-    #topbar{gap:8px;padding:8px 10px;}
+    #topbar{gap:8px;padding:max(8px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left));}
     #whoami{gap:6px;}
     #whoamiText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34vw;}
     #logoutBtn{padding:6px 8px;font-size:12px;}
@@ -302,14 +307,26 @@
   const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
     {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turn:global.relay.metered.ca:80',
+      username: '1c16e03d8537142774d692d5',
+      credential: 'hhD7ibTLehv5CtkY',
+    },
+    {
+      urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+      username: '1c16e03d8537142774d692d5',
+      credential: 'hhD7ibTLehv5CtkY',
+    },
+    {
+      urls: 'turn:global.relay.metered.ca:443',
+      username: '1c16e03d8537142774d692d5',
+      credential: 'hhD7ibTLehv5CtkY',
+    },
+    {
+      urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+      username: '1c16e03d8537142774d692d5',
+      credential: 'hhD7ibTLehv5CtkY',
     },
   ];
   let localStream = null;
