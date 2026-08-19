@@ -998,6 +998,14 @@
       }
     };
 
+    // Utile pour diagnostiquer : si le son/l'image ne passe pas, ceci permet de
+    // voir dans la Console si la connexion WebRTC a vraiment abouti ("connected"/
+    // "completed") ou si elle reste bloquée ("checking"/"failed") — un problème
+    // réseau (pare-feu, NAT strict) plutôt qu'un problème de lecture audio.
+    pc.oniceconnectionstatechange = () => {
+      console.log('[appel] État connexion avec ' + (name || socketId) + ' :', pc.iceConnectionState);
+    };
+
     pc.ontrack = (e) => {
       addRemoteVideoTile(socketId, name, e.streams[0]);
     };
@@ -1020,7 +1028,26 @@
       tile.innerHTML = `<video autoplay playsinline></video><div class="label">${escapeHtml(name || 'Participant')}</div>`;
       $('videosGrid').appendChild(tile);
     }
-    tile.querySelector('video').srcObject = stream;
+    const videoEl = tile.querySelector('video');
+    videoEl.srcObject = stream;
+
+    // Sur un appel AUDIO, ce <video> n'a pas de piste vidéo (juste le son du
+    // correspondant) et n'est pas "muted" (on veut l'entendre). Or définir
+    // srcObject ne suffit pas toujours à déclencher la lecture : certains
+    // navigateurs bloquent silencieusement l'autoplay avec son ici (aucune
+    // erreur visible, juste pas de son) — on appelle donc play() explicitement,
+    // et on retente au prochain clic/appui si jamais c'est encore bloqué.
+    const playPromise = videoEl.play();
+    if (playPromise && playPromise.catch) {
+      playPromise.catch((err) => {
+        console.warn('Lecture du son distant bloquée par le navigateur, nouvelle tentative au prochain clic :', err && err.name);
+        const retryPlay = () => {
+          videoEl.play().catch(() => { /* toujours bloqué, on laissera la prochaine interaction retenter */ });
+        };
+        document.addEventListener('click', retryPlay, { once: true });
+        document.addEventListener('touchend', retryPlay, { once: true });
+      });
+    }
   }
 
   function removePeer(socketId) {
