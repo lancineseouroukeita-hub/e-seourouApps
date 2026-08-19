@@ -701,7 +701,11 @@
     return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  $('sendBtn').addEventListener('click', sendMessage);
+  // Attention : ne pas passer directement "sendMessage" en callback ici — le
+  // navigateur appellerait sendMessage(clickEvent), et l'objet évènement (qui
+  // n'est pas "falsy") serait alors pris à tort pour une pièce jointe, ce qui
+  // contourne la vérification "message vide" et déclenche une erreur serveur.
+  $('sendBtn').addEventListener('click', () => sendMessage());
   $('msgInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
   $('msgInput').addEventListener('input', () => {
     if (!activeConversationId) return;
