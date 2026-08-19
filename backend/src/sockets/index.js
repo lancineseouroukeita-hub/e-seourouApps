@@ -13,7 +13,7 @@ function setupSocket(io) {
 
     try {
       const decoded = verifyToken(token);
-      socket.user = decoded; // { id, email, name }
+      socket.user = decoded; // { id, phone, name }
       return next();
     } catch (err) {
       return next(new Error('Token invalide ou expiré.'));

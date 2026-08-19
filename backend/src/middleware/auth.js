@@ -14,7 +14,7 @@ function requireAuth(req, res, next) {
 
   try {
     const decoded = verifyToken(token);
-    req.user = decoded; // { id, email, name }
+    req.user = decoded; // { id, phone, name }
     return next();
   } catch (err) {
     return res.status(401).json({ error: 'Token invalide ou expiré.' });

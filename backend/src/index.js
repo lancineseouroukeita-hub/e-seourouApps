@@ -17,7 +17,9 @@ const corsOriginEnv = process.env.CORS_ORIGIN || '*';
 const corsOrigin = corsOriginEnv === '*' ? '*' : corsOriginEnv.split(',');
 
 app.use(cors({ origin: corsOrigin }));
-app.use(express.json());
+// Limite par défaut d'express.json() : 100 Ko, trop petit pour la photo de
+// profil envoyée en base64 (jusqu'à ~2 Mo, voir user.controller.js).
+app.use(express.json({ limit: '3mb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
@@ -39,6 +41,11 @@ app.use((err, req, res, next) => {
 
 const io = new Server(server, {
   cors: { origin: corsOrigin },
+  // Par défaut, socket.io limite chaque message à ~1 Mo, ce qui est trop petit
+  // pour les pièces jointes (photos, notes vocales) envoyées encodées en base64.
+  // On autorise jusqu'à 8 Mo par message (une pièce jointe est limitée à 5 Mo
+  // côté client avant encodage, l'encodage base64 ajoute ~33% de taille).
+  maxHttpBufferSize: 8 * 1024 * 1024,
 });
 setupSocket(io);
 

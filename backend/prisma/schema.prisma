@@ -13,7 +13,7 @@ datasource db {
 model User {
   id          String   @id @default(uuid())
   name        String
-  email       String   @unique
+  phone       String   @unique
   password    String
   avatarUrl   String?
   createdAt   DateTime @default(now())
@@ -53,6 +53,18 @@ model Message {
   senderId       String
   content        String
   createdAt      DateTime @default(now())
+
+  // Pièce jointe optionnelle (photo, fichier ou message vocal).
+  // "type" vaut "text" (par défaut), "image", "file" ou "voice".
+  // Le contenu binaire est stocké encodé en base64 directement dans la base
+  // Neon (pas de service de stockage externe) : suffisant pour des fichiers
+  // de quelques Mo (photos compressées, notes vocales courtes/moyennes).
+  type            String  @default("text")
+  attachmentData  String? // contenu du fichier encodé en base64
+  attachmentMime  String? // ex: "image/jpeg", "audio/webm", "application/pdf"
+  attachmentName  String? // nom du fichier d'origine
+  attachmentSize  Int?    // taille en octets du fichier d'origine
+  duration        Int?    // durée en secondes, pour les messages vocaux
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)

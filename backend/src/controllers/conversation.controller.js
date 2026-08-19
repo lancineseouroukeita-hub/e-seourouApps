@@ -1,6 +1,15 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
 
+// Texte d'aperçu affiché dans la liste des conversations pour un message avec
+// pièce jointe (pas de texte, ou en complément d'une légende).
+function previewLabel(message) {
+  if (message.type === 'image') return '📷 Photo';
+  if (message.type === 'voice') return '🎤 Message vocal';
+  if (message.type === 'file') return '📎 ' + (message.attachmentName || 'Fichier');
+  return message.content;
+}
+
 function serializeConversation(conv, currentUserId) {
   return {
     id: conv.id,
@@ -11,7 +20,7 @@ function serializeConversation(conv, currentUserId) {
     lastMessage: conv.messages && conv.messages[0]
       ? {
         id: conv.messages[0].id,
-        content: conv.messages[0].content,
+        content: previewLabel(conv.messages[0]),
         senderId: conv.messages[0].senderId,
         createdAt: conv.messages[0].createdAt,
       }
@@ -97,6 +106,14 @@ async function getMessages(req, res) {
       id: m.id,
       conversationId: m.conversationId,
       content: m.content,
+      type: m.type,
+      attachment: m.type !== 'text' ? {
+        data: m.attachmentData,
+        mime: m.attachmentMime,
+        name: m.attachmentName,
+        size: m.attachmentSize,
+        duration: m.duration,
+      } : null,
       createdAt: m.createdAt,
       sender: toPublicUser(m.sender),
     })),

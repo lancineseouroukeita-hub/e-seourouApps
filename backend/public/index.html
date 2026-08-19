@@ -31,7 +31,7 @@
   #statusDot{width:9px;height:9px;border-radius:50%;background:var(--danger);display:inline-block;}
   #statusDot.ok{background:var(--success);}
   #statusText{color:var(--muted);}
-  #whoami{margin-left:auto;color:var(--muted);}
+  #whoami{margin-left:auto;color:var(--muted);display:flex;align-items:center;gap:8px;}
   #logoutBtn{background:var(--panel2);border:1px solid var(--border);}
 
   /* Auth screen */
@@ -58,6 +58,8 @@
   .listItem:hover{background:var(--panel2);}
   .listItem.active{background:var(--panel2);border-left-color:var(--accent);}
   .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;}
+  .avatar.avatarPhoto{background-size:cover;background-position:center;color:transparent;}
+  .avatar.avatarSmall{width:26px;height:26px;font-size:11px;cursor:pointer;}
   .liText{min-width:0;}
   .liName{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .liSub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
@@ -79,11 +81,28 @@
   .msgRow.mine .bubble .sender{color:rgba(255,255,255,.75);}
   .bubble .time{font-size:10px;opacity:.6;margin-top:3px;}
   #typingIndicator{padding:0 18px 4px;font-size:12px;color:var(--muted);min-height:16px;}
-  #composer{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border);}
-  #composer input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+  #composer{display:flex;align-items:center;gap:8px;padding:12px 18px;border-top:1px solid var(--border);}
+  #composer input[type="text"]{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
   #composer button{background:var(--accent);border:none;color:white;border-radius:8px;padding:0 18px;cursor:pointer;font-size:14px;}
   #composer button:hover{background:var(--accent2);}
+  #composer button.iconBtn{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:0 12px;height:38px;font-size:16px;}
+  #composer button.iconBtn:hover{background:#282e3a;}
+  #composer button.iconBtn.recording{background:var(--danger);border-color:var(--danger);color:white;animation:recordPulse 1s infinite;}
+  @keyframes recordPulse{0%{opacity:1;}50%{opacity:.55;}100%{opacity:1;}}
+  #recordingTime{display:none;color:var(--danger);font-size:12.5px;font-variant-numeric:tabular-nums;}
   #emptyState{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;}
+
+  /* Pièces jointes dans les bulles de message */
+  .msgCaption{margin-top:4px;}
+  .msgImage{max-width:240px;max-height:240px;border-radius:10px;display:block;margin-top:2px;object-fit:cover;cursor:pointer;}
+  .msgVoice{display:flex;align-items:center;gap:8px;}
+  .msgVoice audio{max-width:220px;height:34px;}
+  .voiceDuration{font-size:11px;color:var(--muted);}
+  .msgFile{display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;background:rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;margin-top:2px;}
+  .fileIcon{font-size:20px;}
+  .fileInfo{display:flex;flex-direction:column;min-width:0;}
+  .fileName{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}
+  .fileSize{font-size:10.5px;color:var(--muted);}
 
   /* Incoming call banner */
   #incomingCall{position:fixed;top:56px;right:20px;background:var(--panel);border:1px solid var(--accent);border-radius:var(--radius);padding:14px 16px;display:none;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4);}
@@ -118,7 +137,11 @@
     <span id="statusText">Backend non testé</span>
     <input id="apiBaseInput" value="" spellcheck="false" title="URL de l'API (laisser vide = même serveur)">
     <button id="testBackendBtn">Tester la connexion</button>
-    <span id="whoami"></span>
+    <span id="whoami">
+      <input type="file" id="avatarInput" accept="image/*" style="display:none">
+      <div class="avatar avatarSmall" id="myAvatar" title="Changer ma photo"></div>
+      <span id="whoamiText"></span>
+    </span>
     <button id="logoutBtn" style="display:none;">Se déconnecter</button>
   </div>
 
@@ -133,8 +156,8 @@
       </div>
 
       <div id="loginForm">
-        <label>Email</label>
-        <input id="loginEmail" type="email" placeholder="vous@example.com">
+        <label>Numéro de téléphone</label>
+        <input id="loginPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
         <label>Mot de passe</label>
         <input id="loginPassword" type="password" placeholder="••••••••">
         <button class="primaryBtn" id="loginBtn">Se connecter</button>
@@ -143,8 +166,8 @@
       <div id="registerForm" style="display:none;">
         <label>Nom</label>
         <input id="regName" type="text" placeholder="Votre nom">
-        <label>Email</label>
-        <input id="regEmail" type="email" placeholder="vous@example.com">
+        <label>Numéro de téléphone</label>
+        <input id="regPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
         <label>Mot de passe</label>
         <input id="regPassword" type="password" placeholder="6 caractères minimum">
         <button class="primaryBtn" id="registerBtn">Créer le compte</button>
@@ -176,7 +199,11 @@
         <div id="messages"></div>
         <div id="typingIndicator"></div>
         <div id="composer">
+          <input type="file" id="fileInput" style="display:none">
+          <button class="iconBtn" id="attachBtn" title="Joindre un fichier">📎</button>
           <input id="msgInput" type="text" placeholder="Écrire un message…" autocomplete="off">
+          <span id="recordingTime">00:00</span>
+          <button class="iconBtn" id="voiceBtn" title="Message vocal">🎤</button>
           <button id="sendBtn">Envoyer</button>
         </div>
       </div>
@@ -227,6 +254,10 @@
   let messagesByConv = {}; // conversationId -> [messages]
   let typingTimeout = null;
 
+  // Pièces jointes (photo, fichier, message vocal) : taille max côté client,
+  // doit rester cohérente avec la limite vérifiée côté serveur (chat.js).
+  const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
+
   // Call state
   // Les serveurs STUN seuls suffisent quand les deux appareils sont sur des réseaux
   // "simples", mais échouent souvent entre deux réseaux différents (ex: un en Wi-Fi,
@@ -260,16 +291,35 @@
 
   // Les navigateurs bloquent le son tant qu'il n'y a pas eu d'interaction de
   // l'utilisateur sur la page (clic, appui...). On "débloque" donc le contexte
-  // audio dès le premier clic, pour être prêt le moment venu d'un appel entrant.
-  document.addEventListener('click', function unlockRingAudio() {
+  // audio dès la première interaction, pour être prêt le moment venu d'un appel entrant.
+  //
+  // Bug corrigé : sur certains navigateurs (Safari/iOS notamment), un AudioContext
+  // fraîchement créé démarre déjà en état "suspended" même s'il a été créé pendant
+  // un clic — il faut alors appeler resume() explicitement juste après l'avoir créé,
+  // pas seulement lors des clics suivants. Avant ce correctif, seul le cas "le
+  // contexte existe déjà et est suspendu" appelait resume(), donc le tout premier
+  // clic ne débloquait pas vraiment le son sur ces navigateurs.
+  function unlockRingAudio() {
     if (!ringAudioCtx) {
-      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* ignore */ }
-    } else if (ringAudioCtx.state === 'suspended') {
-      ringAudioCtx.resume();
+      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { return; }
     }
-  }, { once: false });
+    if (ringAudioCtx.state === 'suspended') {
+      ringAudioCtx.resume().catch(() => { /* ignore */ });
+    }
+  }
+  // On écoute plusieurs types d'interaction (souris ET tactile ET clavier) car
+  // selon l'appareil/navigateur, ce n'est pas toujours l'évènement "click" qui
+  // arrive en premier (important sur mobile/iPhone).
+  ['click', 'touchend', 'keydown'].forEach((evt) => {
+    document.addEventListener(evt, unlockRingAudio, { passive: true });
+  });
 
   function playRingOnce() {
+    // Vibration de secours : fonctionne sur mobile même si le son est bloqué
+    // par le navigateur (utile tant que l'utilisateur n'a pas encore interagi).
+    if (navigator.vibrate) {
+      try { navigator.vibrate([300, 200, 300]); } catch (e) { /* ignore */ }
+    }
     if (!ringAudioCtx) return;
     const now = ringAudioCtx.currentTime;
     [0, 0.35].forEach((delay) => {
@@ -298,6 +348,7 @@
 
   function stopRingtone() {
     if (ringIntervalId) { clearInterval(ringIntervalId); ringIntervalId = null; }
+    if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) { /* ignore */ } }
   }
 
   // ---------- Helpers ----------
@@ -366,11 +417,11 @@
   $('loginBtn').addEventListener('click', async () => {
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
-    const email = $('loginEmail').value.trim();
+    const phone = $('loginPhone').value.trim();
     const password = $('loginPassword').value;
-    if (!email || !password) return showAuthError('Email et mot de passe requis.');
+    if (!phone || !password) return showAuthError('Numéro de téléphone et mot de passe requis.');
     try {
-      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) });
       onAuthSuccess(data);
     } catch (err) { showAuthError(err.message); }
   });
@@ -379,11 +430,11 @@
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
     const name = $('regName').value.trim();
-    const email = $('regEmail').value.trim();
+    const phone = $('regPhone').value.trim();
     const password = $('regPassword').value;
-    if (!name || !email || !password) return showAuthError('Nom, email et mot de passe requis.');
+    if (!name || !phone || !password) return showAuthError('Nom, numéro de téléphone et mot de passe requis.');
     try {
-      const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+      const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, phone, password }) });
       onAuthSuccess(data);
     } catch (err) { showAuthError(err.message); }
   });
@@ -393,7 +444,8 @@
     me = data.user;
     $('authScreen').style.display = 'none';
     $('mainScreen').classList.add('show');
-    $('whoami').textContent = me.name + ' (' + me.email + ')';
+    $('whoamiText').textContent = me.name + ' (' + me.phone + ')';
+    renderMyAvatar();
     $('logoutBtn').style.display = 'inline-block';
     connectSocket();
     loadUsers();
@@ -406,7 +458,8 @@
     conversations = []; users = []; messagesByConv = {};
     $('mainScreen').classList.remove('show');
     $('authScreen').style.display = 'flex';
-    $('whoami').textContent = '';
+    $('whoamiText').textContent = '';
+    renderMyAvatar();
     $('logoutBtn').style.display = 'none';
     $('convList').innerHTML = ''; $('userList').innerHTML = '';
     $('emptyState').style.display = 'flex'; $('activeChat').style.display = 'none';
@@ -486,14 +539,30 @@
     } catch (err) { console.error(err); }
   }
 
+  // Rend le HTML d'un avatar : la vraie photo si l'utilisateur en a une,
+  // sinon les initiales sur fond de couleur (comportement d'origine).
+  function avatarDivHtml(name, avatarUrl, extraClass) {
+    const cls = 'avatar' + (avatarUrl ? ' avatarPhoto' : '') + (extraClass ? ' ' + extraClass : '');
+    if (avatarUrl) {
+      return `<div class="${cls}" style="background-image:url('${escapeCssUrl(avatarUrl)}')"></div>`;
+    }
+    return `<div class="${cls}">${escapeHtml(initials(name))}</div>`;
+  }
+
+  // Les data URLs base64 ne contiennent pas de guillemets, mais on échappe par
+  // prudence pour éviter de casser l'attribut style si jamais un caractère imprévu s'y glisse.
+  function escapeCssUrl(url) {
+    return String(url).replace(/'/g, '%27').replace(/"/g, '%22');
+  }
+
   function renderUserList() {
     const el = $('userList');
     el.innerHTML = '';
     users.forEach((u) => {
       const div = document.createElement('div');
       div.className = 'listItem';
-      div.innerHTML = `<div class="avatar">${initials(u.name)}</div>
-        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.email)}</div></div>`;
+      div.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl)}
+        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.phone)}</div></div>`;
       div.addEventListener('click', () => startConversationWith(u.id));
       el.appendChild(div);
     });
@@ -508,7 +577,7 @@
       const div = document.createElement('div');
       div.className = 'listItem' + (c.id === activeConversationId ? ' active' : '');
       div.dataset.convId = c.id;
-      div.innerHTML = `<div class="avatar">${initials(label)}</div>
+      div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null)}
         <div class="liText"><div class="liName">${escapeHtml(label)}</div>
         <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>`;
       div.addEventListener('click', () => openConversation(c.id));
@@ -518,7 +587,7 @@
 
   function bumpConversationPreview(convId, msg) {
     const c = conversations.find((c) => c.id === convId);
-    if (c) { c.lastMessage = msg; renderConvList(); }
+    if (c) { c.lastMessage = Object.assign({}, msg, { content: messagePreviewText(msg) }); renderConvList(); }
   }
 
   async function startConversationWith(userId) {
@@ -542,8 +611,11 @@
     const conv = conversations.find((c) => c.id === convId);
     const other = conv.participants.find((p) => p.id !== me.id) || conv.participants[0];
     const label = conv.isGroup ? (conv.name || 'Groupe') : (other ? other.name : '—');
+    const avatarUrl = !conv.isGroup && other ? other.avatarUrl : null;
     $('chatTitle').textContent = label;
-    $('chatAvatar').textContent = initials(label);
+    $('chatAvatar').className = 'avatar' + (avatarUrl ? ' avatarPhoto' : '');
+    $('chatAvatar').style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
+    $('chatAvatar').textContent = avatarUrl ? '' : initials(label);
     $('typingIndicator').textContent = '';
 
     if (!messagesByConv[convId]) {
@@ -564,10 +636,65 @@
       const row = document.createElement('div');
       row.className = 'msgRow' + (mine ? ' mine' : '');
       row.innerHTML = `<div class="bubble">${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
-        <div>${escapeHtml(m.content)}</div><div class="time">${fmtTime(m.createdAt)}</div></div>`;
+        ${renderMessageBody(m)}<div class="time">${fmtTime(m.createdAt)}</div></div>`;
       el.appendChild(row);
     });
     el.scrollTop = el.scrollHeight;
+  }
+
+  // Construit le contenu d'une bulle selon le type de message (texte, photo,
+  // fichier ou message vocal). Les pièces jointes sont reçues encodées en
+  // base64 et affichées via une data URL (pas d'URL de fichier séparée).
+  function renderMessageBody(m) {
+    const type = m.type || 'text';
+    const att = m.attachment;
+
+    if (type === 'image' && att && att.data) {
+      const url = attachmentDataUrl(att, 'image/jpeg');
+      const caption = m.content ? `<div class="msgCaption">${escapeHtml(m.content)}</div>` : '';
+      return `<a href="${url}" target="_blank" rel="noopener"><img class="msgImage" src="${url}" alt="${escapeHtml(att.name || 'photo')}"></a>${caption}`;
+    }
+
+    if (type === 'voice' && att && att.data) {
+      const url = attachmentDataUrl(att, 'audio/webm');
+      const dur = att.duration ? `<span class="voiceDuration">${formatDuration(att.duration)}</span>` : '';
+      return `<div class="msgVoice"><audio controls src="${url}"></audio>${dur}</div>`;
+    }
+
+    if (type === 'file' && att && att.data) {
+      const url = attachmentDataUrl(att, 'application/octet-stream');
+      const name = escapeHtml(att.name || 'fichier');
+      const size = att.size ? `<span class="fileSize">${formatBytes(att.size)}</span>` : '';
+      const caption = m.content ? `<div class="msgCaption">${escapeHtml(m.content)}</div>` : '';
+      return `${caption}<a class="msgFile" href="${url}" download="${name}"><span class="fileIcon">📄</span><span class="fileInfo"><span class="fileName">${name}</span>${size}</span></a>`;
+    }
+
+    return `<div>${escapeHtml(m.content)}</div>`;
+  }
+
+  function attachmentDataUrl(att, fallbackMime) {
+    return 'data:' + (att.mime || fallbackMime) + ';base64,' + att.data;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+  }
+
+  function formatDuration(secs) {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  // Aperçu texte utilisé dans la liste des conversations quand un message
+  // arrive en temps réel (miroir de previewLabel() côté serveur).
+  function messagePreviewText(m) {
+    if (m.type === 'image') return '📷 Photo';
+    if (m.type === 'voice') return '🎤 Message vocal';
+    if (m.type === 'file') return '📎 ' + (m.attachment && m.attachment.name ? m.attachment.name : 'Fichier');
+    return m.content;
   }
 
   function escapeHtml(s) {
@@ -583,14 +710,153 @@
     typingTimeout = setTimeout(() => socket.emit('typing', { conversationId: activeConversationId, isTyping: false }), 1200);
   });
 
-  function sendMessage() {
+  // "attachment", s'il est fourni, a la forme { data (base64), mime, name, size, duration?, type }.
+  // Le texte de #msgInput sert alors de légende optionnelle (ex: une photo avec un petit mot).
+  function sendMessage(attachment) {
     const input = $('msgInput');
     const content = input.value.trim();
-    if (!content || !activeConversationId) return;
-    socket.emit('message:send', { conversationId: activeConversationId, content }, (res) => {
+    if (!content && !attachment) return;
+    if (!activeConversationId) return;
+    socket.emit('message:send', { conversationId: activeConversationId, content, attachment }, (res) => {
       if (res && res.error) alert('Erreur envoi: ' + res.error);
     });
     input.value = '';
+  }
+
+  // ---------- Pièce jointe (fichier / photo) ----------
+  $('attachBtn').addEventListener('click', () => {
+    if (!activeConversationId) return alert('Choisissez une conversation avant d\'envoyer un fichier.');
+    $('fileInput').click();
+  });
+
+  $('fileInput').addEventListener('change', async () => {
+    const file = $('fileInput').files[0];
+    $('fileInput').value = ''; // permet de resélectionner le même fichier plus tard
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      alert('Fichier trop volumineux (5 Mo maximum).');
+      return;
+    }
+    try {
+      const base64 = await blobToBase64(file);
+      const type = file.type && file.type.startsWith('image/') ? 'image' : 'file';
+      sendMessage({ data: base64, mime: file.type || 'application/octet-stream', name: file.name, size: file.size, type });
+    } catch (err) {
+      alert('Erreur de lecture du fichier : ' + err.message);
+    }
+  });
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result || '';
+        const commaIdx = result.indexOf(',');
+        resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error || new Error('Lecture échouée'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ---------- Message vocal ----------
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recordStream = null;
+  let recordStartTs = null;
+  let recordTimerInterval = null;
+  let isRecording = false;
+  let wantsSendRecording = true;
+
+  function pickAudioMimeType() {
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+    return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || '';
+  }
+
+  $('voiceBtn').addEventListener('click', async () => {
+    if (isRecording) { stopVoiceRecording(true); return; }
+    if (!activeConversationId) return alert('Choisissez une conversation avant d\'enregistrer un message vocal.');
+    if (!window.MediaRecorder) return alert('L\'enregistrement audio n\'est pas supporté par ce navigateur.');
+
+    try {
+      recordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      alert('Impossible d\'accéder au micro : ' + err.message);
+      return;
+    }
+
+    recordedChunks = [];
+    const mimeType = pickAudioMimeType();
+    try {
+      mediaRecorder = mimeType ? new MediaRecorder(recordStream, { mimeType }) : new MediaRecorder(recordStream);
+    } catch (err) {
+      alert('Impossible de démarrer l\'enregistrement : ' + err.message);
+      recordStream.getTracks().forEach((t) => t.stop());
+      recordStream = null;
+      return;
+    }
+
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = onVoiceRecordingStopped;
+    mediaRecorder.start();
+
+    isRecording = true;
+    wantsSendRecording = true;
+    recordStartTs = Date.now();
+    $('voiceBtn').classList.add('recording');
+    $('voiceBtn').textContent = '⏹';
+    $('recordingTime').style.display = 'inline';
+    updateRecordingTime();
+    recordTimerInterval = setInterval(updateRecordingTime, 250);
+  });
+
+  // Appuyer sur Échap pendant l'enregistrement l'annule sans l'envoyer.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isRecording) stopVoiceRecording(false);
+  });
+
+  function updateRecordingTime() {
+    const secs = Math.floor((Date.now() - recordStartTs) / 1000);
+    $('recordingTime').textContent = formatDuration(secs);
+  }
+
+  function stopVoiceRecording(shouldSend) {
+    if (!mediaRecorder) return;
+    wantsSendRecording = shouldSend;
+    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }
+
+  function onVoiceRecordingStopped() {
+    clearInterval(recordTimerInterval);
+    recordTimerInterval = null;
+    $('voiceBtn').classList.remove('recording');
+    $('voiceBtn').textContent = '🎤';
+    $('recordingTime').style.display = 'none';
+    $('recordingTime').textContent = '00:00';
+
+    const durationSecs = recordStartTs ? Math.round((Date.now() - recordStartTs) / 1000) : 0;
+    if (recordStream) { recordStream.getTracks().forEach((t) => t.stop()); recordStream = null; }
+    isRecording = false;
+
+    const chunks = recordedChunks;
+    recordedChunks = [];
+    const recorder = mediaRecorder;
+    mediaRecorder = null;
+
+    if (!wantsSendRecording || !chunks.length || durationSecs < 1) return;
+
+    const blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || 'audio/webm' });
+    if (blob.size > MAX_ATTACHMENT_BYTES) {
+      alert('Message vocal trop volumineux (5 Mo maximum) — essayez un message plus court.');
+      return;
+    }
+
+    blobToBase64(blob)
+      .then((base64) => {
+        sendMessage({ data: base64, mime: blob.type || 'audio/webm', name: 'message-vocal.webm', size: blob.size, duration: durationSecs, type: 'voice' });
+      })
+      .catch((err) => alert('Erreur lors de la lecture de l\'enregistrement : ' + err.message));
   }
 
   // ---------- Calls ----------
@@ -736,6 +1002,69 @@
     localStream.getVideoTracks().forEach((t) => t.enabled = camEnabled);
     $('toggleCamBtn').classList.toggle('muted', !camEnabled);
   });
+
+  // ---------- Photo de profil ----------
+  function renderMyAvatar() {
+    const el = $('myAvatar');
+    const avatarUrl = me && me.avatarUrl;
+    el.className = 'avatar avatarSmall' + (avatarUrl ? ' avatarPhoto' : '');
+    el.style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
+    el.textContent = avatarUrl ? '' : initials(me ? me.name : '');
+  }
+
+  $('myAvatar').addEventListener('click', () => {
+    if (!me) return;
+    $('avatarInput').click();
+  });
+
+  $('avatarInput').addEventListener('change', async () => {
+    const file = $('avatarInput').files[0];
+    $('avatarInput').value = '';
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      alert('Merci de choisir une image.');
+      return;
+    }
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 256, 0.82);
+      const data = await api('/api/users/me/avatar', { method: 'PATCH', body: JSON.stringify({ avatarUrl: dataUrl }) });
+      me.avatarUrl = data.user.avatarUrl;
+      renderMyAvatar();
+    } catch (err) {
+      alert('Erreur lors de la mise à jour de la photo : ' + err.message);
+    }
+  });
+
+  // Redimensionne et compresse une image côté navigateur (via <canvas>) avant
+  // de l'envoyer, pour ne pas stocker des photos brutes énormes dans la base.
+  function resizeImageToDataUrl(file, maxSize, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height && width > maxSize) {
+            height = Math.round(height * (maxSize / width));
+            width = maxSize;
+          } else if (height >= width && height > maxSize) {
+            width = Math.round(width * (maxSize / height));
+            height = maxSize;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => reject(new Error('Image invalide'));
+        img.src = reader.result;
+      };
+      reader.onerror = () => reject(reader.error || new Error('Lecture échouée'));
+      reader.readAsDataURL(file);
+    });
+  }
 
   // Auto test backend on load
   testBackend();
