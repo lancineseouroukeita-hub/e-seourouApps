@@ -1,4 +1,4 @@
-const prisma = require('../config/prisma');
+﻿const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
 
 // Texte d'aperçu affiché dans la liste des conversations pour un message avec
@@ -125,4 +125,31 @@ async function getMessages(req, res) {
   });
 }
 
-module.exports = { listConversations, createConversation, getMessages, previewLabel };
+// Supprime une conversation de ma liste (Paramètres → Utilisateurs / liste des
+// discussions) : on retire seulement ma propre participation ("suppression
+// pour moi", comme WhatsApp), l'autre personne garde son historique de son
+// côté. Si plus personne ne participe à la conversation, elle est
+// définitivement effacée (avec ses messages, grâce à onDelete: Cascade).
+async function leaveConversation(req, res) {
+  const { conversationId } = req.params;
+  try {
+    const participant = await prisma.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId: req.user.id } },
+    });
+    if (!participant) return res.status(404).json({ error: 'Conversation introuvable.' });
+
+    await prisma.conversationParticipant.delete({ where: { id: participant.id } });
+
+    const remaining = await prisma.conversationParticipant.count({ where: { conversationId } });
+    if (remaining === 0) {
+      await prisma.conversation.delete({ where: { id: conversationId } }).catch(() => null);
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('leaveConversation error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la suppression de la conversation.' });
+  }
+}
+
+module.exports = { listConversations, createConversation, getMessages, previewLabel, leaveConversation };
+

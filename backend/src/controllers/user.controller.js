@@ -1,4 +1,4 @@
-const bcrypt = require('bcryptjs');
+﻿const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
 
@@ -10,11 +10,61 @@ const MAX_AVATAR_DATA_URL_LENGTH = 2 * 1024 * 1024;
 // Liste tous les utilisateurs (sauf soi-même) pour permettre de démarrer une conversation/appel.
 // Pour une vraie app, on ajouterait une pagination + une recherche par nom/téléphone.
 async function listUsers(req, res) {
-  const users = await prisma.user.findMany({
-    where: { id: { not: req.user.id } },
-    orderBy: { name: 'asc' },
+  const [users, blocked] = await Promise.all([
+    prisma.user.findMany({
+      where: { id: { not: req.user.id } },
+      orderBy: { name: 'asc' },
+    }),
+    prisma.blockedUser.findMany({ where: { blockerId: req.user.id }, select: { blockedId: true } }),
+  ]);
+  const blockedIds = new Set(blocked.map((b) => b.blockedId));
+  return res.json({ users: users.map((u) => Object.assign(toPublicUser(u), { blocked: blockedIds.has(u.id) })) });
+}
+
+// Liste des utilisateurs que j'ai bloqués (Paramètres → Confidentialité).
+async function listBlockedUsers(req, res) {
+  const blocked = await prisma.blockedUser.findMany({
+    where: { blockerId: req.user.id },
+    include: { blocked: true },
+    orderBy: { createdAt: 'desc' },
   });
-  return res.json({ users: users.map(toPublicUser) });
+  return res.json({ users: blocked.map((b) => toPublicUser(b.blocked)) });
+}
+
+// Bloque un utilisateur : il ne pourra plus m'envoyer de message ni m'appeler
+// (vérifié côté socket dans message:send et call:join), tant que je ne l'ai
+// pas débloqué. Le blocage n'est pas réciproque : lui continue de me voir
+// normalement de son côté, sauf que ses messages/appels vers moi seront rejetés.
+async function blockUser(req, res) {
+  try {
+    const { userId } = req.params;
+    if (userId === req.user.id) return res.status(400).json({ error: 'Impossible de vous bloquer vous-même.' });
+
+    const target = await prisma.user.findUnique({ where: { id: userId } });
+    if (!target) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    await prisma.blockedUser.upsert({
+      where: { blockerId_blockedId: { blockerId: req.user.id, blockedId: userId } },
+      update: {},
+      create: { blockerId: req.user.id, blockedId: userId },
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('blockUser error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors du blocage.' });
+  }
+}
+
+// Débloque un utilisateur précédemment bloqué.
+async function unblockUser(req, res) {
+  try {
+    const { userId } = req.params;
+    await prisma.blockedUser.deleteMany({ where: { blockerId: req.user.id, blockedId: userId } });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('unblockUser error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors du déblocage.' });
+  }
 }
 
 // Met à jour la photo de profil de l'utilisateur connecté. La photo est reçue
@@ -89,4 +139,13 @@ async function updateMyPassword(req, res) {
   }
 }
 
-module.exports = { listUsers, updateMyAvatar, updateMyName, updateMyPassword };
+module.exports = {
+  listUsers,
+  updateMyAvatar,
+  updateMyName,
+  updateMyPassword,
+  listBlockedUsers,
+  blockUser,
+  unblockUser,
+};
+

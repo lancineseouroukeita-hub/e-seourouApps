@@ -1,4 +1,4 @@
-// Schéma de base de données pour l'application de communication
+﻿// Schéma de base de données pour l'application de communication
 // Documentation: https://pris.ly/d/prisma-schema
 
 generator client {
@@ -23,6 +23,24 @@ model User {
   messages        Message[]
   callParticipations CallParticipant[]
   pushSubscriptions  PushSubscription[]
+  // Utilisateurs que j'ai bloqués, et utilisateurs qui m'ont bloqué (Paramètres → Confidentialité).
+  blockedUsers   BlockedUser[] @relation("BlockerRelation")
+  blockedByUsers BlockedUser[] @relation("BlockedRelation")
+}
+
+// Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
+// qui l'a bloqué (vérifié dans les deux sens dans les gestionnaires socket).
+// Un même couple (blockerId, blockedId) ne peut exister qu'une fois.
+model BlockedUser {
+  id        String   @id @default(uuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+
+  blocker User @relation("BlockerRelation", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked User @relation("BlockedRelation", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
 }
 
 model Conversation {
@@ -116,3 +134,4 @@ model PushSubscription {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+

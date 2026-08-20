@@ -1,6 +1,7 @@
-﻿const prisma = require('../config/prisma');
+﻿﻿const prisma = require('../config/prisma');
 const { roomName } = require('./chat');
 const { sendPushToUser } = require('../utils/push');
+const { isBlockedBetween } = require('../utils/blocking');
 
 // État en mémoire des appels en cours : callId -> Map<socketId, { userId, name }>
 // Pour un déploiement multi-instances, il faudrait déplacer cet état dans Redis (ou utiliser
@@ -31,6 +32,20 @@ function registerSignalingHandlers(io, socket) {
       });
       if (!participant) {
         return callback && callback({ error: 'Vous ne participez pas à cette conversation.' });
+      }
+
+      // Appel 1-à-1 avec un utilisateur bloqué (par moi ou par lui) : on
+      // interdit de démarrer/rejoindre l'appel dans les deux sens.
+      const conv = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: { participants: { select: { userId: true } } },
+      });
+      if (!conv) return callback && callback({ error: 'Conversation introuvable.' });
+      if (!conv.isGroup) {
+        const other = conv.participants.find((p) => p.userId !== userId);
+        if (other && await isBlockedBetween(userId, other.userId)) {
+          return callback && callback({ error: 'Impossible d\'appeler : utilisateur bloqué.' });
+        }
       }
 
       let call = callId ? await prisma.call.findUnique({ where: { id: callId } }) : null;
@@ -175,3 +190,4 @@ function callRoomName(callId) {
 }
 
 module.exports = { registerSignalingHandlers };
+

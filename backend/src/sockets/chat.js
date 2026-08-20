@@ -1,7 +1,8 @@
-const prisma = require('../config/prisma');
+﻿const prisma = require('../config/prisma');
 const { toPublicUser } = require('../controllers/auth.controller');
 const { previewLabel } = require('../controllers/conversation.controller');
 const { sendPushToUser } = require('../utils/push');
+const { isBlockedBetween } = require('../utils/blocking');
 
 // Taille max d'un fichier joint (avant encodage) : 5 Mo. Une fois encodé en
 // base64, une chaîne grossit d'environ 33% (4 caractères pour 3 octets), d'où
@@ -44,6 +45,20 @@ function registerChatHandlers(io, socket) {
       });
       if (!participant) {
         return callback && callback({ error: 'Vous ne participez pas à cette conversation.' });
+      }
+
+      // Discussion 1-à-1 avec un utilisateur bloqué (par moi ou par lui) : on
+      // bloque l'envoi dans les deux sens (Paramètres → Confidentialité).
+      const conv = await prisma.conversation.findUnique({
+        where: { id: conversationId },
+        include: { participants: { select: { userId: true } } },
+      });
+      if (!conv) return callback && callback({ error: 'Conversation introuvable.' });
+      if (!conv.isGroup) {
+        const other = conv.participants.find((p) => p.userId !== userId);
+        if (other && await isBlockedBetween(userId, other.userId)) {
+          return callback && callback({ error: 'Impossible d\'envoyer ce message : utilisateur bloqué.' });
+        }
       }
 
       let data = {
@@ -154,6 +169,39 @@ function registerChatHandlers(io, socket) {
     }
   });
 
+  // Effacement définitif de la trace "Message supprimé" : contrairement à
+  // message:delete (suppression "douce", qui garde la ligne pour l'aperçu de
+  // la conversation), ici on supprime réellement la ligne en base. La bulle
+  // "🚫 Message supprimé" disparaît alors complètement de la conversation,
+  // pour tout le monde, y compris après rechargement de l'historique.
+  // Uniquement possible sur un message déjà passé par message:delete, et
+  // uniquement par son auteur.
+  socket.on('message:erase', async ({ messageId }, callback) => {
+    try {
+      if (!messageId) return callback && callback({ error: 'messageId requis.' });
+
+      const message = await prisma.message.findUnique({ where: { id: messageId } });
+      if (!message) return callback && callback({ error: 'Message introuvable.' });
+      if (message.senderId !== userId) {
+        return callback && callback({ error: 'Vous ne pouvez effacer que vos propres messages.' });
+      }
+      if (!message.deleted) {
+        return callback && callback({ error: 'Supprimez d\'abord ce message avant de l\'effacer définitivement.' });
+      }
+
+      await prisma.message.delete({ where: { id: messageId } });
+
+      io.to(roomName(message.conversationId)).emit('message:erased', {
+        conversationId: message.conversationId,
+        messageId,
+      });
+      callback && callback({ ok: true });
+    } catch (err) {
+      console.error('message:erase error:', err);
+      callback && callback({ error: 'Erreur serveur lors de l\'effacement du message.' });
+    }
+  });
+
   // Marque la conversation comme lue par l'utilisateur courant à cet instant.
   // Sert à afficher les doubles coches (✓✓) sur les messages envoyés par les
   // autres participants dès qu'ils ont ouvert la conversation (comme WhatsApp).
@@ -202,3 +250,4 @@ function roomName(conversationId) {
 }
 
 module.exports = { registerChatHandlers, roomName };
+
