@@ -613,18 +613,25 @@
     }
     if (ringAudioCtx && ringAudioCtx.state === 'suspended') ringAudioCtx.resume().catch(() => { /* ignore */ });
 
+    stopRingtoneOscillator();
+
     if (ringtoneAudioEl) {
       ringtoneAudioEl.currentTime = 0;
-      ringtoneAudioEl.play().catch((err) => {
-        // Pas une "vraie" erreur : juste le navigateur qui bloque encore la
-        // lecture (aucune interaction n'a eu lieu sur cette page pour l'instant).
-        console.warn('Sonnerie audio bloquée par le navigateur (pas encore débloquée par un clic/appui) :', err && err.name);
-      });
+      const p = ringtoneAudioEl.play();
+      if (p && p.catch) {
+        // Le bip de secours (Web Audio) ne démarre QUE si le fichier audio a
+        // vraiment échoué à jouer — avant, les deux jouaient en même temps,
+        // ce qui donnait un son confus au lieu d'une sonnerie propre.
+        p.catch((err) => {
+          console.warn('Sonnerie audio bloquée par le navigateur (pas encore débloquée par un clic/appui) :', err && err.name);
+          playRingOnce();
+          ringIntervalId = setInterval(playRingOnce, 1600);
+        });
+      }
+    } else {
+      playRingOnce();
+      ringIntervalId = setInterval(playRingOnce, 1600);
     }
-
-    stopRingtoneOscillator();
-    playRingOnce();
-    ringIntervalId = setInterval(playRingOnce, 1600);
   }
 
   function stopRingtoneOscillator() {
