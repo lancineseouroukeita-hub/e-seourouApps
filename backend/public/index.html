@@ -548,6 +548,7 @@
   let localStream = null;
   let currentCall = null; // { callId, conversationId, type }
   let peerConnections = {}; // socketId -> RTCPeerConnection
+  let disconnectTimers = {}; // socketId -> timer (filet de sécurité ICE, voir oniceconnectionstatechange)
   let callTimerInterval = null;
   let callBaseInfoText = '';
   let micEnabled = true, camEnabled = true;
@@ -862,16 +863,13 @@
       }
     });
 
+    // Cas d'un appel à deux (le plus courant ici) : si l'autre personne vient
+    // de raccrocher, il ne reste plus aucun pair connecté de notre côté — on
+    // referme donc aussi l'appel automatiquement, sans attendre que la
+    // personne encore "dans l'appel" clique elle-même sur raccrocher.
+    // (Pour un appel de groupe, l'appel continue tant qu'il reste des pairs.)
     socket.on('call:user-left', ({ socketId }) => {
-      removePeer(socketId);
-      // Cas d'un appel à deux (le plus courant ici) : si l'autre personne vient
-      // de raccrocher, il ne reste plus aucun pair connecté de notre côté — on
-      // referme donc aussi l'appel automatiquement, sans attendre que la
-      // personne encore "dans l'appel" clique elle-même sur raccrocher.
-      // (Pour un appel de groupe, l'appel continue tant qu'il reste des pairs.)
-      if (currentCall && Object.keys(peerConnections).length === 0) {
-        hangup();
-      }
+      handlePeerReallyGone(socketId);
     });
 
     // L'appelant a raccroché avant que quiconque décroche : on n'a jamais
@@ -1479,12 +1477,21 @@
       console.log('[appel] État connexion avec ' + (name || socketId) + ' :', state);
       if (state === 'connected' || state === 'completed') {
         updateCallInfoText('connecté');
+        clearTimeout(disconnectTimers[socketId]);
       } else if (state === 'checking') {
         updateCallInfoText('connexion en cours…');
       } else if (state === 'disconnected') {
         updateCallInfoText('connexion instable…');
-      } else if (state === 'failed') {
+        // Filet de sécurité : si le signal "call:user-left" du serveur ne nous
+        // parvient pas (ex: l'app de l'autre personne a été mise en arrière-plan
+        // puis le socket a été coupé/reconnecté sans qu'on soit prévenu), on
+        // referme quand même l'appel de notre côté si la connexion média ne se
+        // rétablit pas au bout de quelques secondes — plutôt que de rester
+        // bloqué indéfiniment sur un appel qui, en réalité, est déjà terminé.
+        scheduleDisconnectFallback(socketId);
+      } else if (state === 'failed' || state === 'closed') {
         updateCallInfoText('échec de connexion réseau ⚠️');
+        handlePeerReallyGone(socketId);
       }
     };
 
@@ -1534,8 +1541,37 @@
 
   function removePeer(socketId) {
     if (peerConnections[socketId]) { peerConnections[socketId].close(); delete peerConnections[socketId]; }
+    clearTimeout(disconnectTimers[socketId]);
+    delete disconnectTimers[socketId];
     const tile = document.getElementById('tile-' + socketId);
     if (tile) tile.remove();
+  }
+
+  // Point d'entrée unique pour "ce correspondant a vraiment quitté l'appel",
+  // que ce soit parce que le serveur nous l'a dit (call:user-left) ou parce
+  // qu'on l'a déduit nous-mêmes (connexion média définitivement perdue,
+  // voir oniceconnectionstatechange) : ferme aussi l'appel de notre côté s'il
+  // ne reste plus personne d'autre — comme raccrocher quand plus personne
+  // ne répond au bout du fil.
+  function handlePeerReallyGone(socketId) {
+    if (!peerConnections[socketId]) return; // déjà nettoyé (évite un double hangup)
+    removePeer(socketId);
+    if (currentCall && Object.keys(peerConnections).length === 0) {
+      hangup();
+    }
+  }
+
+  // Filet de sécurité pour l'état ICE "disconnected" : cet état peut se
+  // rétablir tout seul (coupure réseau brève), donc on ne raccroche pas tout
+  // de suite — seulement si ça reste bloqué quelques secondes.
+  function scheduleDisconnectFallback(socketId) {
+    clearTimeout(disconnectTimers[socketId]);
+    disconnectTimers[socketId] = setTimeout(() => {
+      const pc = peerConnections[socketId];
+      if (pc && (pc.iceConnectionState === 'disconnected' || pc.iceConnectionState === 'failed' || pc.iceConnectionState === 'closed')) {
+        handlePeerReallyGone(socketId);
+      }
+    }, 8000);
   }
 
   $('acceptCallBtn').addEventListener('click', async () => {
