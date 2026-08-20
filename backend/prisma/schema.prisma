@@ -1,4 +1,4 @@
-﻿// Schéma de base de données pour l'application de communication
+// Schéma de base de données pour l'application de communication
 // Documentation: https://pris.ly/d/prisma-schema
 
 generator client {

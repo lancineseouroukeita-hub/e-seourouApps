@@ -1,4 +1,4 @@
-﻿const prisma = require('../config/prisma');
+const prisma = require('../config/prisma');
 
 // Vrai si l'un des deux utilisateurs a bloqué l'autre (dans n'importe quel
 // sens) : sert à interdire l'envoi de messages et le démarrage d'appels entre

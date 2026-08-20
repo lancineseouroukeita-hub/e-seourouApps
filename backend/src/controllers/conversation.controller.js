@@ -1,4 +1,4 @@
-﻿const prisma = require('../config/prisma');
+const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
 
 // Texte d'aperçu affiché dans la liste des conversations pour un message avec

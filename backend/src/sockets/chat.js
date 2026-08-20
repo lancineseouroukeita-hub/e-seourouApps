@@ -1,4 +1,4 @@
-﻿const prisma = require('../config/prisma');
+const prisma = require('../config/prisma');
 const { toPublicUser } = require('../controllers/auth.controller');
 const { previewLabel } = require('../controllers/conversation.controller');
 const { sendPushToUser } = require('../utils/push');

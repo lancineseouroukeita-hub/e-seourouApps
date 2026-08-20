@@ -1,4 +1,4 @@
-﻿const bcrypt = require('bcryptjs');
+const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
 

@@ -1,4 +1,4 @@
-﻿-- CreateTable
+-- CreateTable
 CREATE TABLE "BlockedUser" (
     "id" TEXT NOT NULL,
     "blockerId" TEXT NOT NULL,

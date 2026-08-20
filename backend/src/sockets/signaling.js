@@ -1,4 +1,4 @@
-﻿﻿const prisma = require('../config/prisma');
+﻿const prisma = require('../config/prisma');
 const { roomName } = require('./chat');
 const { sendPushToUser } = require('../utils/push');
 const { isBlockedBetween } = require('../utils/blocking');
