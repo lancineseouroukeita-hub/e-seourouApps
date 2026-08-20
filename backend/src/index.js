@@ -10,6 +10,7 @@ const userRoutes = require('./routes/user.routes');
 const conversationRoutes = require('./routes/conversation.routes');
 const pushRoutes = require('./routes/push.routes');
 const callRoutes = require('./routes/call.routes');
+const statusRoutes = require('./routes/status.routes');
 const { setupSocket } = require('./sockets');
 
 const app = express();
@@ -20,8 +21,10 @@ const corsOrigin = corsOriginEnv === '*' ? '*' : corsOriginEnv.split(',');
 
 app.use(cors({ origin: corsOrigin }));
 // Limite par défaut d'express.json() : 100 Ko, trop petit pour la photo de
-// profil envoyée en base64 (jusqu'à ~2 Mo, voir user.controller.js).
-app.use(express.json({ limit: '3mb' }));
+// profil (jusqu'à ~2 Mo, voir user.controller.js) ou une photo de statut
+// (jusqu'à 5 Mo, voir status.controller.js) envoyées en base64 (+33% de
+// taille par rapport au fichier d'origine une fois encodées).
+app.use(express.json({ limit: '8mb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
@@ -30,6 +33,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/conversations', conversationRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/calls', callRoutes);
+app.use('/api/statuses', statusRoutes);
 
 // Sert l'application web (testeur/PWA) : le dossier public/ contient index.html,
 // le manifest PWA, le service worker et les icônes. Comme c'est servi par ce même

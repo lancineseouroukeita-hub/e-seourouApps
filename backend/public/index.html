@@ -134,15 +134,26 @@
      (mobile) : "Appels" (historique réel) et "Actus"/"Communautés" (pas
      encore implémentés, simple message d'attente). Cachés par défaut, un
      seul est affiché à la fois via switchBottomTab(). */
-  #callsScreen, #statusScreen, #communitiesScreen{flex-direction:column;height:100%;min-height:0;}
+  #callsScreen, #statusScreen, #communitiesScreen{flex-direction:column;height:100%;min-height:0;position:relative;}
   .tabScreenHeader{padding:16px 16px 4px;flex-shrink:0;}
   .tabScreenHeader h1{margin:0;font-size:23px;font-weight:800;}
-  #callsList{flex:1;overflow-y:auto;}
+  #callsList, #statusList{flex:1;overflow-y:auto;}
   .comingSoon{padding:60px 24px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5;}
   .callDirIcon{margin-right:4px;}
   .callMissed{color:var(--danger);}
   .callOk{color:var(--muted);}
   .callTypeIcon{filter:grayscale(1) brightness(1.6);opacity:.8;}
+
+  /* ---------- Onglet "Actus" : liste des statuts ---------- */
+  .statusFab{position:absolute;right:16px;bottom:16px;width:52px;height:52px;font-size:26px;box-shadow:0 4px 14px rgba(0,0,0,.35);z-index:5;}
+  .statusSectionLabel{padding:12px 16px 6px;font-size:12.5px;color:var(--muted);font-weight:600;}
+  .statusAvatarWrap{position:relative;width:48px;height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:50%;}
+  .statusAvatarWrap .avatar{width:44px;height:44px;}
+  .statusAvatarWrap.ringUnseen{box-shadow:0 0 0 2.5px var(--accent);}
+  .statusAvatarWrap.ringSeen{box-shadow:0 0 0 2.5px var(--border);}
+  .statusAvatarWrap.ringNone{box-shadow:0 0 0 2px var(--border);}
+  .statusAddBadge{position:absolute;bottom:-2px;right:-2px;width:18px;height:18px;border-radius:50%;background:var(--accent);color:white;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;border:2px solid var(--bg);font-weight:700;}
+  .statusViewCount{font-size:11px;color:var(--muted);white-space:nowrap;flex-shrink:0;}
 
   /* Barre d'onglets du bas façon WhatsApp : cachée par défaut (desktop),
      affichée en fixed uniquement sur mobile (voir media query), et masquée
@@ -321,6 +332,51 @@
   .accentSwatch.selected{border-color:var(--text);}
   .accentSwatch.selected::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;text-shadow:0 1px 2px rgba(0,0,0,.4);}
 
+  /* ---------- Statuts : composition (texte/photo) ---------- */
+  #statusComposerOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;z-index:120;padding:20px;}
+  #statusComposerOverlay.show{display:flex;}
+  #statusComposerCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #statusComposerHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #statusComposerHeader h2{margin:0;font-size:16px;}
+  #statusComposerHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #statusComposerBody{padding:16px;overflow-y:auto;}
+  .statusTypeTabs{display:flex;gap:8px;margin-bottom:14px;}
+  .statusTypeTab{flex:1;padding:8px 0;border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:8px;cursor:pointer;font-size:13.5px;font-weight:600;}
+  .statusTypeTab.active{background:var(--accent);border-color:var(--accent);color:white;}
+  #statusTextPreview{border-radius:12px;min-height:140px;display:flex;align-items:center;justify-content:center;text-align:center;color:white;font-size:19px;font-weight:600;padding:20px;box-sizing:border-box;word-break:break-word;margin-bottom:12px;}
+  #statusTextInput{width:100%;box-sizing:border-box;min-height:70px;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:12px;font-family:inherit;resize:vertical;}
+  .statusColorSwatches{display:flex;flex-wrap:wrap;gap:10px;}
+  .statusColorSwatch{width:28px;height:28px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;}
+  .statusColorSwatch.selected{border-color:var(--text);}
+  #statusPhotoPreviewWrap{margin-bottom:12px;}
+  #statusPhotoPickBtn{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:9px 14px;cursor:pointer;font-size:13.5px;width:100%;}
+  #statusPhotoPreviewImg{display:block;width:100%;max-height:260px;object-fit:contain;border-radius:8px;margin-top:10px;background:#000;}
+  #statusPhotoCaptionInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+  #publishStatusBtn{background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;width:100%;margin-top:6px;font-weight:600;}
+  #publishStatusBtn:hover{background:var(--accent2);}
+
+  /* ---------- Statuts : lecture plein écran (comme les Stories) ---------- */
+  #statusViewerOverlay{position:fixed;inset:0;background:#000;display:none;flex-direction:column;z-index:130;}
+  #statusViewerOverlay.show{display:flex;}
+  #statusViewerProgressRow{display:flex;gap:4px;padding:10px 10px 0;flex-shrink:0;}
+  .statusProgressSeg{flex:1;height:3px;border-radius:2px;background:rgba(255,255,255,.3);overflow:hidden;}
+  .statusProgressSeg .fill{height:100%;width:0%;background:#fff;}
+  #statusViewerHeader{display:flex;align-items:center;gap:10px;padding:10px 14px;color:#fff;flex-shrink:0;}
+  #statusViewerHeader .avatar{width:36px;height:36px;flex-shrink:0;}
+  .statusViewerNameTime{flex:1;min-width:0;}
+  #statusViewerName{font-size:14px;font-weight:600;}
+  #statusViewerTime{font-size:12px;color:rgba(255,255,255,.7);}
+  #statusViewerHeader button{background:none;border:none;color:#fff;font-size:17px;cursor:pointer;padding:4px 8px;}
+  #statusViewerContent{flex:1;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden;padding:0 12px;min-height:0;}
+  #statusViewerMedia{width:100%;height:100%;display:flex;align-items:center;justify-content:center;position:relative;}
+  .statusTextCard{width:100%;height:100%;display:flex;align-items:center;justify-content:center;text-align:center;color:#fff;font-size:26px;font-weight:600;padding:24px;box-sizing:border-box;word-break:break-word;border-radius:8px;}
+  #statusViewerMedia img{max-width:100%;max-height:100%;border-radius:8px;object-fit:contain;}
+  .statusCaption{position:absolute;bottom:16px;left:16px;right:16px;color:#fff;text-align:center;font-size:14px;background:rgba(0,0,0,.45);padding:8px 10px;border-radius:8px;}
+  #statusViewerTapLeft, #statusViewerTapRight{position:absolute;top:0;bottom:0;z-index:5;cursor:pointer;}
+  #statusViewerTapLeft{left:0;width:30%;}
+  #statusViewerTapRight{right:0;width:70%;}
+  #statusViewerViewsRow{padding:10px 14px;color:rgba(255,255,255,.85);font-size:12.5px;text-align:center;flex-shrink:0;}
+
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:#333a47;border-radius:4px;}
 
@@ -359,6 +415,9 @@
        est ouverte en plein écran, comme dans WhatsApp. */
     #bottomTabBar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);border-top:1px solid var(--border);padding:6px max(6px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));}
     #mainScreen.show.chatOpen #bottomTabBar{display:none;}
+    /* Sur mobile, la barre d'onglets fixe est au-dessus du bouton "+" des
+       statuts : on le remonte pour qu'il reste cliquable et visible. */
+    .statusFab{bottom:74px;}
   }
 </style>
 </head>
@@ -444,13 +503,17 @@
       <div id="callsList"></div>
     </div>
 
-    <!-- Onglets "Actus" et "Communautés" (barre du bas, mobile) : pas encore
-         de fonctionnalité Statuts/Communautés dans seourouApps, on l'indique
-         clairement plutôt que d'afficher un écran vide sans explication. -->
+    <!-- Onglet "Actus" (barre du bas, mobile) : Statuts façon WhatsApp — texte
+         coloré ou photo, visibles par tous pendant 24h. -->
     <div id="statusScreen" style="display:none;">
       <div class="tabScreenHeader"><h1>Actus</h1></div>
-      <div class="comingSoon">🚧 Bientôt disponible dans seourouApps.</div>
+      <div id="statusList"></div>
+      <button class="roundIconBtnPrimary statusFab" id="addStatusBtn" title="Publier un statut">+</button>
     </div>
+
+    <!-- Onglet "Communautés" (barre du bas, mobile) : pas encore de
+         fonctionnalité Communautés dans seourouApps, on l'indique clairement
+         plutôt que d'afficher un écran vide sans explication. -->
     <div id="communitiesScreen" style="display:none;">
       <div class="tabScreenHeader"><h1>Communautés</h1></div>
       <div class="comingSoon">🚧 Bientôt disponible dans seourouApps.</div>
@@ -591,6 +654,67 @@
 
       </div>
     </div>
+  </div>
+
+  <!-- ---------- Statuts (onglet "Actus") : composition ---------- -->
+  <div id="statusComposerOverlay">
+    <div id="statusComposerCard">
+      <div id="statusComposerHeader">
+        <h2>Nouveau statut</h2>
+        <button id="closeStatusComposerBtn" title="Fermer">✕</button>
+      </div>
+      <div id="statusComposerBody">
+        <div class="statusTypeTabs">
+          <button class="statusTypeTab active" data-type="text">Texte</button>
+          <button class="statusTypeTab" data-type="photo">Photo</button>
+        </div>
+
+        <div id="statusTextPane">
+          <div id="statusTextPreview" style="background:#25d366;">Votre texte ici…</div>
+          <textarea id="statusTextInput" maxlength="500" placeholder="Écrivez quelque chose…"></textarea>
+          <div class="statusColorSwatches">
+            <button class="statusColorSwatch selected" data-color="#25d366" style="background:#25d366" title="Vert"></button>
+            <button class="statusColorSwatch" data-color="#0a84ff" style="background:#0a84ff" title="Bleu"></button>
+            <button class="statusColorSwatch" data-color="#a855f7" style="background:#a855f7" title="Violet"></button>
+            <button class="statusColorSwatch" data-color="#ff8a2b" style="background:#ff8a2b" title="Orange"></button>
+            <button class="statusColorSwatch" data-color="#ef4444" style="background:#ef4444" title="Rouge"></button>
+            <button class="statusColorSwatch" data-color="#1f2937" style="background:#1f2937" title="Gris foncé"></button>
+          </div>
+        </div>
+
+        <div id="statusPhotoPane" style="display:none;">
+          <input type="file" id="statusPhotoInput" accept="image/*" style="display:none">
+          <div id="statusPhotoPreviewWrap">
+            <button id="statusPhotoPickBtn" type="button">📷 Choisir une photo</button>
+            <img id="statusPhotoPreviewImg" style="display:none;" alt="">
+          </div>
+          <input id="statusPhotoCaptionInput" type="text" maxlength="200" placeholder="Ajouter une légende (facultatif)">
+        </div>
+
+        <div class="settingsMsg" id="statusComposerMsg"></div>
+        <button id="publishStatusBtn">Publier</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Statuts (onglet "Actus") : lecture plein écran ---------- -->
+  <div id="statusViewerOverlay">
+    <div id="statusViewerProgressRow"></div>
+    <div id="statusViewerHeader">
+      <div class="avatar" id="statusViewerAvatar">?</div>
+      <div class="statusViewerNameTime">
+        <div id="statusViewerName"></div>
+        <div id="statusViewerTime"></div>
+      </div>
+      <button id="statusViewerDeleteBtn" title="Supprimer ce statut" style="display:none;">🗑</button>
+      <button id="statusViewerCloseBtn" title="Fermer">✕</button>
+    </div>
+    <div id="statusViewerContent">
+      <div id="statusViewerMedia"></div>
+      <div id="statusViewerTapLeft"></div>
+      <div id="statusViewerTapRight"></div>
+    </div>
+    <div id="statusViewerViewsRow" style="display:none;"></div>
   </div>
 
 </div>
@@ -935,6 +1059,7 @@
     $('communitiesScreen').style.display = tab === 'communautes' ? 'flex' : 'none';
     $('bottomTabBar').querySelectorAll('.tabBtn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     if (tab === 'appels') loadCallHistory();
+    if (tab === 'actus') loadStatuses();
   }
 
   $('bottomTabBar').addEventListener('click', (e) => {
@@ -987,6 +1112,331 @@
     if (d.toDateString() === now.toDateString()) return fmtTime(iso);
     return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + fmtTime(iso);
   }
+
+  // ---------- Onglet "Actus" : Statuts (texte coloré ou photo, 24h) ----------
+  let statusesData = [];
+  let currentViewerUserId = null;
+  let currentViewerIndex = 0;
+  let statusViewerTimer = null;
+  let statusComposerType = 'text';
+  let statusComposerColor = '#25d366';
+  let statusComposerPhotoBase64 = null;
+  let statusComposerPhotoMime = null;
+  const STATUS_VIEW_DURATION_MS = 5000;
+
+  async function loadStatuses() {
+    const el = $('statusList');
+    el.innerHTML = '<div class="comingSoon">Chargement…</div>';
+    try {
+      const data = await api('/api/statuses');
+      statusesData = data.statuses;
+      renderStatusList();
+    } catch (err) {
+      el.innerHTML = `<div class="comingSoon">Erreur : ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function fmtStatusTime(iso) {
+    const d = new Date(iso);
+    const diffMin = Math.round((Date.now() - d.getTime()) / 60000);
+    if (diffMin < 1) return 'À l\'instant';
+    if (diffMin < 60) return `Il y a ${diffMin} min`;
+    const diffH = Math.round(diffMin / 60);
+    if (diffH < 24) return `Il y a ${diffH} h`;
+    return fmtTime(iso);
+  }
+
+  function renderStatusList() {
+    const el = $('statusList');
+    el.innerHTML = '';
+
+    const mine = statusesData.find((g) => g.isMine);
+    const others = statusesData.filter((g) => !g.isMine);
+    const hasMine = Boolean(mine && mine.statuses.length);
+
+    const mineRow = document.createElement('div');
+    mineRow.className = 'listItem';
+    const mineViewCount = hasMine ? mine.statuses.reduce((sum, s) => sum + s.viewCount, 0) : 0;
+    mineRow.innerHTML = `
+      <div class="statusAvatarWrap ${hasMine ? (mine.allViewed ? 'ringSeen' : 'ringUnseen') : 'ringNone'}">
+        ${avatarDivHtml(me ? me.name : '', me ? me.avatarUrl : null)}
+        ${hasMine ? '' : '<span class="statusAddBadge">+</span>'}
+      </div>
+      <div class="liText"><div class="liName">Mon statut</div><div class="liSub">${hasMine ? fmtStatusTime(mine.statuses[mine.statuses.length - 1].createdAt) : 'Appuyez pour ajouter un statut'}</div></div>
+      ${hasMine ? `<span class="statusViewCount">👁 ${mineViewCount}</span>` : ''}
+    `;
+    mineRow.addEventListener('click', () => {
+      if (hasMine) openStatusViewer(mine.userId);
+      else openStatusComposer();
+    });
+    el.appendChild(mineRow);
+
+    if (others.length) {
+      const label = document.createElement('div');
+      label.className = 'statusSectionLabel';
+      label.textContent = 'Mises à jour récentes';
+      el.appendChild(label);
+
+      others.forEach((o) => {
+        const row = document.createElement('div');
+        row.className = 'listItem';
+        row.innerHTML = `
+          <div class="statusAvatarWrap ${o.allViewed ? 'ringSeen' : 'ringUnseen'}">${avatarDivHtml(o.name, o.avatarUrl)}</div>
+          <div class="liText"><div class="liName">${escapeHtml(o.name)}</div><div class="liSub">${fmtStatusTime(o.statuses[o.statuses.length - 1].createdAt)}</div></div>
+        `;
+        row.addEventListener('click', () => openStatusViewer(o.userId));
+        el.appendChild(row);
+      });
+    }
+  }
+
+  // ----- Composition -----
+  function openStatusComposer() {
+    statusComposerType = 'text';
+    statusComposerColor = '#25d366';
+    statusComposerPhotoBase64 = null;
+    statusComposerPhotoMime = null;
+    $('statusTextInput').value = '';
+    $('statusPhotoCaptionInput').value = '';
+    $('statusPhotoPreviewImg').style.display = 'none';
+    $('statusPhotoPickBtn').textContent = '📷 Choisir une photo';
+    $('statusComposerMsg').textContent = '';
+    $('statusTextPreview').style.background = statusComposerColor;
+    document.querySelectorAll('.statusColorSwatch').forEach((b) => b.classList.toggle('selected', b.dataset.color === statusComposerColor));
+    switchStatusComposerPane('text');
+    updateStatusTextPreview();
+    $('statusComposerOverlay').classList.add('show');
+  }
+
+  function closeStatusComposer() {
+    $('statusComposerOverlay').classList.remove('show');
+  }
+
+  function switchStatusComposerPane(type) {
+    statusComposerType = type;
+    document.querySelectorAll('.statusTypeTab').forEach((b) => b.classList.toggle('active', b.dataset.type === type));
+    $('statusTextPane').style.display = type === 'text' ? '' : 'none';
+    $('statusPhotoPane').style.display = type === 'photo' ? '' : 'none';
+  }
+
+  function updateStatusTextPreview() {
+    $('statusTextPreview').textContent = $('statusTextInput').value || 'Votre texte ici…';
+  }
+
+  $('addStatusBtn').addEventListener('click', openStatusComposer);
+  $('closeStatusComposerBtn').addEventListener('click', closeStatusComposer);
+  $('statusComposerOverlay').addEventListener('click', (e) => {
+    if (e.target === $('statusComposerOverlay')) closeStatusComposer();
+  });
+  document.querySelectorAll('.statusTypeTab').forEach((btn) => {
+    btn.addEventListener('click', () => switchStatusComposerPane(btn.dataset.type));
+  });
+  $('statusTextInput').addEventListener('input', updateStatusTextPreview);
+  document.querySelectorAll('.statusColorSwatch').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      statusComposerColor = btn.dataset.color;
+      document.querySelectorAll('.statusColorSwatch').forEach((b) => b.classList.toggle('selected', b === btn));
+      $('statusTextPreview').style.background = statusComposerColor;
+    });
+  });
+
+  $('statusPhotoPickBtn').addEventListener('click', () => $('statusPhotoInput').click());
+  $('statusPhotoInput').addEventListener('change', async () => {
+    const file = $('statusPhotoInput').files[0];
+    $('statusPhotoInput').value = '';
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      alert('Photo trop volumineuse (5 Mo maximum).');
+      return;
+    }
+    try {
+      statusComposerPhotoBase64 = await blobToBase64(file);
+      statusComposerPhotoMime = file.type || 'image/jpeg';
+      $('statusPhotoPreviewImg').src = 'data:' + statusComposerPhotoMime + ';base64,' + statusComposerPhotoBase64;
+      $('statusPhotoPreviewImg').style.display = '';
+      $('statusPhotoPickBtn').textContent = '📷 Changer la photo';
+    } catch (err) {
+      alert('Erreur de lecture du fichier : ' + err.message);
+    }
+  });
+
+  $('publishStatusBtn').addEventListener('click', async () => {
+    const msgEl = $('statusComposerMsg');
+    msgEl.textContent = '';
+    msgEl.className = 'settingsMsg';
+    const payload = { type: statusComposerType };
+    if (statusComposerType === 'text') {
+      const text = $('statusTextInput').value.trim();
+      if (!text) {
+        msgEl.textContent = 'Écrivez un texte pour votre statut.';
+        msgEl.className = 'settingsMsg error';
+        return;
+      }
+      payload.content = text;
+      payload.backgroundColor = statusComposerColor;
+    } else {
+      if (!statusComposerPhotoBase64) {
+        msgEl.textContent = 'Choisissez une photo.';
+        msgEl.className = 'settingsMsg error';
+        return;
+      }
+      payload.attachmentData = statusComposerPhotoBase64;
+      payload.attachmentMime = statusComposerPhotoMime;
+      const caption = $('statusPhotoCaptionInput').value.trim();
+      if (caption) payload.content = caption;
+    }
+    try {
+      await api('/api/statuses', { method: 'POST', body: JSON.stringify(payload) });
+      closeStatusComposer();
+      loadStatuses();
+    } catch (err) {
+      msgEl.textContent = 'Erreur : ' + err.message;
+      msgEl.className = 'settingsMsg error';
+    }
+  });
+
+  // ----- Lecture plein écran -----
+  function openStatusViewer(userId) {
+    const group = statusesData.find((g) => g.userId === userId);
+    if (!group || !group.statuses.length) return;
+    currentViewerUserId = userId;
+    currentViewerIndex = 0;
+    $('statusViewerDeleteBtn').style.display = group.isMine ? '' : 'none';
+    buildStatusProgressBar(group.statuses.length);
+    $('statusViewerOverlay').classList.add('show');
+    showStatusViewerItem();
+  }
+
+  function buildStatusProgressBar(count) {
+    const row = $('statusViewerProgressRow');
+    row.innerHTML = '';
+    for (let i = 0; i < count; i++) {
+      const seg = document.createElement('div');
+      seg.className = 'statusProgressSeg';
+      seg.innerHTML = '<div class="fill"></div>';
+      row.appendChild(seg);
+    }
+  }
+
+  function showStatusViewerItem() {
+    const group = statusesData.find((g) => g.userId === currentViewerUserId);
+    if (!group) return closeStatusViewer();
+    const item = group.statuses[currentViewerIndex];
+    if (!item) return closeStatusViewer();
+
+    const avatarEl = $('statusViewerAvatar');
+    const freshAvatar = avatarDivHtml(group.isMine ? (me ? me.name : '') : group.name, group.isMine ? (me ? me.avatarUrl : null) : group.avatarUrl);
+    const temp = document.createElement('div');
+    temp.innerHTML = freshAvatar;
+    avatarEl.className = temp.firstElementChild.className;
+    avatarEl.style.backgroundImage = temp.firstElementChild.style.backgroundImage || '';
+    avatarEl.textContent = temp.firstElementChild.textContent || '';
+
+    $('statusViewerName').textContent = group.isMine ? 'Mon statut' : group.name;
+    $('statusViewerTime').textContent = fmtStatusTime(item.createdAt);
+
+    const media = $('statusViewerMedia');
+    media.innerHTML = '';
+    if (item.type === 'photo' && item.attachmentData) {
+      const img = document.createElement('img');
+      img.src = 'data:' + (item.attachmentMime || 'image/jpeg') + ';base64,' + item.attachmentData;
+      media.appendChild(img);
+      if (item.content) {
+        const cap = document.createElement('div');
+        cap.className = 'statusCaption';
+        cap.textContent = item.content;
+        media.appendChild(cap);
+      }
+    } else {
+      const card = document.createElement('div');
+      card.className = 'statusTextCard';
+      card.style.background = item.backgroundColor || '#25d366';
+      card.textContent = item.content || '';
+      media.appendChild(card);
+    }
+
+    const viewsRow = $('statusViewerViewsRow');
+    if (group.isMine) {
+      viewsRow.style.display = '';
+      viewsRow.textContent = item.viewCount > 0 ? `👁 Vu par ${item.viewCount} personne${item.viewCount > 1 ? 's' : ''}` : 'Personne n\'a encore vu ce statut';
+    } else {
+      viewsRow.style.display = 'none';
+      if (!item.viewedByMe) {
+        api('/api/statuses/' + item.id + '/view', { method: 'POST' }).then(() => { item.viewedByMe = true; }).catch(() => {});
+      }
+    }
+
+    animateStatusProgress();
+  }
+
+  function animateStatusProgress() {
+    clearTimeout(statusViewerTimer);
+    const segs = $('statusViewerProgressRow').querySelectorAll('.statusProgressSeg');
+    segs.forEach((seg, i) => {
+      const fill = seg.querySelector('.fill');
+      fill.style.transition = 'none';
+      if (i < currentViewerIndex) {
+        fill.style.width = '100%';
+      } else if (i === currentViewerIndex) {
+        fill.style.width = '0%';
+        void fill.offsetWidth; // force le recalcul avant de démarrer la transition
+        fill.style.transition = `width ${STATUS_VIEW_DURATION_MS}ms linear`;
+        fill.style.width = '100%';
+      } else {
+        fill.style.width = '0%';
+      }
+    });
+    statusViewerTimer = setTimeout(statusViewerNext, STATUS_VIEW_DURATION_MS);
+  }
+
+  function statusViewerNext() {
+    const group = statusesData.find((g) => g.userId === currentViewerUserId);
+    if (!group) return closeStatusViewer();
+    if (currentViewerIndex < group.statuses.length - 1) {
+      currentViewerIndex++;
+      showStatusViewerItem();
+      return;
+    }
+    const idx = statusesData.findIndex((g) => g.userId === currentViewerUserId);
+    if (idx >= 0 && idx < statusesData.length - 1) {
+      openStatusViewer(statusesData[idx + 1].userId);
+    } else {
+      closeStatusViewer();
+    }
+  }
+
+  function statusViewerPrev() {
+    if (currentViewerIndex > 0) {
+      currentViewerIndex--;
+      showStatusViewerItem();
+    } else {
+      closeStatusViewer();
+    }
+  }
+
+  function closeStatusViewer() {
+    clearTimeout(statusViewerTimer);
+    $('statusViewerOverlay').classList.remove('show');
+    currentViewerUserId = null;
+    loadStatuses();
+  }
+
+  $('statusViewerTapLeft').addEventListener('click', statusViewerPrev);
+  $('statusViewerTapRight').addEventListener('click', statusViewerNext);
+  $('statusViewerCloseBtn').addEventListener('click', closeStatusViewer);
+  $('statusViewerDeleteBtn').addEventListener('click', async () => {
+    const group = statusesData.find((g) => g.userId === currentViewerUserId);
+    if (!group) return;
+    const item = group.statuses[currentViewerIndex];
+    if (!item) return;
+    if (!confirm('Supprimer ce statut ?')) return;
+    try {
+      await api('/api/statuses/' + item.id, { method: 'DELETE' });
+      closeStatusViewer();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  });
 
   // ---------- Socket ----------
   function connectSocket() {
