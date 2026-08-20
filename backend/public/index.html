@@ -130,6 +130,31 @@
   .liSub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
   #userList{border-top:1px solid var(--border);}
 
+  /* Écrans de premier niveau accessibles depuis la barre d'onglets du bas
+     (mobile) : "Appels" (historique réel) et "Actus"/"Communautés" (pas
+     encore implémentés, simple message d'attente). Cachés par défaut, un
+     seul est affiché à la fois via switchBottomTab(). */
+  #callsScreen, #statusScreen, #communitiesScreen{flex-direction:column;height:100%;min-height:0;}
+  .tabScreenHeader{padding:16px 16px 4px;flex-shrink:0;}
+  .tabScreenHeader h1{margin:0;font-size:23px;font-weight:800;}
+  #callsList{flex:1;overflow-y:auto;}
+  .comingSoon{padding:60px 24px;text-align:center;color:var(--muted);font-size:14px;line-height:1.5;}
+  .callDirIcon{margin-right:4px;}
+  .callMissed{color:var(--danger);}
+  .callOk{color:var(--muted);}
+  .callTypeIcon{filter:grayscale(1) brightness(1.6);opacity:.8;}
+
+  /* Barre d'onglets du bas façon WhatsApp : cachée par défaut (desktop),
+     affichée en fixed uniquement sur mobile (voir media query), et masquée
+     dès qu'une conversation est ouverte en plein écran (chatOpen). */
+  #bottomTabBar{display:none;}
+  .tabBtn{flex:1;background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;cursor:pointer;padding:4px 0 2px;position:relative;}
+  .tabBtn .tabIcon{font-size:20px;line-height:1;filter:grayscale(1);opacity:.75;}
+  .tabBtn .avatar{margin-bottom:1px;}
+  .tabBtn.active{color:var(--accent);}
+  .tabBtn.active .tabIcon{filter:none;opacity:1;}
+  .tabBadge{position:absolute;top:-2px;right:24%;background:var(--success);color:white;font-size:9px;font-weight:700;border-radius:8px;padding:1px 5px;min-width:14px;line-height:1.4;text-align:center;}
+
   #chatArea{flex:1;display:flex;flex-direction:column;min-width:0;}
   #chatHeader{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
   #chatHeader .title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -242,16 +267,22 @@
 
   /* ---------- Paramètres ---------- */
   #settingsBtn{background:var(--panel2);border:1px solid var(--border);font-size:15px;padding:5px 9px;}
+  /* Style "page pleine" façon WhatsApp (onglet "Vous") plutôt qu'une simple
+     fenêtre modale : le fond de la carte reprend le fond de page (--bg) et
+     chaque section devient une carte arrondie séparée (--panel), avec une
+     petite icône ronde devant le titre, au lieu de blocs collés séparés par
+     un simple trait. */
   #settingsOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;z-index:110;padding:20px;}
   #settingsOverlay.show{display:flex;}
-  #settingsCard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
-  #settingsHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);}
+  #settingsCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #settingsHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
   #settingsHeader h2{margin:0;font-size:16px;}
   #settingsHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
-  #settingsBody{padding:6px 18px 18px;overflow-y:auto;}
-  .settingsSection{padding:16px 0;border-bottom:1px solid var(--border);}
-  .settingsSection:last-child{border-bottom:none;}
-  .settingsSection h3{margin:0 0 12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  #settingsBody{padding:14px;overflow-y:auto;}
+  .settingsSection{padding:16px;border-radius:14px;background:var(--panel);margin-bottom:12px;}
+  .settingsSection:last-child{margin-bottom:0;}
+  .settingsSection h3{margin:0 0 12px;font-size:14px;color:var(--text);font-weight:700;display:flex;align-items:center;gap:10px;}
+  .settingsSection h3 .settingsIcon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--panel2);font-size:13px;flex-shrink:0;}
   .settingsAvatarRow{display:flex;align-items:center;gap:14px;}
   .settingsAvatarRow .avatar{width:56px;height:56px;font-size:20px;cursor:pointer;flex-shrink:0;}
   .settingsAvatarField{flex:1;}
@@ -298,16 +329,25 @@
     #logoutBtn{padding:6px 8px;font-size:12px;}
 
     #mainScreen.show{position:relative;overflow:hidden;}
-    #sidebar{width:100%;border-right:none;position:absolute;inset:0;z-index:1;}
+    #sidebar, #callsScreen, #statusScreen, #communitiesScreen{width:100%;border-right:none;position:absolute;inset:0;z-index:1;padding-bottom:56px;box-sizing:border-box;}
     #chatArea{position:absolute;inset:0;z-index:2;display:none;}
     /* Une fois une conversation ouverte, on affiche le panneau de chat par-dessus
        (en plein écran) et on cache la liste, plutôt que de les serrer côte à côte. */
-    #mainScreen.show.chatOpen #sidebar{display:none;}
+    #mainScreen.show.chatOpen #sidebar,
+    #mainScreen.show.chatOpen #callsScreen,
+    #mainScreen.show.chatOpen #statusScreen,
+    #mainScreen.show.chatOpen #communitiesScreen{display:none;}
     #mainScreen.show.chatOpen #chatArea{display:flex;}
 
     #chatHeader #backToListBtn{display:flex;}
     .bubble{max-width:82%;}
     .msgImage{max-width:min(240px, 70vw);max-height:min(240px, 70vw);}
+
+    /* Barre d'onglets du bas : fixe, au-dessus de tout sauf les modales
+       (appel entrant/en cours, paramètres). Cachée dès qu'une conversation
+       est ouverte en plein écran, comme dans WhatsApp. */
+    #bottomTabBar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);border-top:1px solid var(--border);padding:6px max(6px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));}
+    #mainScreen.show.chatOpen #bottomTabBar{display:none;}
   }
 </style>
 </head>
@@ -384,6 +424,27 @@
       <div class="sideSection">Autres utilisateurs</div>
       <div id="userList"></div>
     </div>
+
+    <!-- Onglet "Appels" (barre du bas, mobile) : historique réel des appels
+         (audio/vidéo, manqués ou non), construit à partir des données déjà
+         stockées côté serveur pour chaque appel. -->
+    <div id="callsScreen" style="display:none;">
+      <div class="tabScreenHeader"><h1>Appels</h1></div>
+      <div id="callsList"></div>
+    </div>
+
+    <!-- Onglets "Actus" et "Communautés" (barre du bas, mobile) : pas encore
+         de fonctionnalité Statuts/Communautés dans seourouApps, on l'indique
+         clairement plutôt que d'afficher un écran vide sans explication. -->
+    <div id="statusScreen" style="display:none;">
+      <div class="tabScreenHeader"><h1>Actus</h1></div>
+      <div class="comingSoon">🚧 Bientôt disponible dans seourouApps.</div>
+    </div>
+    <div id="communitiesScreen" style="display:none;">
+      <div class="tabScreenHeader"><h1>Communautés</h1></div>
+      <div class="comingSoon">🚧 Bientôt disponible dans seourouApps.</div>
+    </div>
+
     <div id="chatArea">
       <div id="emptyState">Choisissez un utilisateur à gauche pour démarrer une conversation.</div>
       <div id="activeChat" style="display:none;flex-direction:column;flex:1;min-height:0;">
@@ -412,6 +473,17 @@
           <button id="sendBtn" title="Envoyer">➤</button>
         </div>
       </div>
+    </div>
+
+    <!-- Barre d'onglets du bas (mobile uniquement, comme WhatsApp) : bascule
+         entre les différents écrans de premier niveau. "Vous" n'a pas d'écran
+         dédié, il ouvre directement les Paramètres existants. -->
+    <div id="bottomTabBar">
+      <button class="tabBtn" data-tab="actus"><span class="tabIcon">🔄</span><span class="tabLabel">Actus</span></button>
+      <button class="tabBtn" data-tab="appels"><span class="tabIcon">📞</span><span class="tabLabel">Appels</span></button>
+      <button class="tabBtn" data-tab="communautes"><span class="tabIcon">👥</span><span class="tabLabel">Communautés</span></button>
+      <button class="tabBtn active" data-tab="discussions"><span class="tabIcon">💬</span><span class="tabLabel">Discussions</span><span class="tabBadge" id="tabDiscussionsBadge" style="display:none;"></span></button>
+      <button class="tabBtn" data-tab="vous"><span class="avatar avatarSmall" id="tabVousAvatar">?</span><span class="tabLabel">Vous</span></button>
     </div>
   </div>
 
@@ -454,7 +526,7 @@
       <div id="settingsBody">
 
         <section class="settingsSection">
-          <h3>Profil</h3>
+          <h3><span class="settingsIcon">👤</span>Profil</h3>
           <div class="settingsAvatarRow">
             <div class="avatar avatarPhoto" id="settingsAvatar" title="Changer ma photo"></div>
             <div class="settingsAvatarField">
@@ -470,14 +542,14 @@
         </section>
 
         <section class="settingsSection">
-          <h3>Notifications</h3>
+          <h3><span class="settingsIcon">🔔</span>Notifications</h3>
           <label class="switchRow"><input type="checkbox" id="notifToggle"><span class="switchTrack"></span> Notifications push (nouveaux messages, appels)</label>
           <label class="switchRow"><input type="checkbox" id="ringtoneToggle"><span class="switchTrack"></span> Sonnerie d'appel entrant</label>
           <div class="settingsMsg" id="settingsNotifMsg"></div>
         </section>
 
         <section class="settingsSection">
-          <h3>Apparence</h3>
+          <h3><span class="settingsIcon">🎨</span>Apparence</h3>
           <label class="switchRow"><input type="checkbox" id="themeToggle"><span class="switchTrack"></span> Thème clair</label>
           <label style="display:block;font-size:12px;color:var(--muted);margin:14px 0 8px;">Couleur d'accent</label>
           <div class="accentSwatches">
@@ -492,13 +564,13 @@
         </section>
 
         <section class="settingsSection">
-          <h3>Confidentialité</h3>
+          <h3><span class="settingsIcon">🔒</span>Confidentialité</h3>
           <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:8px;">Utilisateurs bloqués — ils ne peuvent plus vous envoyer de message ni vous appeler.</label>
           <div id="blockedUsersList"></div>
         </section>
 
         <section class="settingsSection">
-          <h3>Mot de passe</h3>
+          <h3><span class="settingsIcon">🔑</span>Mot de passe</h3>
           <input id="currentPasswordInput" type="password" placeholder="Mot de passe actuel" autocomplete="current-password">
           <input id="newPasswordInput" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password">
           <input id="confirmPasswordInput" type="password" placeholder="Confirmer le nouveau mot de passe" autocomplete="new-password">
@@ -836,6 +908,74 @@
   $('backToListBtn').addEventListener('click', () => {
     $('mainScreen').classList.remove('chatOpen');
   });
+
+  // ---------- Barre d'onglets du bas (mobile), comme WhatsApp ----------
+  // Un seul écran de premier niveau visible à la fois. "Vous" n'a pas d'écran
+  // dédié : il ouvre simplement les Paramètres par-dessus, sans changer l'onglet
+  // actif en dessous (on reste sur "Discussions" une fois les Paramètres fermés).
+  function switchBottomTab(tab) {
+    if (tab === 'vous') {
+      openSettings();
+      return;
+    }
+    $('sidebar').style.display = tab === 'discussions' ? '' : 'none';
+    $('callsScreen').style.display = tab === 'appels' ? 'flex' : 'none';
+    $('statusScreen').style.display = tab === 'actus' ? 'flex' : 'none';
+    $('communitiesScreen').style.display = tab === 'communautes' ? 'flex' : 'none';
+    $('bottomTabBar').querySelectorAll('.tabBtn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+    if (tab === 'appels') loadCallHistory();
+  }
+
+  $('bottomTabBar').addEventListener('click', (e) => {
+    const btn = e.target.closest('.tabBtn');
+    if (!btn) return;
+    switchBottomTab(btn.dataset.tab);
+  });
+
+  // ---------- Onglet "Appels" : historique réel (audio/vidéo, manqués ou non) ----------
+  async function loadCallHistory() {
+    const el = $('callsList');
+    el.innerHTML = '<div class="comingSoon">Chargement…</div>';
+    try {
+      const data = await api('/api/calls');
+      renderCallHistory(data.calls);
+    } catch (err) {
+      el.innerHTML = `<div class="comingSoon">Erreur : ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function renderCallHistory(calls) {
+    const el = $('callsList');
+    el.innerHTML = '';
+    if (!calls || calls.length === 0) {
+      el.innerHTML = '<div class="comingSoon">Aucun appel pour le moment.</div>';
+      return;
+    }
+    calls.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'listItem';
+      const dirIcon = c.missed ? '↘' : (c.outgoing ? '↗' : '↙');
+      const dirClass = c.missed ? 'callMissed' : 'callOk';
+      const typeIcon = c.type === 'video' ? '🎥' : '📞';
+      const durText = c.duration ? ' · ' + formatDuration(c.duration) : '';
+      row.innerHTML = `${avatarDivHtml(c.label, c.avatarUrl)}
+        <div class="liText"><div class="liName">${escapeHtml(c.label)}</div>
+        <div class="liSub ${dirClass}"><span class="callDirIcon">${dirIcon}</span>${c.missed ? 'Manqué' : (c.outgoing ? 'Sortant' : 'Entrant')} · ${fmtCallDate(c.startedAt)}${durText}</div></div>
+        <div class="liMeta"><span class="callTypeIcon">${typeIcon}</span></div>`;
+      row.addEventListener('click', () => {
+        switchBottomTab('discussions');
+        openConversation(c.conversationId);
+      });
+      el.appendChild(row);
+    });
+  }
+
+  function fmtCallDate(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return fmtTime(iso);
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' ' + fmtTime(iso);
+  }
 
   // ---------- Socket ----------
   function connectSocket() {
@@ -1180,6 +1320,14 @@
     $('filterChips').querySelector('[data-filter="toutes"]').textContent = conversations.length > 0 ? `Toutes ${conversations.length}` : 'Toutes';
     const groupCount = conversations.filter((c) => c.isGroup).length;
     $('filterChips').querySelector('[data-filter="groupes"]').textContent = groupCount > 0 ? `Groupes ${groupCount}` : 'Groupes';
+
+    // Petit badge vert sur l'onglet "Discussions" de la barre du bas (mobile),
+    // comme le badge de notifications sur l'app WhatsApp.
+    const tabBadge = $('tabDiscussionsBadge');
+    if (tabBadge) {
+      tabBadge.textContent = unreadCount > 9 ? '9+' : String(unreadCount);
+      tabBadge.style.display = unreadCount > 0 ? 'block' : 'none';
+    }
 
     if (list.length === 0) {
       el.innerHTML = `<div style="padding:16px 14px;color:var(--muted);font-size:13px;">Aucune discussion${term ? ' pour cette recherche' : ''}.</div>`;
@@ -1929,7 +2077,7 @@
   // ---------- Photo de profil ----------
   function renderMyAvatar() {
     const avatarUrl = me && me.avatarUrl;
-    [{ el: $('myAvatar'), extraClass: 'avatarSmall' }, { el: $('settingsAvatar'), extraClass: '' }].forEach(({ el, extraClass }) => {
+    [{ el: $('myAvatar'), extraClass: 'avatarSmall' }, { el: $('settingsAvatar'), extraClass: '' }, { el: $('tabVousAvatar'), extraClass: 'avatarSmall' }].forEach(({ el, extraClass }) => {
       if (!el) return;
       el.className = ('avatar' + (extraClass ? ' ' + extraClass : '')) + (avatarUrl ? ' avatarPhoto' : '');
       el.style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
