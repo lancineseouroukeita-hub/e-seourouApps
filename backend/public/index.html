@@ -26,6 +26,16 @@
     --bg:#f3f4f7; --panel:#ffffff; --panel2:#eef0f5; --border:#dde1e9;
     --text:#1b1f27; --muted:#5c6470;
   }
+  /* Couleurs d'accent (Paramètres → Apparence) : une seule classe sur <body>,
+     mémorisée dans ce navigateur. Ne change que --accent/--accent2 ; le reste
+     du thème (clair/sombre, ci-dessus) reste indépendant de ce choix. */
+  body.accent-bleu{--accent:#4f7cff; --accent2:#3a63d6;}
+  body.accent-vert{--accent:#25d366; --accent2:#1da851;}
+  body.accent-violet{--accent:#8b5cf6; --accent2:#7c3aed;}
+  body.accent-rose{--accent:#ec4899; --accent2:#db2777;}
+  body.accent-orange{--accent:#f97316; --accent2:#ea580c;}
+  body.accent-rouge{--accent:#ef4444; --accent2:#dc2626;}
+  body.accent-turquoise{--accent:#14b8a6; --accent2:#0d9488;}
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;}
   #app{display:flex;flex-direction:column;height:100vh;}
@@ -68,8 +78,33 @@
   #mainScreen{flex:1;display:none;min-height:0;}
   #mainScreen.show{display:flex;}
   #sidebar{width:280px;background:var(--panel);border-right:1px solid var(--border);display:flex;flex-direction:column;min-height:0;}
+
+  /* En-tête façon "Discussions" (titre + appareil photo + nouvelle discussion),
+     barre de recherche et filtres, au-dessus de la liste des conversations. */
+  #sidebarTopRow{display:flex;align-items:center;gap:6px;padding:12px 10px 8px;flex-shrink:0;}
+  #sidebarTopRow h1{font-size:19px;font-weight:800;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.01em;}
+  .roundIconBtn,.roundIconBtnPrimary{width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;line-height:1;padding:0;}
+  .roundIconBtn{background:var(--panel2);color:var(--text);}
+  .roundIconBtn:hover{background:var(--border);}
+  .roundIconBtnPrimary{background:var(--accent);color:white;font-size:18px;}
+  .roundIconBtnPrimary:hover{background:var(--accent2);}
+  #sidebarSearchWrap{position:relative;margin:0 10px 10px;flex-shrink:0;}
+  #sidebarSearchWrap .searchIcon{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-size:12.5px;color:var(--muted);pointer-events:none;}
+  #convSearchInput{width:100%;box-sizing:border-box;padding:8px 10px 8px 32px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13px;}
+  #convSearchInput::placeholder{color:var(--muted);}
+  #filterChips{display:flex;gap:6px;padding:0 10px 10px;overflow-x:auto;flex-shrink:0;}
+  .filterChip{flex-shrink:0;padding:6px 12px;border-radius:16px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:12px;cursor:pointer;white-space:nowrap;}
+  .filterChip:hover{background:var(--border);}
+  .filterChip.active{background:var(--accent);border-color:var(--accent);color:white;}
+
   .sideSection{padding:12px 14px 6px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);}
   #convList,#userList{overflow-y:auto;}
+  .listItem.unread .liName{font-weight:700;}
+  .listItem.unread .liSub{color:var(--text);}
+  .liMeta{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;}
+  .unreadDot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex-shrink:0;}
+  .favStar{background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;color:var(--muted);flex-shrink:0;}
+  .favStar.active{color:#f5b944;}
   .listItem{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-left:3px solid transparent;}
   .listItem:hover{background:var(--panel2);}
   .listItem.active{background:var(--panel2);border-left-color:var(--accent);}
@@ -85,9 +120,13 @@
   #chatHeader{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
   #chatHeader .title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   #backToListBtn{display:none;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:15px;flex-shrink:0;}
-  #chatHeader .callBtns{margin-left:auto;display:flex;gap:8px;}
   #chatHeader button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;}
   #chatHeader button:hover{background:#282e3a;}
+  /* Boutons d'appel en pilule avec icônes seules (comme WhatsApp), plus
+     spécifique que la règle générique "#chatHeader button" ci-dessus. */
+  #chatHeader .callBtns{margin-left:auto;display:flex;gap:2px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:3px;}
+  #chatHeader .callBtns button{background:transparent;border:none;border-radius:50%;width:34px;height:34px;padding:0;font-size:15px;display:flex;align-items:center;justify-content:center;}
+  #chatHeader .callBtns button:hover{background:var(--border);}
   #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
   .msgRow{display:flex;}
   .msgRow.mine{justify-content:flex-end;}
@@ -108,15 +147,20 @@
   #typingIndicator{padding:0 18px 4px;font-size:12px;color:var(--muted);min-height:16px;}
   /* padding-bottom en plus : sur iPhone/Android récents, la barre de geste du bas
      (home indicator) peut chevaucher le bouton "Envoyer" sans cette marge de sécurité. */
+  /* Barre de saisie façon WhatsApp : "+" (joindre), champ arrondi, appareil
+     photo et micro en boutons ronds séparés ; le bouton d'envoi (avion en
+     papier) ne remplace le micro que lorsqu'il y a du texte à envoyer. */
   #composer{display:flex;align-items:center;gap:8px;padding:12px 18px max(12px, env(safe-area-inset-bottom)) 18px;border-top:1px solid var(--border);}
-  #composer input[type="text"]{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
-  #composer button{background:var(--accent);border:none;color:white;border-radius:8px;padding:0 18px;cursor:pointer;font-size:14px;}
-  #composer button:hover{background:var(--accent2);}
-  #composer button.iconBtn{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:0 12px;height:38px;font-size:16px;}
-  #composer button.iconBtn:hover{background:#282e3a;}
-  #composer button.iconBtn.recording{background:var(--danger);border-color:var(--danger);color:white;animation:recordPulse 1s infinite;}
+  .composerIconBtn{background:var(--panel2);border:none;color:var(--text);border-radius:50%;width:38px;height:38px;padding:0;cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
+  .composerIconBtn:hover{background:var(--border);}
+  .composerIconBtn.recording{background:var(--danger);color:white;animation:recordPulse 1s infinite;}
   @keyframes recordPulse{0%{opacity:1;}50%{opacity:.55;}100%{opacity:1;}}
-  #recordingTime{display:none;color:var(--danger);font-size:12.5px;font-variant-numeric:tabular-nums;}
+  #msgInputWrap{position:relative;flex:1;min-width:0;display:flex;align-items:center;}
+  #msgInputWrap input[type="text"]{width:100%;box-sizing:border-box;padding:10px 34px 10px 14px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+  #msgInputWrap .emojiIcon{position:absolute;right:12px;font-size:15px;color:var(--muted);pointer-events:none;}
+  #recordingTime{display:none;position:absolute;right:14px;color:var(--danger);font-size:12.5px;font-variant-numeric:tabular-nums;background:var(--panel2);padding:0 2px;}
+  #sendBtn{display:none;background:var(--accent);border:none;color:white;border-radius:50%;width:38px;height:38px;padding:0;cursor:pointer;font-size:15px;align-items:center;justify-content:center;flex-shrink:0;}
+  #sendBtn:hover{background:var(--accent2);}
   #emptyState{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;}
 
   /* Pièces jointes dans les bulles de message */
@@ -184,6 +228,12 @@
   .switchTrack::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s;}
   .switchRow input:checked + .switchTrack{background:var(--accent);border-color:var(--accent);}
   .switchRow input:checked + .switchTrack::after{transform:translateX(16px);background:white;}
+
+  /* Nuancier de couleurs d'accent (Paramètres → Apparence). */
+  .accentSwatches{display:flex;flex-wrap:wrap;gap:12px;margin-top:2px;}
+  .accentSwatch{width:32px;height:32px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;position:relative;}
+  .accentSwatch.selected{border-color:var(--text);}
+  .accentSwatch.selected::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;text-shadow:0 1px 2px rgba(0,0,0,.4);}
 
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:#333a47;border-radius:4px;}
@@ -269,7 +319,22 @@
   <!-- MAIN -->
   <div id="mainScreen">
     <div id="sidebar">
-      <div class="sideSection">Conversations</div>
+      <div id="sidebarTopRow">
+        <button class="roundIconBtn" id="sidebarMenuBtn" title="Menu">⋯</button>
+        <h1>Discussions</h1>
+        <button class="roundIconBtn" id="sidebarCameraBtn" title="Appareil photo">📷</button>
+        <button class="roundIconBtnPrimary" id="newChatBtn" title="Nouvelle discussion">+</button>
+      </div>
+      <div id="sidebarSearchWrap">
+        <span class="searchIcon">🔍</span>
+        <input id="convSearchInput" type="text" placeholder="Rechercher une discussion" autocomplete="off">
+      </div>
+      <div id="filterChips">
+        <button class="filterChip active" data-filter="toutes">Toutes</button>
+        <button class="filterChip" data-filter="nonlues">Non lues</button>
+        <button class="filterChip" data-filter="favoris">Favoris</button>
+        <button class="filterChip" data-filter="groupes">Groupes</button>
+      </div>
       <div id="convList"></div>
       <div class="sideSection">Autres utilisateurs</div>
       <div id="userList"></div>
@@ -282,19 +347,24 @@
           <div class="avatar" id="chatAvatar">?</div>
           <div class="title" id="chatTitle">—</div>
           <div class="callBtns">
-            <button id="audioCallBtn">📞 Audio</button>
-            <button id="videoCallBtn">🎥 Vidéo</button>
+            <button id="videoCallBtn" title="Appel vidéo">🎥</button>
+            <button id="audioCallBtn" title="Appel audio">📞</button>
           </div>
         </div>
         <div id="messages"></div>
         <div id="typingIndicator"></div>
         <div id="composer">
           <input type="file" id="fileInput" style="display:none">
-          <button class="iconBtn" id="attachBtn" title="Joindre un fichier">📎</button>
-          <input id="msgInput" type="text" placeholder="Écrire un message…" autocomplete="off">
-          <span id="recordingTime">00:00</span>
-          <button class="iconBtn" id="voiceBtn" title="Message vocal">🎤</button>
-          <button id="sendBtn">Envoyer</button>
+          <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
+          <button class="composerIconBtn" id="attachBtn" title="Joindre un fichier">+</button>
+          <div id="msgInputWrap">
+            <input id="msgInput" type="text" placeholder="Écrire un message…" autocomplete="off">
+            <span class="emojiIcon">🙂</span>
+            <span id="recordingTime">00:00</span>
+          </div>
+          <button class="composerIconBtn" id="cameraCaptureBtn" title="Prendre une photo">📷</button>
+          <button class="composerIconBtn" id="voiceBtn" title="Message vocal">🎤</button>
+          <button id="sendBtn" title="Envoyer">➤</button>
         </div>
       </div>
     </div>
@@ -361,6 +431,16 @@
         <section class="settingsSection">
           <h3>Apparence</h3>
           <label class="switchRow"><input type="checkbox" id="themeToggle"><span class="switchTrack"></span> Thème clair</label>
+          <label style="display:block;font-size:12px;color:var(--muted);margin:14px 0 8px;">Couleur d'accent</label>
+          <div class="accentSwatches">
+            <button class="accentSwatch" data-accent="bleu" style="background:#4f7cff" title="Bleu"></button>
+            <button class="accentSwatch" data-accent="vert" style="background:#25d366" title="Vert"></button>
+            <button class="accentSwatch" data-accent="violet" style="background:#8b5cf6" title="Violet"></button>
+            <button class="accentSwatch" data-accent="rose" style="background:#ec4899" title="Rose"></button>
+            <button class="accentSwatch" data-accent="orange" style="background:#f97316" title="Orange"></button>
+            <button class="accentSwatch" data-accent="rouge" style="background:#ef4444" title="Rouge"></button>
+            <button class="accentSwatch" data-accent="turquoise" style="background:#14b8a6" title="Turquoise"></button>
+          </div>
         </section>
 
         <section class="settingsSection">
@@ -408,6 +488,15 @@
   // pour les appliquer (le thème doit déjà être bon sur l'écran de connexion).
   let ringtoneMuted = localStorage.getItem('seourou_ringtone_muted') === '1';
   if (localStorage.getItem('seourou_theme') === 'light') document.body.classList.add('theme-light');
+  const ACCENT_COLORS = ['bleu', 'vert', 'violet', 'rose', 'orange', 'rouge', 'turquoise'];
+  const savedAccent = localStorage.getItem('seourou_accent');
+  document.body.classList.add('accent-' + (ACCENT_COLORS.includes(savedAccent) ? savedAccent : 'bleu'));
+
+  // ---------- Recherche et filtres de la liste des discussions ----------
+  let convSearchTerm = '';
+  let convFilter = 'toutes'; // toutes | nonlues | favoris | groupes
+  let favoriteConvIds = new Set(JSON.parse(localStorage.getItem('seourou_favorites') || '[]'));
+  function saveFavorites() { localStorage.setItem('seourou_favorites', JSON.stringify([...favoriteConvIds])); }
 
   // Pièces jointes (photo, fichier, message vocal) : taille max côté client,
   // doit rester cohérente avec la limite vérifiée côté serveur (chat.js).
@@ -827,22 +916,96 @@
     });
   }
 
+  // Une conversation est "non lue" si son dernier message ne vient pas de moi
+  // et est arrivé après mon propre lastReadAt (même donnée que celle utilisée
+  // pour les doubles coches, vue du côté de l'autre participant).
+  function isConvUnread(c) {
+    const lm = c.lastMessage;
+    if (!lm) return false;
+    const senderId = lm.sender ? lm.sender.id : lm.senderId;
+    if (senderId === me.id) return false;
+    const myP = c.participants.find((p) => p.id === me.id);
+    if (!myP || !myP.lastReadAt) return true;
+    return new Date(lm.createdAt).getTime() > new Date(myP.lastReadAt).getTime();
+  }
+
+  function convLabel(c) {
+    const other = c.participants.find((p) => p.id !== me.id) || c.participants[0];
+    return c.isGroup ? (c.name || 'Groupe') : (other ? other.name : '—');
+  }
+
   function renderConvList() {
     const el = $('convList');
     el.innerHTML = '';
-    conversations.forEach((c) => {
+    const term = convSearchTerm;
+    let list = conversations.filter((c) => !term || convLabel(c).toLowerCase().includes(term));
+    if (convFilter === 'nonlues') list = list.filter(isConvUnread);
+    else if (convFilter === 'favoris') list = list.filter((c) => favoriteConvIds.has(c.id));
+    else if (convFilter === 'groupes') list = list.filter((c) => c.isGroup);
+
+    // Compteur affiché sur le filtre "Non lues", comme dans WhatsApp.
+    const unreadCount = conversations.filter(isConvUnread).length;
+    $('filterChips').querySelector('[data-filter="nonlues"]').textContent = unreadCount > 0 ? `Non lues ${unreadCount}` : 'Non lues';
+
+    if (list.length === 0) {
+      el.innerHTML = `<div style="padding:16px 14px;color:var(--muted);font-size:13px;">Aucune discussion${term ? ' pour cette recherche' : ''}.</div>`;
+      return;
+    }
+
+    list.forEach((c) => {
       const other = c.participants.find((p) => p.id !== me.id) || c.participants[0];
-      const label = c.isGroup ? (c.name || 'Groupe') : (other ? other.name : '—');
+      const label = convLabel(c);
+      const unread = isConvUnread(c);
+      const isFav = favoriteConvIds.has(c.id);
       const div = document.createElement('div');
-      div.className = 'listItem' + (c.id === activeConversationId ? ' active' : '');
+      div.className = 'listItem' + (c.id === activeConversationId ? ' active' : '') + (unread ? ' unread' : '');
       div.dataset.convId = c.id;
       div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null)}
         <div class="liText"><div class="liName">${escapeHtml(label)}</div>
-        <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>`;
+        <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>
+        <div class="liMeta">
+          <button class="favStar${isFav ? ' active' : ''}" data-conv-id="${c.id}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${isFav ? '★' : '☆'}</button>
+          ${unread ? '<span class="unreadDot"></span>' : ''}
+        </div>`;
+      div.querySelector('.favStar').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (favoriteConvIds.has(c.id)) favoriteConvIds.delete(c.id); else favoriteConvIds.add(c.id);
+        saveFavorites();
+        renderConvList();
+      });
       div.addEventListener('click', () => openConversation(c.id));
       el.appendChild(div);
     });
   }
+
+  $('convSearchInput').addEventListener('input', () => {
+    convSearchTerm = $('convSearchInput').value.trim().toLowerCase();
+    renderConvList();
+  });
+
+  $('filterChips').addEventListener('click', (e) => {
+    const btn = e.target.closest('.filterChip');
+    if (!btn) return;
+    $('filterChips').querySelectorAll('.filterChip').forEach((b) => b.classList.remove('active'));
+    btn.classList.add('active');
+    convFilter = btn.dataset.filter;
+    renderConvList();
+  });
+
+  // "⋯" ouvre les paramètres (profil, notifications, apparence…), comme le
+  // ferait un menu de discussions classique.
+  $('sidebarMenuBtn').addEventListener('click', () => $('settingsBtn').click());
+
+  // "+" : pas de flux de création de discussion dédié pour l'instant, on
+  // amène simplement l'utilisateur vers la liste des autres utilisateurs.
+  $('newChatBtn').addEventListener('click', () => {
+    $('userList').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
+  $('sidebarCameraBtn').addEventListener('click', () => {
+    if (!activeConversationId) return alert('Ouvrez une discussion avant d\'envoyer une photo.');
+    $('cameraInput').click();
+  });
 
   function bumpConversationPreview(convId, msg) {
     const c = conversations.find((c) => c.id === convId);
@@ -861,6 +1024,15 @@
 
   async function openConversation(convId) {
     activeConversationId = convId;
+    // Optimiste : le serveur ne renvoie l'accusé de lecture qu'aux AUTRES
+    // participants (voir conversation:read côté serveur), donc on doit
+    // mettre à jour notre propre lastReadAt localement pour que le badge
+    // "non lu"/le point de couleur disparaisse immédiatement dans la liste.
+    const openedConv = conversations.find((c) => c.id === convId);
+    if (openedConv) {
+      const myP = openedConv.participants.find((p) => p.id === me.id);
+      if (myP) myP.lastReadAt = new Date().toISOString();
+    }
     renderConvList();
     $('emptyState').style.display = 'none';
     $('activeChat').style.display = 'flex';
@@ -986,9 +1158,19 @@
   // navigateur appellerait sendMessage(clickEvent), et l'objet évènement (qui
   // n'est pas "falsy") serait alors pris à tort pour une pièce jointe, ce qui
   // contourne la vérification "message vide" et déclenche une erreur serveur.
+  // Comme WhatsApp : le bouton d'envoi (avion en papier) ne remplace le micro
+  // que lorsqu'il y a du texte à envoyer ; l'appareil photo reste toujours
+  // visible à côté.
+  function updateComposerButtons() {
+    const hasText = $('msgInput').value.trim().length > 0;
+    $('sendBtn').style.display = hasText ? 'flex' : 'none';
+    $('voiceBtn').style.display = hasText ? 'none' : 'flex';
+  }
+
   $('sendBtn').addEventListener('click', () => sendMessage());
   $('msgInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
   $('msgInput').addEventListener('input', () => {
+    updateComposerButtons();
     if (!activeConversationId) return;
     socket.emit('typing', { conversationId: activeConversationId, isTyping: true });
     clearTimeout(typingTimeout);
@@ -1021,7 +1203,9 @@
       if (res && res.error) alert('Erreur envoi: ' + res.error);
     });
     input.value = '';
+    updateComposerButtons();
   }
+  updateComposerButtons(); // état initial (pas de texte → micro visible, pas d'avion en papier)
 
   // ---------- Pièce jointe (fichier / photo) ----------
   $('attachBtn').addEventListener('click', () => {
@@ -1029,9 +1213,17 @@
     $('fileInput').click();
   });
 
-  $('fileInput').addEventListener('change', async () => {
-    const file = $('fileInput').files[0];
-    $('fileInput').value = ''; // permet de resélectionner le même fichier plus tard
+  // Bouton appareil photo dédié dans la barre de saisie (comme WhatsApp) :
+  // ouvre directement la caméra du téléphone (attribut "capture") plutôt que
+  // le sélecteur de fichiers générique.
+  $('cameraCaptureBtn').addEventListener('click', () => {
+    if (!activeConversationId) return alert('Choisissez une conversation avant d\'envoyer une photo.');
+    $('cameraInput').click();
+  });
+
+  // Logique commune au sélecteur de fichiers générique et au bouton appareil
+  // photo dédié : les deux envoient au final une pièce jointe de la même façon.
+  async function handlePickedFile(file) {
     if (!file) return;
     if (file.size > MAX_ATTACHMENT_BYTES) {
       alert('Fichier trop volumineux (5 Mo maximum).');
@@ -1044,6 +1236,18 @@
     } catch (err) {
       alert('Erreur de lecture du fichier : ' + err.message);
     }
+  }
+
+  $('cameraInput').addEventListener('change', () => {
+    const file = $('cameraInput').files[0];
+    $('cameraInput').value = '';
+    handlePickedFile(file);
+  });
+
+  $('fileInput').addEventListener('change', () => {
+    const file = $('fileInput').files[0];
+    $('fileInput').value = ''; // permet de resélectionner le même fichier plus tard
+    handlePickedFile(file);
   });
 
   function blobToBase64(blob) {
@@ -1106,6 +1310,7 @@
     recordStartTs = Date.now();
     $('voiceBtn').classList.add('recording');
     $('voiceBtn').textContent = '⏹';
+    $('msgInputWrap').querySelector('.emojiIcon').style.visibility = 'hidden';
     $('recordingTime').style.display = 'inline';
     updateRecordingTime();
     recordTimerInterval = setInterval(updateRecordingTime, 250);
@@ -1132,6 +1337,7 @@
     recordTimerInterval = null;
     $('voiceBtn').classList.remove('recording');
     $('voiceBtn').textContent = '🎤';
+    $('msgInputWrap').querySelector('.emojiIcon').style.visibility = 'visible';
     $('recordingTime').style.display = 'none';
     $('recordingTime').textContent = '00:00';
 
@@ -1532,6 +1738,7 @@
     $('confirmPasswordInput').value = '';
     $('ringtoneToggle').checked = !ringtoneMuted;
     $('themeToggle').checked = document.body.classList.contains('theme-light');
+    refreshAccentSwatchSelection();
     $('settingsOverlay').classList.add('show');
     refreshNotifToggleState();
   }
@@ -1594,6 +1801,25 @@
     const light = $('themeToggle').checked;
     document.body.classList.toggle('theme-light', light);
     localStorage.setItem('seourou_theme', light ? 'light' : 'dark');
+  });
+
+  // ---------- Couleur d'accent (Paramètres → Apparence) ----------
+  function refreshAccentSwatchSelection() {
+    const current = ACCENT_COLORS.find((c) => document.body.classList.contains('accent-' + c)) || 'bleu';
+    document.querySelectorAll('.accentSwatch').forEach((btn) => {
+      btn.classList.toggle('selected', btn.dataset.accent === current);
+    });
+  }
+
+  document.querySelectorAll('.accentSwatch').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const accent = btn.dataset.accent;
+      if (!ACCENT_COLORS.includes(accent)) return;
+      ACCENT_COLORS.forEach((c) => document.body.classList.remove('accent-' + c));
+      document.body.classList.add('accent-' + accent);
+      localStorage.setItem('seourou_accent', accent);
+      refreshAccentSwatchSelection();
+    });
   });
 
   // Reflète l'état réel de l'abonnement (permission + abonnement navigateur
