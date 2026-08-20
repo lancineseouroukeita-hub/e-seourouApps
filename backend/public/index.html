@@ -549,6 +549,11 @@
   let currentCall = null; // { callId, conversationId, type }
   let peerConnections = {}; // socketId -> RTCPeerConnection
   let disconnectTimers = {}; // socketId -> timer (filet de sécurité ICE, voir oniceconnectionstatechange)
+  let callHeartbeatInterval = null; // envoie notre "battement" régulièrement pendant l'appel
+  let callWatchdogInterval = null; // vérifie qu'on reçoit bien celui des autres
+  let peerLastSeen = {}; // socketId -> Date.now() du dernier battement reçu
+  const HEARTBEAT_MS = 4000;
+  const HEARTBEAT_TIMEOUT_MS = 13000; // largement plus que 3 battements manqués
   let callTimerInterval = null;
   let callBaseInfoText = '';
   let micEnabled = true, camEnabled = true;
@@ -882,6 +887,13 @@
         $('incomingCall').classList.remove('show');
         pendingIncomingCall = null;
       }
+    });
+
+    // Battement reçu d'un correspondant toujours présent dans l'appel (voir
+    // startCallHeartbeat) : on note juste l'heure, le "chien de garde" s'occupe
+    // de réagir si ça s'arrête.
+    socket.on('call:peer-ping', ({ socketId }) => {
+      peerLastSeen[socketId] = Date.now();
     });
   }
 
@@ -1434,6 +1446,38 @@
       const s = String(secs % 60).padStart(2, '0');
       $('callTimer').textContent = m + ':' + s;
     }, 1000);
+    startCallHeartbeat();
+  }
+
+  // Filet de sécurité indépendant du signal explicite "call:leave"/"call:user-left"
+  // (dont on a constaté qu'il ne suffit pas toujours à lui seul en conditions
+  // réelles) : chacun envoie un petit signal régulier pendant l'appel, et si
+  // celui d'un correspondant ne revient plus pendant un moment, on considère
+  // qu'il n'est plus vraiment dans l'appel et on referme de notre côté.
+  function startCallHeartbeat() {
+    stopCallHeartbeat();
+    peerLastSeen = {};
+    callHeartbeatInterval = setInterval(() => {
+      if (currentCall) socket.emit('call:ping', { callId: currentCall.callId });
+    }, HEARTBEAT_MS);
+    callWatchdogInterval = setInterval(() => {
+      const now = Date.now();
+      Object.keys(peerConnections).forEach((socketId) => {
+        const lastSeen = peerLastSeen[socketId];
+        if (lastSeen && now - lastSeen > HEARTBEAT_TIMEOUT_MS) {
+          console.warn('[appel] Plus de battement reçu de ' + socketId + ' depuis ' + Math.round((now - lastSeen) / 1000) + 's — on referme l\'appel.');
+          handlePeerReallyGone(socketId);
+        }
+      });
+    }, 3000);
+  }
+
+  function stopCallHeartbeat() {
+    clearInterval(callHeartbeatInterval);
+    clearInterval(callWatchdogInterval);
+    callHeartbeatInterval = null;
+    callWatchdogInterval = null;
+    peerLastSeen = {};
   }
 
   // Affiche l'état réel de la connexion directement dans l'écran d'appel (pas
@@ -1457,6 +1501,9 @@
   async function createPeerConnection(socketId, name, initiator) {
     const pc = new RTCPeerConnection({ iceServers: ICE_SERVERS });
     peerConnections[socketId] = pc;
+    // Départ à "maintenant" : laisse le temps au premier battement d'arriver
+    // avant de risquer de considérer ce correspondant comme déjà parti.
+    peerLastSeen[socketId] = Date.now();
 
     if (localStream) {
       localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
@@ -1543,6 +1590,7 @@
     if (peerConnections[socketId]) { peerConnections[socketId].close(); delete peerConnections[socketId]; }
     clearTimeout(disconnectTimers[socketId]);
     delete disconnectTimers[socketId];
+    delete peerLastSeen[socketId];
     const tile = document.getElementById('tile-' + socketId);
     if (tile) tile.remove();
   }
@@ -1599,6 +1647,7 @@
 
   function hangup() {
     stopRingtone();
+    stopCallHeartbeat();
     if (currentCall) socket.emit('call:leave', { callId: currentCall.callId });
     Object.keys(peerConnections).forEach(removePeer);
     if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }

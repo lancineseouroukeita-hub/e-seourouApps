@@ -96,6 +96,17 @@ function registerSignalingHandlers(io, socket) {
     });
   });
 
+  // "Battement de cœur" léger entre participants d'un appel : sert de filet de
+  // sécurité côté client si jamais "call:leave"/"call:user-left" ne suffit pas
+  // à fermer l'appel de l'autre côté (cause encore incertaine dans certains cas
+  // observés en conditions réelles) — le client considère un correspondant
+  // parti s'il ne reçoit plus son battement pendant quelques secondes, qu'il
+  // ait ou non reçu le signal explicite.
+  socket.on('call:ping', ({ callId }) => {
+    if (!callId) return;
+    socket.to(callRoomName(callId)).emit('call:peer-ping', { callId, socketId: socket.id });
+  });
+
   socket.on('call:leave', async ({ callId }) => {
     await leaveCall(io, socket, callId);
   });
