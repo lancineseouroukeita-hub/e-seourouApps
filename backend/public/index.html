@@ -381,7 +381,10 @@
   <!-- Sonnerie d'appel entrant : un vrai fichier audio, plus fiable pour être
        débloqué par les navigateurs que le son généré par Web Audio seul (voir
        unlockRingAudio ci-dessous). Gardé en plus, pas à la place. -->
-  <audio id="ringtoneAudio" src="/ringtone.wav" loop preload="auto" style="display:none"></audio>
+  <!-- "?v=2" force les navigateurs à retélécharger le fichier après un changement
+       de sonnerie (au lieu de continuer à jouer une ancienne version mise en cache) :
+       à incrémenter à chaque fois que ringtone.wav est remplacé. -->
+  <audio id="ringtoneAudio" src="/ringtone.wav?v=2" loop preload="auto" style="display:none"></audio>
 
   <div id="callOverlay">
     <div id="callHeader">
@@ -859,6 +862,18 @@
       // (Pour un appel de groupe, l'appel continue tant qu'il reste des pairs.)
       if (currentCall && Object.keys(peerConnections).length === 0) {
         hangup();
+      }
+    });
+
+    // L'appelant a raccroché avant que quiconque décroche : on n'a jamais
+    // rejoint la room de l'appel (donc pas de "call:user-left" reçu plus haut),
+    // il faut donc fermer nous-mêmes la bannière "appel entrant" et couper la
+    // sonnerie, sinon le téléphone appelé continuerait de sonner indéfiniment.
+    socket.on('call:cancelled', ({ callId }) => {
+      if (pendingIncomingCall && pendingIncomingCall.callId === callId) {
+        stopRingtone();
+        $('incomingCall').classList.remove('show');
+        pendingIncomingCall = null;
       }
     });
   }
