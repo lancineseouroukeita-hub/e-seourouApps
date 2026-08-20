@@ -11,6 +11,7 @@ const conversationRoutes = require('./routes/conversation.routes');
 const pushRoutes = require('./routes/push.routes');
 const callRoutes = require('./routes/call.routes');
 const statusRoutes = require('./routes/status.routes');
+const communityRoutes = require('./routes/community.routes');
 const { setupSocket } = require('./sockets');
 
 const app = express();
@@ -34,6 +35,7 @@ app.use('/api/conversations', conversationRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/calls', callRoutes);
 app.use('/api/statuses', statusRoutes);
+app.use('/api/communities', communityRoutes);
 
 // Sert l'application web (testeur/PWA) : le dossier public/ contient index.html,
 // le manifest PWA, le service worker et les icônes. Comme c'est servi par ce même

@@ -61,6 +61,17 @@ function registerChatHandlers(io, socket) {
         }
       }
 
+      // Groupe d'annonces d'une Communauté : seuls les admins de la communauté
+      // peuvent y écrire (comme le groupe d'annonces des Communautés WhatsApp).
+      if (conv.isAnnouncement && conv.communityId) {
+        const membership = await prisma.communityMember.findUnique({
+          where: { communityId_userId: { communityId: conv.communityId, userId } },
+        });
+        if (!membership || membership.role !== 'admin') {
+          return callback && callback({ error: 'Seuls les admins de la communauté peuvent écrire dans ce groupe d\'annonces.' });
+        }
+      }
+
       let data = {
         conversationId,
         senderId: userId,
@@ -250,4 +261,3 @@ function roomName(conversationId) {
 }
 
 module.exports = { registerChatHandlers, roomName };
-

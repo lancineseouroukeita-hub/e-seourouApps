@@ -29,6 +29,10 @@ model User {
   // Statuts (onglet "Actus") : ceux que j'ai publiés, et ceux que j'ai vus.
   statuses     Status[]
   statusViews  StatusView[]
+  // Communautés (onglet "Communautés") : celles que j'ai créées, et celles
+  // auxquelles j'appartiens (en tant que membre ou admin).
+  createdCommunities Community[]
+  communityMemberships CommunityMember[]
 }
 
 // Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
@@ -52,9 +56,16 @@ model Conversation {
   name      String?  // utilisé seulement pour les conversations de groupe
   createdAt DateTime @default(now())
 
+  // Rattachement optionnel à une Communauté (onglet "Communautés") : un groupe
+  // "normal" de la communauté, ou son unique groupe d'annonces (isAnnouncement),
+  // où seuls les admins de la communauté peuvent écrire (vérifié dans chat.js).
+  communityId    String?
+  isAnnouncement Boolean @default(false)
+
   participants ConversationParticipant[]
   messages     Message[]
   calls        Call[]
+  community    Community? @relation(fields: [communityId], references: [id], onDelete: SetNull)
 }
 
 model ConversationParticipant {
@@ -169,4 +180,33 @@ model StatusView {
   viewer User   @relation(fields: [viewerId], references: [id], onDelete: Cascade)
 
   @@unique([statusId, viewerId])
+}
+
+// Communauté (onglet "Communautés", comme WhatsApp) : regroupe plusieurs
+// discussions de groupe sous un même nom, avec un groupe d'annonces
+// (Conversation.isAnnouncement = true) créé automatiquement, où seuls les
+// admins de la communauté peuvent écrire.
+model Community {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  creatorId   String
+  createdAt   DateTime @default(now())
+
+  creator       User              @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  members       CommunityMember[]
+  conversations Conversation[]
+}
+
+model CommunityMember {
+  id          String   @id @default(uuid())
+  communityId String
+  userId      String
+  role        String   @default("member") // "admin" | "member"
+  joinedAt    DateTime @default(now())
+
+  community Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([communityId, userId])
 }

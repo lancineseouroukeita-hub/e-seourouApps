@@ -145,7 +145,7 @@
   .callTypeIcon{filter:grayscale(1) brightness(1.6);opacity:.8;}
 
   /* ---------- Onglet "Actus" : liste des statuts ---------- */
-  .statusFab{position:absolute;right:16px;bottom:16px;width:52px;height:52px;font-size:26px;box-shadow:0 4px 14px rgba(0,0,0,.35);z-index:5;}
+  .screenFab{position:absolute;right:16px;bottom:16px;width:52px;height:52px;font-size:26px;box-shadow:0 4px 14px rgba(0,0,0,.35);z-index:5;}
   .statusSectionLabel{padding:12px 16px 6px;font-size:12.5px;color:var(--muted);font-weight:600;}
   .statusAvatarWrap{position:relative;width:48px;height:48px;flex-shrink:0;display:flex;align-items:center;justify-content:center;border-radius:50%;}
   .statusAvatarWrap .avatar{width:44px;height:44px;}
@@ -377,6 +377,37 @@
   #statusViewerTapRight{right:0;width:70%;}
   #statusViewerViewsRow{padding:10px 14px;color:rgba(255,255,255,.85);font-size:12.5px;text-align:center;flex-shrink:0;}
 
+  /* ---------- Communautés ---------- */
+  .communityIcon{background:linear-gradient(135deg,#c98bf5,#a855f7);}
+  #communitiesList .liSub{max-width:none;}
+  #communityComposerOverlay, #communityDetailOverlay, #communityAddMemberOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;}
+  #communityComposerOverlay.show, #communityDetailOverlay.show, #communityAddMemberOverlay.show{display:flex;}
+  /* Le détail d'une communauté peut rester ouvert "derrière" pendant qu'on
+     crée un groupe ou qu'on ajoute un membre : ces deux-là doivent passer
+     au-dessus (sinon les clics sont interceptés par l'écran du dessous). */
+  #communityDetailOverlay{z-index:120;}
+  #communityComposerOverlay, #communityAddMemberOverlay{z-index:125;}
+  #communityComposerCard, #communityDetailCard, #communityAddMemberCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #communityComposerHeader, #communityDetailHeader, #communityAddMemberHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #communityComposerHeader h2, #communityDetailHeader h2, #communityAddMemberHeader h2{margin:0;font-size:16px;}
+  #communityComposerHeader button, #communityDetailHeader button, #communityAddMemberHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #communityComposerBody, #communityDetailBody, #communityAddMemberBody{padding:16px;overflow-y:auto;}
+  #communityNameInput, #communityDescInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;font-family:inherit;}
+  #communityDescInput{min-height:60px;resize:vertical;}
+  .pickerLabel{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .memberPicker{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
+  .memberPickerRow{display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;border-bottom:1px solid var(--border);}
+  .memberPickerRow:last-child{border-bottom:none;}
+  .memberPickerRow:hover{background:var(--panel2);}
+  .memberPickerRow input{margin:0;}
+  #submitCommunityComposerBtn{background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;width:100%;font-weight:600;}
+  #submitCommunityComposerBtn:hover{background:var(--accent2);}
+  .communitySmallAddBtn{margin-left:auto;background:var(--accent);border:none;color:white;width:22px;height:22px;border-radius:50%;font-size:14px;cursor:pointer;line-height:1;padding:0;}
+  #communityAnnouncementRow .listItem, #communityGroupsList .listItem, #communityMembersList .listItem{padding:8px 4px;}
+  .communityMemberRole{font-size:11px;color:var(--muted);background:var(--panel2);border-radius:8px;padding:2px 8px;flex-shrink:0;}
+  .dangerFullBtn{width:100%;background:none;border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;margin-top:6px;}
+  .dangerFullBtn:hover{background:var(--danger);color:white;}
+
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:#333a47;border-radius:4px;}
 
@@ -417,7 +448,7 @@
     #mainScreen.show.chatOpen #bottomTabBar{display:none;}
     /* Sur mobile, la barre d'onglets fixe est au-dessus du bouton "+" des
        statuts : on le remonte pour qu'il reste cliquable et visible. */
-    .statusFab{bottom:74px;}
+    .screenFab{bottom:74px;}
   }
 </style>
 </head>
@@ -508,15 +539,15 @@
     <div id="statusScreen" style="display:none;">
       <div class="tabScreenHeader"><h1>Actus</h1></div>
       <div id="statusList"></div>
-      <button class="roundIconBtnPrimary statusFab" id="addStatusBtn" title="Publier un statut">+</button>
+      <button class="roundIconBtnPrimary screenFab" id="addStatusBtn" title="Publier un statut">+</button>
     </div>
 
-    <!-- Onglet "Communautés" (barre du bas, mobile) : pas encore de
-         fonctionnalité Communautés dans seourouApps, on l'indique clairement
-         plutôt que d'afficher un écran vide sans explication. -->
+    <!-- Onglet "Communautés" (barre du bas, mobile) : regroupe plusieurs
+         groupes sous un même nom, avec un groupe d'annonces automatique. -->
     <div id="communitiesScreen" style="display:none;">
       <div class="tabScreenHeader"><h1>Communautés</h1></div>
-      <div class="comingSoon">🚧 Bientôt disponible dans seourouApps.</div>
+      <div id="communitiesList"></div>
+      <button class="roundIconBtnPrimary screenFab" id="addCommunityBtn" title="Créer une communauté">+</button>
     </div>
 
     <div id="chatArea">
@@ -715,6 +746,62 @@
       <div id="statusViewerTapRight"></div>
     </div>
     <div id="statusViewerViewsRow" style="display:none;"></div>
+  </div>
+
+  <!-- ---------- Communautés : création (ou nouveau groupe) ---------- -->
+  <div id="communityComposerOverlay">
+    <div id="communityComposerCard">
+      <div id="communityComposerHeader">
+        <h2 id="communityComposerTitle">Nouvelle communauté</h2>
+        <button id="closeCommunityComposerBtn" title="Fermer">✕</button>
+      </div>
+      <div id="communityComposerBody">
+        <input id="communityNameInput" type="text" maxlength="80" placeholder="Nom">
+        <textarea id="communityDescInput" maxlength="300" placeholder="Description (facultatif)"></textarea>
+        <label class="pickerLabel">Ajouter des membres</label>
+        <div id="communityMemberPicker" class="memberPicker"></div>
+        <div class="settingsMsg" id="communityComposerMsg"></div>
+        <button id="submitCommunityComposerBtn">Créer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Communautés : détail (annonces, groupes, membres) ---------- -->
+  <div id="communityDetailOverlay">
+    <div id="communityDetailCard">
+      <div id="communityDetailHeader">
+        <h2 id="communityDetailName">—</h2>
+        <button id="closeCommunityDetailBtn" title="Fermer">✕</button>
+      </div>
+      <div id="communityDetailBody">
+        <section class="settingsSection">
+          <h3><span class="settingsIcon">📢</span>Annonces</h3>
+          <div id="communityAnnouncementRow"></div>
+        </section>
+        <section class="settingsSection">
+          <h3><span class="settingsIcon">👥</span>Groupes<button id="addCommunityGroupBtn" class="communitySmallAddBtn" title="Nouveau groupe">+</button></h3>
+          <div id="communityGroupsList"></div>
+        </section>
+        <section class="settingsSection">
+          <h3><span class="settingsIcon">🙋</span>Membres (<span id="communityMemberCountText">0</span>)<button id="addCommunityMemberBtn" class="communitySmallAddBtn" title="Ajouter un membre" style="display:none;">+</button></h3>
+          <div id="communityMembersList"></div>
+        </section>
+        <button id="leaveCommunityBtn" class="dangerFullBtn">Quitter la communauté</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Communautés : ajout d'un membre existant ---------- -->
+  <div id="communityAddMemberOverlay">
+    <div id="communityAddMemberCard">
+      <div id="communityAddMemberHeader">
+        <h2>Ajouter un membre</h2>
+        <button id="closeCommunityAddMemberBtn" title="Fermer">✕</button>
+      </div>
+      <div id="communityAddMemberBody">
+        <div id="communityAddMemberList"></div>
+      </div>
+    </div>
   </div>
 
 </div>
@@ -1060,6 +1147,7 @@
     $('bottomTabBar').querySelectorAll('.tabBtn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
     if (tab === 'appels') loadCallHistory();
     if (tab === 'actus') loadStatuses();
+    if (tab === 'communautes') loadCommunities();
   }
 
   $('bottomTabBar').addEventListener('click', (e) => {
@@ -1436,6 +1524,264 @@
     } catch (err) {
       alert('Erreur : ' + err.message);
     }
+  });
+
+  // ---------- Onglet "Communautés" ----------
+  let communitiesData = [];
+  let communityComposerMode = 'create'; // 'create' | 'group'
+  let communityComposerTargetId = null;
+  let communityComposerSelected = new Set();
+  let currentCommunityDetailId = null;
+
+  async function loadCommunities() {
+    const el = $('communitiesList');
+    el.innerHTML = '<div class="comingSoon">Chargement…</div>';
+    try {
+      const data = await api('/api/communities');
+      communitiesData = data.communities;
+      renderCommunitiesList();
+    } catch (err) {
+      el.innerHTML = `<div class="comingSoon">Erreur : ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function renderCommunitiesList() {
+    const el = $('communitiesList');
+    el.innerHTML = '';
+    if (!communitiesData.length) {
+      el.innerHTML = '<div class="comingSoon">Vous ne faites partie d\'aucune communauté pour l\'instant.<br>Créez-en une avec le bouton "+" ci-dessous.</div>';
+      return;
+    }
+    communitiesData.forEach((c) => {
+      const row = document.createElement('div');
+      row.className = 'listItem';
+      row.innerHTML = `
+        <div class="avatar communityIcon">${escapeHtml(initials(c.name))}</div>
+        <div class="liText"><div class="liName">${escapeHtml(c.name)}</div><div class="liSub">${c.groups.length} groupe${c.groups.length > 1 ? 's' : ''} · ${c.memberCount} membre${c.memberCount > 1 ? 's' : ''}</div></div>
+      `;
+      row.addEventListener('click', () => openCommunityDetail(c.id));
+      el.appendChild(row);
+    });
+  }
+
+  // ----- Composition (création de communauté OU nouveau groupe dans une communauté) -----
+  async function renderMemberPicker() {
+    // On recharge la liste des utilisateurs à chaque ouverture (et pas une
+    // seule fois à la connexion) pour inclure les comptes créés depuis.
+    try { await loadUsers(); } catch (e) { /* tant pis, on affiche la liste déjà en mémoire */ }
+    const el = $('communityMemberPicker');
+    el.innerHTML = '';
+    users.forEach((u) => {
+      const row = document.createElement('label');
+      row.className = 'memberPickerRow';
+      const checked = communityComposerSelected.has(u.id);
+      row.innerHTML = `<input type="checkbox" data-user-id="${u.id}" ${checked ? 'checked' : ''}>${avatarDivHtml(u.name, u.avatarUrl)}<span>${escapeHtml(u.name)}</span>`;
+      row.querySelector('input').addEventListener('change', (e) => {
+        if (e.target.checked) communityComposerSelected.add(u.id);
+        else communityComposerSelected.delete(u.id);
+      });
+      el.appendChild(row);
+    });
+  }
+
+  async function openCommunityComposer() {
+    communityComposerMode = 'create';
+    communityComposerTargetId = null;
+    communityComposerSelected = new Set();
+    $('communityComposerTitle').textContent = 'Nouvelle communauté';
+    $('communityNameInput').placeholder = 'Nom de la communauté';
+    $('communityDescInput').style.display = '';
+    $('communityNameInput').value = '';
+    $('communityDescInput').value = '';
+    $('communityComposerMsg').textContent = '';
+    $('submitCommunityComposerBtn').textContent = 'Créer';
+    $('communityComposerOverlay').classList.add('show');
+    await renderMemberPicker();
+  }
+
+  async function openCommunityGroupComposer(communityId) {
+    communityComposerMode = 'group';
+    communityComposerTargetId = communityId;
+    communityComposerSelected = new Set();
+    $('communityComposerTitle').textContent = 'Nouveau groupe';
+    $('communityNameInput').placeholder = 'Nom du groupe';
+    $('communityDescInput').style.display = 'none';
+    $('communityNameInput').value = '';
+    $('communityDescInput').value = '';
+    $('communityComposerMsg').textContent = '';
+    $('submitCommunityComposerBtn').textContent = 'Créer le groupe';
+    $('communityComposerOverlay').classList.add('show');
+    await renderMemberPicker();
+  }
+
+  function closeCommunityComposer() {
+    $('communityComposerOverlay').classList.remove('show');
+  }
+
+  $('addCommunityBtn').addEventListener('click', openCommunityComposer);
+  $('closeCommunityComposerBtn').addEventListener('click', closeCommunityComposer);
+  $('communityComposerOverlay').addEventListener('click', (e) => {
+    if (e.target === $('communityComposerOverlay')) closeCommunityComposer();
+  });
+
+  $('submitCommunityComposerBtn').addEventListener('click', async () => {
+    const msgEl = $('communityComposerMsg');
+    msgEl.textContent = '';
+    msgEl.className = 'settingsMsg';
+    const name = $('communityNameInput').value.trim();
+    if (!name) {
+      msgEl.textContent = 'Le nom est requis.';
+      msgEl.className = 'settingsMsg error';
+      return;
+    }
+    const memberUserIds = Array.from(communityComposerSelected);
+    try {
+      if (communityComposerMode === 'create') {
+        const description = $('communityDescInput').value.trim();
+        await api('/api/communities', { method: 'POST', body: JSON.stringify({ name, description, memberUserIds }) });
+        closeCommunityComposer();
+        loadCommunities();
+      } else {
+        await api('/api/communities/' + communityComposerTargetId + '/groups', { method: 'POST', body: JSON.stringify({ name, memberUserIds }) });
+        closeCommunityComposer();
+        openCommunityDetail(communityComposerTargetId);
+      }
+    } catch (err) {
+      msgEl.textContent = 'Erreur : ' + err.message;
+      msgEl.className = 'settingsMsg error';
+    }
+  });
+
+  // ----- Détail d'une communauté -----
+  async function openCommunityDetail(communityId) {
+    currentCommunityDetailId = communityId;
+    try {
+      const data = await api('/api/communities/' + communityId);
+      renderCommunityDetail(data.community);
+      $('communityDetailOverlay').classList.add('show');
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  }
+
+  function closeCommunityDetail() {
+    $('communityDetailOverlay').classList.remove('show');
+    currentCommunityDetailId = null;
+  }
+
+  // Ouvre un groupe (annonces ou groupe normal) d'une communauté dans l'onglet
+  // Discussions. Ces groupes viennent d'être créés côté serveur et peuvent ne
+  // pas encore être dans la liste locale des conversations : on la recharge
+  // d'abord pour être sûr d'avoir son nom/ses participants avant de l'ouvrir.
+  async function openCommunityConversation(conversationId) {
+    closeCommunityDetail();
+    switchBottomTab('discussions');
+    if (!conversations.find((c) => c.id === conversationId)) {
+      await loadConversations();
+    }
+    openConversation(conversationId);
+  }
+
+  function renderCommunityDetail(c) {
+    $('communityDetailName').textContent = c.name;
+    $('communityMemberCountText').textContent = c.memberCount;
+    $('addCommunityMemberBtn').style.display = c.myRole === 'admin' ? '' : 'none';
+
+    const announcement = c.groups.find((g) => g.isAnnouncement);
+    const annRow = $('communityAnnouncementRow');
+    annRow.innerHTML = '';
+    if (announcement) {
+      const row = document.createElement('div');
+      row.className = 'listItem';
+      row.innerHTML = `<div class="avatar communityIcon">📢</div><div class="liText"><div class="liName">${escapeHtml(announcement.name || c.name)}</div><div class="liSub">Annonces de la communauté</div></div>`;
+      row.addEventListener('click', () => openCommunityConversation(announcement.conversationId));
+      annRow.appendChild(row);
+    }
+
+    const groupsList = $('communityGroupsList');
+    groupsList.innerHTML = '';
+    const otherGroups = c.groups.filter((g) => !g.isAnnouncement);
+    if (!otherGroups.length) {
+      groupsList.innerHTML = '<div class="comingSoon" style="padding:16px 4px;">Aucun groupe pour l\'instant.</div>';
+    } else {
+      otherGroups.forEach((g) => {
+        const row = document.createElement('div');
+        row.className = 'listItem';
+        row.innerHTML = `<div class="avatar">${escapeHtml(initials(g.name))}</div><div class="liText"><div class="liName">${escapeHtml(g.name)}</div></div>`;
+        row.addEventListener('click', () => openCommunityConversation(g.conversationId));
+        groupsList.appendChild(row);
+      });
+    }
+
+    const membersList = $('communityMembersList');
+    membersList.innerHTML = '';
+    c.members.forEach((m) => {
+      const row = document.createElement('div');
+      row.className = 'listItem';
+      row.innerHTML = `${avatarDivHtml(m.name, m.avatarUrl)}<div class="liText"><div class="liName">${escapeHtml(m.name)}</div></div><span class="communityMemberRole">${m.role === 'admin' ? 'Admin' : 'Membre'}</span>`;
+      membersList.appendChild(row);
+    });
+  }
+
+  $('closeCommunityDetailBtn').addEventListener('click', closeCommunityDetail);
+  $('communityDetailOverlay').addEventListener('click', (e) => {
+    if (e.target === $('communityDetailOverlay')) closeCommunityDetail();
+  });
+  $('addCommunityGroupBtn').addEventListener('click', () => {
+    if (currentCommunityDetailId) openCommunityGroupComposer(currentCommunityDetailId);
+  });
+
+  $('leaveCommunityBtn').addEventListener('click', async () => {
+    if (!currentCommunityDetailId) return;
+    if (!confirm('Quitter cette communauté ?')) return;
+    try {
+      await api('/api/communities/' + currentCommunityDetailId + '/members/' + me.id, { method: 'DELETE' });
+      closeCommunityDetail();
+      loadCommunities();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  });
+
+  // ----- Ajout d'un membre existant à la communauté -----
+  function openCommunityAddMember() {
+    const c = communitiesData.find((x) => x.id === currentCommunityDetailId);
+    const memberIds = new Set(c ? c.members.map((m) => m.id) : []);
+    const candidates = users.filter((u) => !memberIds.has(u.id));
+    const el = $('communityAddMemberList');
+    el.innerHTML = '';
+    if (!candidates.length) {
+      el.innerHTML = '<div class="comingSoon">Tout le monde est déjà membre.</div>';
+    } else {
+      candidates.forEach((u) => {
+        const row = document.createElement('div');
+        row.className = 'listItem';
+        row.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl)}<div class="liText"><div class="liName">${escapeHtml(u.name)}</div></div>`;
+        row.addEventListener('click', async () => {
+          try {
+            await api('/api/communities/' + currentCommunityDetailId + '/members', { method: 'POST', body: JSON.stringify({ userId: u.id }) });
+            closeCommunityAddMember();
+            const data = await api('/api/communities/' + currentCommunityDetailId);
+            communitiesData = communitiesData.map((x) => (x.id === data.community.id ? data.community : x));
+            renderCommunityDetail(data.community);
+          } catch (err) {
+            alert('Erreur : ' + err.message);
+          }
+        });
+        el.appendChild(row);
+      });
+    }
+    $('communityAddMemberOverlay').classList.add('show');
+  }
+
+  function closeCommunityAddMember() {
+    $('communityAddMemberOverlay').classList.remove('show');
+  }
+
+  $('addCommunityMemberBtn').addEventListener('click', openCommunityAddMember);
+  $('closeCommunityAddMemberBtn').addEventListener('click', closeCommunityAddMember);
+  $('communityAddMemberOverlay').addEventListener('click', (e) => {
+    if (e.target === $('communityAddMemberOverlay')) closeCommunityAddMember();
   });
 
   // ---------- Socket ----------
@@ -1928,8 +2274,10 @@
     $('activeChat').style.display = 'flex';
     $('mainScreen').classList.add('chatOpen'); // n'a d'effet que sur téléphone (voir media query)
 
-    socket.emit('conversation:join', { conversationId: convId });
-    socket.emit('conversation:read', { conversationId: convId });
+    if (socket) {
+      socket.emit('conversation:join', { conversationId: convId });
+      socket.emit('conversation:read', { conversationId: convId });
+    }
 
     const conv = conversations.find((c) => c.id === convId);
     const other = conv.participants.find((p) => p.id !== me.id) || conv.participants[0];
