@@ -19,19 +19,35 @@
     --text:#e8eaed; --muted:#9aa2b1; --accent:#4f7cff; --accent2:#3a63d6;
     --danger:#e5484d; --success:#2ecc71; --radius:10px;
   }
+  /* Thème clair (Paramètres → Apparence), activé via une classe sur <body> et
+     mémorisé dans ce navigateur — mêmes couleurs d'accent/danger/succès, seules
+     les surfaces (fond, panneaux, texte) changent pour rester lisible. */
+  body.theme-light{
+    --bg:#f3f4f7; --panel:#ffffff; --panel2:#eef0f5; --border:#dde1e9;
+    --text:#1b1f27; --muted:#5c6470;
+  }
   *{box-sizing:border-box;}
   body{margin:0;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;}
   #app{display:flex;flex-direction:column;height:100vh;}
 
   /* Top bar */
-  #topbar{display:flex;align-items:center;gap:10px;padding:8px 14px;background:var(--panel);border-bottom:1px solid var(--border);font-size:13px;}
+  /* padding-top/left/right tiennent compte de l'encoche/barre d'état du téléphone
+     (voir le "viewport-fit=cover" dans <head>) : sans ça, sur un iPhone installé en
+     PWA, l'heure/le réseau du téléphone se superposent au contenu de la barre. */
+  /* Le minimum est volontairement plus haut que sur iPhone (28px au lieu de 8px) :
+     sur Android, la variable env(safe-area-inset-top) ne reflète souvent que
+     l'encoche/le poinçon caméra, pas la barre de statut classique (qui, elle,
+     n'a pas de hauteur "officiellement" annoncée au navigateur). Un minimum fixe
+     plus généreux garantit que la barre de statut ne chevauche jamais le bandeau,
+     même quand env() renvoie 0. */
+  #topbar{display:flex;align-items:center;gap:10px;padding:max(28px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left));background:var(--panel);border-bottom:1px solid var(--border);font-size:13px;}
   #topbar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:13px;width:220px;}
   #topbar button{background:var(--accent);border:none;color:white;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;}
   #topbar button:hover{background:var(--accent2);}
   #statusDot{width:9px;height:9px;border-radius:50%;background:var(--danger);display:inline-block;}
   #statusDot.ok{background:var(--success);}
   #statusText{color:var(--muted);}
-  #whoami{margin-left:auto;color:var(--muted);}
+  #whoami{margin-left:auto;color:var(--muted);display:flex;align-items:center;gap:8px;}
   #logoutBtn{background:var(--panel2);border:1px solid var(--border);}
 
   /* Auth screen */
@@ -58,6 +74,8 @@
   .listItem:hover{background:var(--panel2);}
   .listItem.active{background:var(--panel2);border-left-color:var(--accent);}
   .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;}
+  .avatar.avatarPhoto{background-size:cover;background-position:center;color:transparent;}
+  .avatar.avatarSmall{width:26px;height:26px;font-size:11px;cursor:pointer;}
   .liText{min-width:0;}
   .liName{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .liSub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
@@ -65,7 +83,8 @@
 
   #chatArea{flex:1;display:flex;flex-direction:column;min-width:0;}
   #chatHeader{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
-  #chatHeader .title{font-size:15px;font-weight:600;}
+  #chatHeader .title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #backToListBtn{display:none;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:15px;flex-shrink:0;}
   #chatHeader .callBtns{margin-left:auto;display:flex;gap:8px;}
   #chatHeader button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;}
   #chatHeader button:hover{background:#282e3a;}
@@ -77,13 +96,40 @@
   .msgRow:not(.mine) .bubble{background:var(--panel2);border-bottom-left-radius:4px;}
   .bubble .sender{font-size:11px;color:var(--muted);margin-bottom:2px;}
   .msgRow.mine .bubble .sender{color:rgba(255,255,255,.75);}
-  .bubble .time{font-size:10px;opacity:.6;margin-top:3px;}
+  .msgMeta{display:flex;align-items:center;gap:5px;margin-top:3px;}
+  .bubble .time{font-size:10px;opacity:.6;}
+  /* Coche simple = envoyé, double coche = lu par le(s) destinataire(s) (comme
+     WhatsApp/iMessage) ; affichée uniquement sur nos propres messages. */
+  .ticks{font-size:11px;opacity:.7;}
+  .ticks.read{opacity:1;color:#63d4ff;}
+  .deleteMsgBtn{background:none;border:none;cursor:pointer;font-size:11px;opacity:.55;padding:0;line-height:1;color:inherit;}
+  .deleteMsgBtn:hover{opacity:1;}
+  .msgDeleted{font-style:italic;opacity:.65;font-size:13px;}
   #typingIndicator{padding:0 18px 4px;font-size:12px;color:var(--muted);min-height:16px;}
-  #composer{display:flex;gap:8px;padding:12px 18px;border-top:1px solid var(--border);}
-  #composer input{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+  /* padding-bottom en plus : sur iPhone/Android récents, la barre de geste du bas
+     (home indicator) peut chevaucher le bouton "Envoyer" sans cette marge de sécurité. */
+  #composer{display:flex;align-items:center;gap:8px;padding:12px 18px max(12px, env(safe-area-inset-bottom)) 18px;border-top:1px solid var(--border);}
+  #composer input[type="text"]{flex:1;padding:10px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
   #composer button{background:var(--accent);border:none;color:white;border-radius:8px;padding:0 18px;cursor:pointer;font-size:14px;}
   #composer button:hover{background:var(--accent2);}
+  #composer button.iconBtn{background:var(--panel2);border:1px solid var(--border);color:var(--text);padding:0 12px;height:38px;font-size:16px;}
+  #composer button.iconBtn:hover{background:#282e3a;}
+  #composer button.iconBtn.recording{background:var(--danger);border-color:var(--danger);color:white;animation:recordPulse 1s infinite;}
+  @keyframes recordPulse{0%{opacity:1;}50%{opacity:.55;}100%{opacity:1;}}
+  #recordingTime{display:none;color:var(--danger);font-size:12.5px;font-variant-numeric:tabular-nums;}
   #emptyState{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;}
+
+  /* Pièces jointes dans les bulles de message */
+  .msgCaption{margin-top:4px;}
+  .msgImage{max-width:240px;max-height:240px;border-radius:10px;display:block;margin-top:2px;object-fit:cover;cursor:pointer;}
+  .msgVoice{display:flex;align-items:center;gap:8px;}
+  .msgVoice audio{max-width:220px;height:34px;}
+  .voiceDuration{font-size:11px;color:var(--muted);}
+  .msgFile{display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;background:rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;margin-top:2px;}
+  .fileIcon{font-size:20px;}
+  .fileInfo{display:flex;flex-direction:column;min-width:0;}
+  .fileName{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;}
+  .fileSize{font-size:10.5px;color:var(--muted);}
 
   /* Incoming call banner */
   #incomingCall{position:fixed;top:56px;right:20px;background:var(--panel);border:1px solid var(--accent);border-radius:var(--radius);padding:14px 16px;display:none;z-index:50;box-shadow:0 8px 24px rgba(0,0,0,.4);}
@@ -106,8 +152,69 @@
   #callControls button.hangup{background:var(--danger);}
   #callControls button.muted{background:var(--danger);}
 
+  /* ---------- Paramètres ---------- */
+  #settingsBtn{background:var(--panel2);border:1px solid var(--border);font-size:15px;padding:5px 9px;}
+  #settingsOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;z-index:110;padding:20px;}
+  #settingsOverlay.show{display:flex;}
+  #settingsCard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #settingsHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);}
+  #settingsHeader h2{margin:0;font-size:16px;}
+  #settingsHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #settingsBody{padding:6px 18px 18px;overflow-y:auto;}
+  .settingsSection{padding:16px 0;border-bottom:1px solid var(--border);}
+  .settingsSection:last-child{border-bottom:none;}
+  .settingsSection h3{margin:0 0 12px;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+  .settingsAvatarRow{display:flex;align-items:center;gap:14px;}
+  .settingsAvatarRow .avatar{width:56px;height:56px;font-size:20px;cursor:pointer;flex-shrink:0;}
+  .settingsAvatarField{flex:1;}
+  .settingsAvatarField label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
+  .settingsInlineRow{display:flex;gap:8px;}
+  .settingsInlineRow input{flex:1;min-width:0;}
+  #settingsBody input[type="text"],#settingsBody input[type="password"]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:8px;}
+  #settingsBody button{background:var(--accent);border:none;color:white;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:13px;white-space:nowrap;}
+  #settingsBody button:hover{background:var(--accent2);}
+  .settingsStatic{margin-top:12px;font-size:13px;color:var(--muted);}
+  .settingsMsg{margin-top:8px;font-size:12.5px;min-height:16px;}
+  .settingsMsg.error{color:var(--danger);}
+  .settingsMsg.success{color:var(--success);}
+  .switchRow{display:flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;margin-bottom:12px;}
+  .switchRow:last-child{margin-bottom:0;}
+  .switchRow input{position:absolute;opacity:0;width:0;height:0;}
+  .switchTrack{position:relative;width:38px;height:22px;border-radius:11px;background:var(--panel2);border:1px solid var(--border);flex-shrink:0;transition:background .15s;}
+  .switchTrack::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s;}
+  .switchRow input:checked + .switchTrack{background:var(--accent);border-color:var(--accent);}
+  .switchRow input:checked + .switchTrack::after{transform:translateX(16px);background:white;}
+
   ::-webkit-scrollbar{width:8px;}
   ::-webkit-scrollbar-thumb{background:#333a47;border-radius:4px;}
+
+  /* ---------- Écrans étroits (téléphone) ---------- */
+  /* Avant : la liste des conversations ET la conversation ouverte étaient
+     toujours affichées côte à côte (mise en page pensée pour un écran large),
+     ce qui obligeait à zoomer/dézoomer sur téléphone pour tout voir. On passe
+     ici à une navigation "une page à la fois", comme les applis de
+     messagerie habituelles : soit la liste, soit la conversation ouverte,
+     avec un bouton retour pour revenir à la liste. */
+  @media (max-width: 700px) {
+    /* Les champs de test/débogage (URL de l'API) ne servent qu'en dev, pas au quotidien. */
+    #apiBaseInput, #testBackendBtn, #statusText{display:none;}
+    #topbar{gap:8px;padding:max(28px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left));}
+    #whoami{gap:6px;}
+    #whoamiText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34vw;}
+    #logoutBtn{padding:6px 8px;font-size:12px;}
+
+    #mainScreen.show{position:relative;overflow:hidden;}
+    #sidebar{width:100%;border-right:none;position:absolute;inset:0;z-index:1;}
+    #chatArea{position:absolute;inset:0;z-index:2;display:none;}
+    /* Une fois une conversation ouverte, on affiche le panneau de chat par-dessus
+       (en plein écran) et on cache la liste, plutôt que de les serrer côte à côte. */
+    #mainScreen.show.chatOpen #sidebar{display:none;}
+    #mainScreen.show.chatOpen #chatArea{display:flex;}
+
+    #backToListBtn{display:inline-flex;align-items:center;justify-content:center;}
+    .bubble{max-width:82%;}
+    .msgImage{max-width:min(240px, 70vw);max-height:min(240px, 70vw);}
+  }
 </style>
 </head>
 <body>
@@ -118,7 +225,12 @@
     <span id="statusText">Backend non testé</span>
     <input id="apiBaseInput" value="" spellcheck="false" title="URL de l'API (laisser vide = même serveur)">
     <button id="testBackendBtn">Tester la connexion</button>
-    <span id="whoami"></span>
+    <span id="whoami">
+      <input type="file" id="avatarInput" accept="image/*" style="display:none">
+      <div class="avatar avatarSmall" id="myAvatar" title="Changer ma photo"></div>
+      <span id="whoamiText"></span>
+    </span>
+    <button id="settingsBtn" style="display:none;" title="Paramètres">⚙️</button>
     <button id="logoutBtn" style="display:none;">Se déconnecter</button>
   </div>
 
@@ -133,8 +245,8 @@
       </div>
 
       <div id="loginForm">
-        <label>Email</label>
-        <input id="loginEmail" type="email" placeholder="vous@example.com">
+        <label>Numéro de téléphone</label>
+        <input id="loginPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
         <label>Mot de passe</label>
         <input id="loginPassword" type="password" placeholder="••••••••">
         <button class="primaryBtn" id="loginBtn">Se connecter</button>
@@ -143,8 +255,8 @@
       <div id="registerForm" style="display:none;">
         <label>Nom</label>
         <input id="regName" type="text" placeholder="Votre nom">
-        <label>Email</label>
-        <input id="regEmail" type="email" placeholder="vous@example.com">
+        <label>Numéro de téléphone</label>
+        <input id="regPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
         <label>Mot de passe</label>
         <input id="regPassword" type="password" placeholder="6 caractères minimum">
         <button class="primaryBtn" id="registerBtn">Créer le compte</button>
@@ -166,6 +278,7 @@
       <div id="emptyState">Choisissez un utilisateur à gauche pour démarrer une conversation.</div>
       <div id="activeChat" style="display:none;flex-direction:column;flex:1;min-height:0;">
         <div id="chatHeader">
+          <button id="backToListBtn" title="Retour à la liste">←</button>
           <div class="avatar" id="chatAvatar">?</div>
           <div class="title" id="chatTitle">—</div>
           <div class="callBtns">
@@ -176,7 +289,11 @@
         <div id="messages"></div>
         <div id="typingIndicator"></div>
         <div id="composer">
+          <input type="file" id="fileInput" style="display:none">
+          <button class="iconBtn" id="attachBtn" title="Joindre un fichier">📎</button>
           <input id="msgInput" type="text" placeholder="Écrire un message…" autocomplete="off">
+          <span id="recordingTime">00:00</span>
+          <button class="iconBtn" id="voiceBtn" title="Message vocal">🎤</button>
           <button id="sendBtn">Envoyer</button>
         </div>
       </div>
@@ -191,6 +308,11 @@
     </div>
   </div>
 
+  <!-- Sonnerie d'appel entrant : un vrai fichier audio, plus fiable pour être
+       débloqué par les navigateurs que le son généré par Web Audio seul (voir
+       unlockRingAudio ci-dessous). Gardé en plus, pas à la place. -->
+  <audio id="ringtoneAudio" src="/ringtone.wav" loop preload="auto" style="display:none"></audio>
+
   <div id="callOverlay">
     <div id="callHeader">
       <span id="callInfo">Appel en cours…</span>
@@ -201,6 +323,56 @@
       <button id="toggleMicBtn" title="Micro">🎤</button>
       <button id="toggleCamBtn" title="Caméra">🎥</button>
       <button class="hangup" id="hangupBtn" title="Raccrocher">☎</button>
+    </div>
+  </div>
+
+  <!-- ---------- Paramètres ---------- -->
+  <div id="settingsOverlay">
+    <div id="settingsCard">
+      <div id="settingsHeader">
+        <h2>Paramètres</h2>
+        <button id="closeSettingsBtn" title="Fermer">✕</button>
+      </div>
+      <div id="settingsBody">
+
+        <section class="settingsSection">
+          <h3>Profil</h3>
+          <div class="settingsAvatarRow">
+            <div class="avatar avatarPhoto" id="settingsAvatar" title="Changer ma photo"></div>
+            <div class="settingsAvatarField">
+              <label>Nom</label>
+              <div class="settingsInlineRow">
+                <input id="settingsNameInput" type="text" maxlength="80">
+                <button id="saveNameBtn">Enregistrer</button>
+              </div>
+            </div>
+          </div>
+          <div class="settingsStatic">Téléphone : <span id="settingsPhoneText"></span></div>
+          <div class="settingsMsg" id="settingsProfileMsg"></div>
+        </section>
+
+        <section class="settingsSection">
+          <h3>Notifications</h3>
+          <label class="switchRow"><input type="checkbox" id="notifToggle"><span class="switchTrack"></span> Notifications push (nouveaux messages, appels)</label>
+          <label class="switchRow"><input type="checkbox" id="ringtoneToggle"><span class="switchTrack"></span> Sonnerie d'appel entrant</label>
+          <div class="settingsMsg" id="settingsNotifMsg"></div>
+        </section>
+
+        <section class="settingsSection">
+          <h3>Apparence</h3>
+          <label class="switchRow"><input type="checkbox" id="themeToggle"><span class="switchTrack"></span> Thème clair</label>
+        </section>
+
+        <section class="settingsSection">
+          <h3>Mot de passe</h3>
+          <input id="currentPasswordInput" type="password" placeholder="Mot de passe actuel" autocomplete="current-password">
+          <input id="newPasswordInput" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password">
+          <input id="confirmPasswordInput" type="password" placeholder="Confirmer le nouveau mot de passe" autocomplete="new-password">
+          <button id="changePasswordBtn">Changer le mot de passe</button>
+          <div class="settingsMsg" id="settingsPasswordMsg"></div>
+        </section>
+
+      </div>
     </div>
   </div>
 
@@ -225,7 +397,21 @@
   let users = [];
   let activeConversationId = null;
   let messagesByConv = {}; // conversationId -> [messages]
+  // Si l'app a été ouverte depuis une notification (clic sur "nouveau message"/"appel
+  // entrant" alors qu'aucun onglet n'était déjà ouvert), le service worker ajoute
+  // "?c=<conversationId>" à l'URL d'ouverture : on retrouve la conversation visée ici.
+  let pendingConversationIdFromNotification = new URLSearchParams(location.search).get('c') || null;
   let typingTimeout = null;
+
+  // ---------- Préférences locales (Paramètres) ----------
+  // Propres à cet appareil/navigateur, pas au compte : pas besoin d'être connecté
+  // pour les appliquer (le thème doit déjà être bon sur l'écran de connexion).
+  let ringtoneMuted = localStorage.getItem('seourou_ringtone_muted') === '1';
+  if (localStorage.getItem('seourou_theme') === 'light') document.body.classList.add('theme-light');
+
+  // Pièces jointes (photo, fichier, message vocal) : taille max côté client,
+  // doit rester cohérente avec la limite vérifiée côté serveur (chat.js).
+  const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 
   // Call state
   // Les serveurs STUN seuls suffisent quand les deux appareils sont sur des réseaux
@@ -236,21 +422,131 @@
   const ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
     {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
+      urls: 'turn:global.relay.metered.ca:80',
+      username: '1c16e03d8537142774d692d5',
+      credential: 'hhD7ibTLehv5CtkY',
+    },
+    {
+      urls: 'turn:global.relay.metered.ca:80?transport=tcp',
+      username: '1c16e03d8537142774d692d5',
+      credential: 'hhD7ibTLehv5CtkY',
+    },
+    {
+      urls: 'turn:global.relay.metered.ca:443',
+      username: '1c16e03d8537142774d692d5',
+      credential: 'hhD7ibTLehv5CtkY',
+    },
+    {
+      urls: 'turns:global.relay.metered.ca:443?transport=tcp',
+      username: '1c16e03d8537142774d692d5',
+      credential: 'hhD7ibTLehv5CtkY',
     },
   ];
   let localStream = null;
   let currentCall = null; // { callId, conversationId, type }
   let peerConnections = {}; // socketId -> RTCPeerConnection
   let callTimerInterval = null;
+  let callBaseInfoText = '';
   let micEnabled = true, camEnabled = true;
+
+  // ---------- Sonnerie d'appel entrant ----------
+  // Deux mécanismes en parallèle, pour maximiser les chances qu'au moins un
+  // fonctionne selon le navigateur :
+  //  1) Un vrai fichier audio (<audio src="/ringtone.wav">) : le "jouer puis
+  //     mettre en pause aussitôt" pendant un clic réel est le contournement
+  //     standard le plus fiable pour débloquer la lecture audio future
+  //     (reconnu par tous les navigateurs, plus robuste que Web Audio seul).
+  //  2) Un son généré par Web Audio (comme avant) + une vibration sur mobile.
+  const ringtoneAudioEl = document.getElementById('ringtoneAudio');
+  let ringtoneUnlocked = false;
+  let ringAudioCtx = null;
+  let ringIntervalId = null;
+
+  // Les navigateurs bloquent le son tant qu'il n'y a pas eu d'interaction de
+  // l'utilisateur sur la page (clic, appui...). On "débloque" donc dès la
+  // première interaction, pour être prêt le moment venu d'un appel entrant.
+  function unlockRingAudio() {
+    if (!ringAudioCtx) {
+      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* ignore */ }
+    }
+    if (ringAudioCtx && ringAudioCtx.state === 'suspended') {
+      ringAudioCtx.resume().catch(() => { /* ignore */ });
+    }
+
+    if (!ringtoneUnlocked && ringtoneAudioEl) {
+      const p = ringtoneAudioEl.play();
+      if (p && p.then) {
+        p.then(() => {
+          ringtoneAudioEl.pause();
+          ringtoneAudioEl.currentTime = 0;
+          ringtoneUnlocked = true;
+        }).catch(() => { /* toujours bloqué, on retentera à la prochaine interaction */ });
+      }
+    }
+  }
+  // On écoute plusieurs types d'interaction (souris ET tactile ET clavier) car
+  // selon l'appareil/navigateur, ce n'est pas toujours l'évènement "click" qui
+  // arrive en premier (important sur mobile/iPhone).
+  ['click', 'touchend', 'keydown'].forEach((evt) => {
+    document.addEventListener(evt, unlockRingAudio, { passive: true });
+  });
+
+  function playRingOnce() {
+    // Vibration de secours : fonctionne sur mobile même si le son est bloqué
+    // par le navigateur (utile tant que l'utilisateur n'a pas encore interagi).
+    if (navigator.vibrate) {
+      try { navigator.vibrate([300, 200, 300]); } catch (e) { /* ignore */ }
+    }
+    if (!ringAudioCtx) return;
+    const now = ringAudioCtx.currentTime;
+    [0, 0.35].forEach((delay) => {
+      const osc = ringAudioCtx.createOscillator();
+      const gain = ringAudioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = 900;
+      gain.gain.setValueAtTime(0, now + delay);
+      gain.gain.linearRampToValueAtTime(0.25, now + delay + 0.02);
+      gain.gain.linearRampToValueAtTime(0, now + delay + 0.3);
+      osc.connect(gain).connect(ringAudioCtx.destination);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.32);
+    });
+  }
+
+  function startRingtone() {
+    // Préférence "Sonnerie d'appel" désactivée dans Paramètres : on garde quand
+    // même la notif d'appel entrant à l'écran, juste sans son ni vibration.
+    if (ringtoneMuted) return;
+    if (!ringAudioCtx) {
+      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* ignore */ }
+    }
+    if (ringAudioCtx && ringAudioCtx.state === 'suspended') ringAudioCtx.resume().catch(() => { /* ignore */ });
+
+    if (ringtoneAudioEl) {
+      ringtoneAudioEl.currentTime = 0;
+      ringtoneAudioEl.play().catch((err) => {
+        // Pas une "vraie" erreur : juste le navigateur qui bloque encore la
+        // lecture (aucune interaction n'a eu lieu sur cette page pour l'instant).
+        console.warn('Sonnerie audio bloquée par le navigateur (pas encore débloquée par un clic/appui) :', err && err.name);
+      });
+    }
+
+    stopRingtoneOscillator();
+    playRingOnce();
+    ringIntervalId = setInterval(playRingOnce, 1600);
+  }
+
+  function stopRingtoneOscillator() {
+    if (ringIntervalId) { clearInterval(ringIntervalId); ringIntervalId = null; }
+  }
+
+  function stopRingtone() {
+    stopRingtoneOscillator();
+    if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) { /* ignore */ } }
+    if (ringtoneAudioEl) { ringtoneAudioEl.pause(); ringtoneAudioEl.currentTime = 0; }
+  }
 
   // ---------- Helpers ----------
   const $ = (id) => document.getElementById(id);
@@ -318,11 +614,11 @@
   $('loginBtn').addEventListener('click', async () => {
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
-    const email = $('loginEmail').value.trim();
+    const phone = $('loginPhone').value.trim();
     const password = $('loginPassword').value;
-    if (!email || !password) return showAuthError('Email et mot de passe requis.');
+    if (!phone || !password) return showAuthError('Numéro de téléphone et mot de passe requis.');
     try {
-      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) });
+      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) });
       onAuthSuccess(data);
     } catch (err) { showAuthError(err.message); }
   });
@@ -331,11 +627,11 @@
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
     const name = $('regName').value.trim();
-    const email = $('regEmail').value.trim();
+    const phone = $('regPhone').value.trim();
     const password = $('regPassword').value;
-    if (!name || !email || !password) return showAuthError('Nom, email et mot de passe requis.');
+    if (!name || !phone || !password) return showAuthError('Nom, numéro de téléphone et mot de passe requis.');
     try {
-      const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, email, password }) });
+      const data = await api('/api/auth/register', { method: 'POST', body: JSON.stringify({ name, phone, password }) });
       onAuthSuccess(data);
     } catch (err) { showAuthError(err.message); }
   });
@@ -345,23 +641,37 @@
     me = data.user;
     $('authScreen').style.display = 'none';
     $('mainScreen').classList.add('show');
-    $('whoami').textContent = me.name + ' (' + me.email + ')';
+    $('whoamiText').textContent = me.name + ' (' + me.phone + ')';
+    renderMyAvatar();
     $('logoutBtn').style.display = 'inline-block';
+    $('settingsBtn').style.display = 'inline-block';
     connectSocket();
     loadUsers();
     loadConversations();
+    setupPushNotifications();
+    clearNotificationsAndBadge();
   }
 
   $('logoutBtn').addEventListener('click', () => {
     if (socket) socket.disconnect();
     token = null; me = null; activeConversationId = null;
     conversations = []; users = []; messagesByConv = {};
-    $('mainScreen').classList.remove('show');
+    $('mainScreen').classList.remove('show', 'chatOpen');
     $('authScreen').style.display = 'flex';
-    $('whoami').textContent = '';
+    $('whoamiText').textContent = '';
+    renderMyAvatar();
     $('logoutBtn').style.display = 'none';
+    $('settingsBtn').style.display = 'none';
+    $('settingsOverlay').classList.remove('show');
     $('convList').innerHTML = ''; $('userList').innerHTML = '';
     $('emptyState').style.display = 'flex'; $('activeChat').style.display = 'none';
+  });
+
+  // Sur téléphone (écran étroit), la conversation ouverte s'affiche par-dessus
+  // la liste plutôt qu'à côté (voir la media query dans <style>) ; ce bouton
+  // permet d'y revenir sans perdre la conversation (juste masquée).
+  $('backToListBtn').addEventListener('click', () => {
+    $('mainScreen').classList.remove('chatOpen');
   });
 
   // ---------- Socket ----------
@@ -376,7 +686,37 @@
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
       messagesByConv[msg.conversationId].push(msg);
       bumpConversationPreview(msg.conversationId, msg);
-      if (msg.conversationId === activeConversationId) renderMessages();
+      if (msg.conversationId === activeConversationId) {
+        renderMessages();
+        // On voit déjà la conversation en direct : on la marque comme lue tout de
+        // suite (sauf si c'est notre propre message qui revient via le broadcast).
+        if (msg.sender?.id !== me.id) socket.emit('conversation:read', { conversationId: msg.conversationId });
+      }
+    });
+
+    // Un message a été supprimé (par son auteur, sur cet appareil ou un autre) :
+    // on remplace son contenu par le texte de substitution et on ré-affiche.
+    socket.on('message:deleted', ({ conversationId, messageId }) => {
+      const list = messagesByConv[conversationId];
+      const m = list && list.find((x) => x.id === messageId);
+      if (m) { m.deleted = true; m.content = ''; m.attachment = null; }
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
+        conv.lastMessage.content = '🚫 Message supprimé';
+        renderConvList();
+      }
+      if (conversationId === activeConversationId) renderMessages();
+    });
+
+    // L'autre participant vient d'ouvrir/lire la conversation : on met à jour
+    // son "lastReadAt" localement pour afficher les doubles coches sur nos messages.
+    socket.on('conversation:read-receipt', ({ conversationId, userId, readAt }) => {
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (conv) {
+        const p = conv.participants.find((pp) => pp.id === userId);
+        if (p) p.lastReadAt = readAt;
+      }
+      if (conversationId === activeConversationId) renderMessages();
     });
 
     socket.on('typing', ({ conversationId, userId, isTyping }) => {
@@ -389,6 +729,7 @@
       pendingIncomingCall = payload;
       $('incomingText').textContent = (payload.from?.name || 'Quelqu\'un') + ' vous appelle (' + (payload.type === 'audio' ? 'audio' : 'vidéo') + ')';
       $('incomingCall').classList.add('show');
+      startRingtone();
     });
 
     socket.on('call:user-joined', async ({ callId, socketId, userId, name }) => {
@@ -415,6 +756,14 @@
 
     socket.on('call:user-left', ({ socketId }) => {
       removePeer(socketId);
+      // Cas d'un appel à deux (le plus courant ici) : si l'autre personne vient
+      // de raccrocher, il ne reste plus aucun pair connecté de notre côté — on
+      // referme donc aussi l'appel automatiquement, sans attendre que la
+      // personne encore "dans l'appel" clique elle-même sur raccrocher.
+      // (Pour un appel de groupe, l'appel continue tant qu'il reste des pairs.)
+      if (currentCall && Object.keys(peerConnections).length === 0) {
+        hangup();
+      }
     });
   }
 
@@ -434,7 +783,35 @@
       const data = await api('/api/conversations');
       conversations = data.conversations;
       renderConvList();
+      maybeOpenPendingConversation();
     } catch (err) { console.error(err); }
+  }
+
+  // Ouvre automatiquement la conversation visée par une notification cliquée
+  // (message ou appel), une fois que la liste des conversations est chargée.
+  function maybeOpenPendingConversation() {
+    if (!pendingConversationIdFromNotification) return;
+    const id = pendingConversationIdFromNotification;
+    if (conversations.find((c) => c.id === id)) {
+      pendingConversationIdFromNotification = null;
+      openConversation(id);
+    }
+  }
+
+  // Rend le HTML d'un avatar : la vraie photo si l'utilisateur en a une,
+  // sinon les initiales sur fond de couleur (comportement d'origine).
+  function avatarDivHtml(name, avatarUrl, extraClass) {
+    const cls = 'avatar' + (avatarUrl ? ' avatarPhoto' : '') + (extraClass ? ' ' + extraClass : '');
+    if (avatarUrl) {
+      return `<div class="${cls}" style="background-image:url('${escapeCssUrl(avatarUrl)}')"></div>`;
+    }
+    return `<div class="${cls}">${escapeHtml(initials(name))}</div>`;
+  }
+
+  // Les data URLs base64 ne contiennent pas de guillemets, mais on échappe par
+  // prudence pour éviter de casser l'attribut style si jamais un caractère imprévu s'y glisse.
+  function escapeCssUrl(url) {
+    return String(url).replace(/'/g, '%27').replace(/"/g, '%22');
   }
 
   function renderUserList() {
@@ -443,8 +820,8 @@
     users.forEach((u) => {
       const div = document.createElement('div');
       div.className = 'listItem';
-      div.innerHTML = `<div class="avatar">${initials(u.name)}</div>
-        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.email)}</div></div>`;
+      div.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl)}
+        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.phone)}</div></div>`;
       div.addEventListener('click', () => startConversationWith(u.id));
       el.appendChild(div);
     });
@@ -459,7 +836,7 @@
       const div = document.createElement('div');
       div.className = 'listItem' + (c.id === activeConversationId ? ' active' : '');
       div.dataset.convId = c.id;
-      div.innerHTML = `<div class="avatar">${initials(label)}</div>
+      div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null)}
         <div class="liText"><div class="liName">${escapeHtml(label)}</div>
         <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>`;
       div.addEventListener('click', () => openConversation(c.id));
@@ -469,7 +846,7 @@
 
   function bumpConversationPreview(convId, msg) {
     const c = conversations.find((c) => c.id === convId);
-    if (c) { c.lastMessage = msg; renderConvList(); }
+    if (c) { c.lastMessage = Object.assign({}, msg, { content: messagePreviewText(msg) }); renderConvList(); }
   }
 
   async function startConversationWith(userId) {
@@ -487,14 +864,19 @@
     renderConvList();
     $('emptyState').style.display = 'none';
     $('activeChat').style.display = 'flex';
+    $('mainScreen').classList.add('chatOpen'); // n'a d'effet que sur téléphone (voir media query)
 
     socket.emit('conversation:join', { conversationId: convId });
+    socket.emit('conversation:read', { conversationId: convId });
 
     const conv = conversations.find((c) => c.id === convId);
     const other = conv.participants.find((p) => p.id !== me.id) || conv.participants[0];
     const label = conv.isGroup ? (conv.name || 'Groupe') : (other ? other.name : '—');
+    const avatarUrl = !conv.isGroup && other ? other.avatarUrl : null;
     $('chatTitle').textContent = label;
-    $('chatAvatar').textContent = initials(label);
+    $('chatAvatar').className = 'avatar' + (avatarUrl ? ' avatarPhoto' : '');
+    $('chatAvatar').style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
+    $('chatAvatar').textContent = avatarUrl ? '' : initials(label);
     $('typingIndicator').textContent = '';
 
     if (!messagesByConv[convId]) {
@@ -510,22 +892,101 @@
     const el = $('messages');
     el.innerHTML = '';
     const list = messagesByConv[activeConversationId] || [];
+    const conv = conversations.find((c) => c.id === activeConversationId);
     list.forEach((m) => {
       const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
       const row = document.createElement('div');
       row.className = 'msgRow' + (mine ? ' mine' : '');
+      const body = m.deleted ? `<div class="msgDeleted">🚫 Message supprimé</div>` : renderMessageBody(m);
+      const deleteBtn = (mine && !m.deleted)
+        ? `<button class="deleteMsgBtn" data-id="${m.id}" title="Supprimer ce message">🗑️</button>`
+        : '';
+      const ticks = (mine && !m.deleted)
+        ? (() => { const read = isReadByOthers(m, conv); return `<span class="ticks${read ? ' read' : ''}">${read ? '✓✓' : '✓'}</span>`; })()
+        : '';
       row.innerHTML = `<div class="bubble">${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
-        <div>${escapeHtml(m.content)}</div><div class="time">${fmtTime(m.createdAt)}</div></div>`;
+        ${body}<div class="msgMeta">${deleteBtn}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
       el.appendChild(row);
     });
     el.scrollTop = el.scrollHeight;
+  }
+
+  // Un message envoyé par moi est considéré "lu" quand TOUS les autres
+  // participants de la conversation ont un lastReadAt postérieur à son envoi
+  // (pour une conversation à 2, ça revient simplement à l'autre personne).
+  function isReadByOthers(m, conv) {
+    if (!conv) return false;
+    const others = conv.participants.filter((p) => p.id !== me.id);
+    if (others.length === 0) return false;
+    const sentAt = new Date(m.createdAt).getTime();
+    return others.every((p) => p.lastReadAt && new Date(p.lastReadAt).getTime() >= sentAt);
+  }
+
+  // Construit le contenu d'une bulle selon le type de message (texte, photo,
+  // fichier ou message vocal). Les pièces jointes sont reçues encodées en
+  // base64 et affichées via une data URL (pas d'URL de fichier séparée).
+  function renderMessageBody(m) {
+    const type = m.type || 'text';
+    const att = m.attachment;
+
+    if (type === 'image' && att && att.data) {
+      const url = attachmentDataUrl(att, 'image/jpeg');
+      const caption = m.content ? `<div class="msgCaption">${escapeHtml(m.content)}</div>` : '';
+      return `<a href="${url}" target="_blank" rel="noopener"><img class="msgImage" src="${url}" alt="${escapeHtml(att.name || 'photo')}"></a>${caption}`;
+    }
+
+    if (type === 'voice' && att && att.data) {
+      const url = attachmentDataUrl(att, 'audio/webm');
+      const dur = att.duration ? `<span class="voiceDuration">${formatDuration(att.duration)}</span>` : '';
+      return `<div class="msgVoice"><audio controls src="${url}"></audio>${dur}</div>`;
+    }
+
+    if (type === 'file' && att && att.data) {
+      const url = attachmentDataUrl(att, 'application/octet-stream');
+      const name = escapeHtml(att.name || 'fichier');
+      const size = att.size ? `<span class="fileSize">${formatBytes(att.size)}</span>` : '';
+      const caption = m.content ? `<div class="msgCaption">${escapeHtml(m.content)}</div>` : '';
+      return `${caption}<a class="msgFile" href="${url}" download="${name}"><span class="fileIcon">📄</span><span class="fileInfo"><span class="fileName">${name}</span>${size}</span></a>`;
+    }
+
+    return `<div>${escapeHtml(m.content)}</div>`;
+  }
+
+  function attachmentDataUrl(att, fallbackMime) {
+    return 'data:' + (att.mime || fallbackMime) + ';base64,' + att.data;
+  }
+
+  function formatBytes(bytes) {
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' Ko';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+  }
+
+  function formatDuration(secs) {
+    const m = Math.floor(secs / 60);
+    const s = secs % 60;
+    return m + ':' + String(s).padStart(2, '0');
+  }
+
+  // Aperçu texte utilisé dans la liste des conversations quand un message
+  // arrive en temps réel (miroir de previewLabel() côté serveur).
+  function messagePreviewText(m) {
+    if (m.deleted) return '🚫 Message supprimé';
+    if (m.type === 'image') return '📷 Photo';
+    if (m.type === 'voice') return '🎤 Message vocal';
+    if (m.type === 'file') return '📎 ' + (m.attachment && m.attachment.name ? m.attachment.name : 'Fichier');
+    return m.content;
   }
 
   function escapeHtml(s) {
     return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  $('sendBtn').addEventListener('click', sendMessage);
+  // Attention : ne pas passer directement "sendMessage" en callback ici — le
+  // navigateur appellerait sendMessage(clickEvent), et l'objet évènement (qui
+  // n'est pas "falsy") serait alors pris à tort pour une pièce jointe, ce qui
+  // contourne la vérification "message vide" et déclenche une erreur serveur.
+  $('sendBtn').addEventListener('click', () => sendMessage());
   $('msgInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') sendMessage(); });
   $('msgInput').addEventListener('input', () => {
     if (!activeConversationId) return;
@@ -534,14 +995,168 @@
     typingTimeout = setTimeout(() => socket.emit('typing', { conversationId: activeConversationId, isTyping: false }), 1200);
   });
 
-  function sendMessage() {
+  // Clic sur l'icône 🗑️ d'un de nos propres messages (texte, photo, fichier ou
+  // vocal) : demande confirmation puis supprime pour tout le monde. Écouteur
+  // unique posé sur le conteneur (délégation d'événement), car les messages
+  // sont entièrement reconstruits à chaque renderMessages().
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.deleteMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    if (!messageId) return;
+    if (!confirm('Supprimer ce message ? Cette action est irréversible.')) return;
+    socket.emit('message:delete', { messageId }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+    });
+  });
+
+  // "attachment", s'il est fourni, a la forme { data (base64), mime, name, size, duration?, type }.
+  // Le texte de #msgInput sert alors de légende optionnelle (ex: une photo avec un petit mot).
+  function sendMessage(attachment) {
     const input = $('msgInput');
     const content = input.value.trim();
-    if (!content || !activeConversationId) return;
-    socket.emit('message:send', { conversationId: activeConversationId, content }, (res) => {
+    if (!content && !attachment) return;
+    if (!activeConversationId) return;
+    socket.emit('message:send', { conversationId: activeConversationId, content, attachment }, (res) => {
       if (res && res.error) alert('Erreur envoi: ' + res.error);
     });
     input.value = '';
+  }
+
+  // ---------- Pièce jointe (fichier / photo) ----------
+  $('attachBtn').addEventListener('click', () => {
+    if (!activeConversationId) return alert('Choisissez une conversation avant d\'envoyer un fichier.');
+    $('fileInput').click();
+  });
+
+  $('fileInput').addEventListener('change', async () => {
+    const file = $('fileInput').files[0];
+    $('fileInput').value = ''; // permet de resélectionner le même fichier plus tard
+    if (!file) return;
+    if (file.size > MAX_ATTACHMENT_BYTES) {
+      alert('Fichier trop volumineux (5 Mo maximum).');
+      return;
+    }
+    try {
+      const base64 = await blobToBase64(file);
+      const type = file.type && file.type.startsWith('image/') ? 'image' : 'file';
+      sendMessage({ data: base64, mime: file.type || 'application/octet-stream', name: file.name, size: file.size, type });
+    } catch (err) {
+      alert('Erreur de lecture du fichier : ' + err.message);
+    }
+  });
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result || '';
+        const commaIdx = result.indexOf(',');
+        resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error || new Error('Lecture échouée'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ---------- Message vocal ----------
+  let mediaRecorder = null;
+  let recordedChunks = [];
+  let recordStream = null;
+  let recordStartTs = null;
+  let recordTimerInterval = null;
+  let isRecording = false;
+  let wantsSendRecording = true;
+
+  function pickAudioMimeType() {
+    const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+    if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
+    return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || '';
+  }
+
+  $('voiceBtn').addEventListener('click', async () => {
+    if (isRecording) { stopVoiceRecording(true); return; }
+    if (!activeConversationId) return alert('Choisissez une conversation avant d\'enregistrer un message vocal.');
+    if (!window.MediaRecorder) return alert('L\'enregistrement audio n\'est pas supporté par ce navigateur.');
+
+    try {
+      recordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+      alert('Impossible d\'accéder au micro : ' + err.message);
+      return;
+    }
+
+    recordedChunks = [];
+    const mimeType = pickAudioMimeType();
+    try {
+      mediaRecorder = mimeType ? new MediaRecorder(recordStream, { mimeType }) : new MediaRecorder(recordStream);
+    } catch (err) {
+      alert('Impossible de démarrer l\'enregistrement : ' + err.message);
+      recordStream.getTracks().forEach((t) => t.stop());
+      recordStream = null;
+      return;
+    }
+
+    mediaRecorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = onVoiceRecordingStopped;
+    mediaRecorder.start();
+
+    isRecording = true;
+    wantsSendRecording = true;
+    recordStartTs = Date.now();
+    $('voiceBtn').classList.add('recording');
+    $('voiceBtn').textContent = '⏹';
+    $('recordingTime').style.display = 'inline';
+    updateRecordingTime();
+    recordTimerInterval = setInterval(updateRecordingTime, 250);
+  });
+
+  // Appuyer sur Échap pendant l'enregistrement l'annule sans l'envoyer.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && isRecording) stopVoiceRecording(false);
+  });
+
+  function updateRecordingTime() {
+    const secs = Math.floor((Date.now() - recordStartTs) / 1000);
+    $('recordingTime').textContent = formatDuration(secs);
+  }
+
+  function stopVoiceRecording(shouldSend) {
+    if (!mediaRecorder) return;
+    wantsSendRecording = shouldSend;
+    if (mediaRecorder.state !== 'inactive') mediaRecorder.stop();
+  }
+
+  function onVoiceRecordingStopped() {
+    clearInterval(recordTimerInterval);
+    recordTimerInterval = null;
+    $('voiceBtn').classList.remove('recording');
+    $('voiceBtn').textContent = '🎤';
+    $('recordingTime').style.display = 'none';
+    $('recordingTime').textContent = '00:00';
+
+    const durationSecs = recordStartTs ? Math.round((Date.now() - recordStartTs) / 1000) : 0;
+    if (recordStream) { recordStream.getTracks().forEach((t) => t.stop()); recordStream = null; }
+    isRecording = false;
+
+    const chunks = recordedChunks;
+    recordedChunks = [];
+    const recorder = mediaRecorder;
+    mediaRecorder = null;
+
+    if (!wantsSendRecording || !chunks.length || durationSecs < 1) return;
+
+    const blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || 'audio/webm' });
+    if (blob.size > MAX_ATTACHMENT_BYTES) {
+      alert('Message vocal trop volumineux (5 Mo maximum) — essayez un message plus court.');
+      return;
+    }
+
+    blobToBase64(blob)
+      .then((base64) => {
+        sendMessage({ data: base64, mime: blob.type || 'audio/webm', name: 'message-vocal.webm', size: blob.size, duration: durationSecs, type: 'voice' });
+      })
+      .catch((err) => alert('Erreur lors de la lecture de l\'enregistrement : ' + err.message));
   }
 
   // ---------- Calls ----------
@@ -574,7 +1189,8 @@
   function openCallOverlay(type) {
     $('incomingCall').classList.remove('show');
     $('callOverlay').classList.add('show');
-    $('callInfo').textContent = (type === 'audio' ? 'Appel audio' : 'Appel vidéo') + ' en cours';
+    callBaseInfoText = (type === 'audio' ? 'Appel audio' : 'Appel vidéo') + ' en cours';
+    updateCallInfoText('connexion en cours…');
     let secs = 0;
     clearInterval(callTimerInterval);
     callTimerInterval = setInterval(() => {
@@ -583,6 +1199,13 @@
       const s = String(secs % 60).padStart(2, '0');
       $('callTimer').textContent = m + ':' + s;
     }, 1000);
+  }
+
+  // Affiche l'état réel de la connexion directement dans l'écran d'appel (pas
+  // besoin d'ouvrir la Console) : utile car un chrono qui avance ne veut pas
+  // forcément dire que le son/l'image passe vraiment entre les deux appareils.
+  function updateCallInfoText(statusSuffix) {
+    $('callInfo').textContent = callBaseInfoText + (statusSuffix ? ' — ' + statusSuffix : '');
   }
 
   function addLocalVideoTile() {
@@ -610,6 +1233,24 @@
       }
     };
 
+    // Utile pour diagnostiquer : si le son/l'image ne passe pas, ceci permet de
+    // voir dans la Console si la connexion WebRTC a vraiment abouti ("connected"/
+    // "completed") ou si elle reste bloquée ("checking"/"failed") — un problème
+    // réseau (pare-feu, NAT strict) plutôt qu'un problème de lecture audio.
+    pc.oniceconnectionstatechange = () => {
+      const state = pc.iceConnectionState;
+      console.log('[appel] État connexion avec ' + (name || socketId) + ' :', state);
+      if (state === 'connected' || state === 'completed') {
+        updateCallInfoText('connecté');
+      } else if (state === 'checking') {
+        updateCallInfoText('connexion en cours…');
+      } else if (state === 'disconnected') {
+        updateCallInfoText('connexion instable…');
+      } else if (state === 'failed') {
+        updateCallInfoText('échec de connexion réseau ⚠️');
+      }
+    };
+
     pc.ontrack = (e) => {
       addRemoteVideoTile(socketId, name, e.streams[0]);
     };
@@ -632,7 +1273,26 @@
       tile.innerHTML = `<video autoplay playsinline></video><div class="label">${escapeHtml(name || 'Participant')}</div>`;
       $('videosGrid').appendChild(tile);
     }
-    tile.querySelector('video').srcObject = stream;
+    const videoEl = tile.querySelector('video');
+    videoEl.srcObject = stream;
+
+    // Sur un appel AUDIO, ce <video> n'a pas de piste vidéo (juste le son du
+    // correspondant) et n'est pas "muted" (on veut l'entendre). Or définir
+    // srcObject ne suffit pas toujours à déclencher la lecture : certains
+    // navigateurs bloquent silencieusement l'autoplay avec son ici (aucune
+    // erreur visible, juste pas de son) — on appelle donc play() explicitement,
+    // et on retente au prochain clic/appui si jamais c'est encore bloqué.
+    const playPromise = videoEl.play();
+    if (playPromise && playPromise.catch) {
+      playPromise.catch((err) => {
+        console.warn('Lecture du son distant bloquée par le navigateur, nouvelle tentative au prochain clic :', err && err.name);
+        const retryPlay = () => {
+          videoEl.play().catch(() => { /* toujours bloqué, on laissera la prochaine interaction retenter */ });
+        };
+        document.addEventListener('click', retryPlay, { once: true });
+        document.addEventListener('touchend', retryPlay, { once: true });
+      });
+    }
   }
 
   function removePeer(socketId) {
@@ -643,6 +1303,7 @@
 
   $('acceptCallBtn').addEventListener('click', async () => {
     if (!pendingIncomingCall) return;
+    stopRingtone();
     const { conversationId, callId, type } = pendingIncomingCall;
     try {
       localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video', audio: true });
@@ -656,6 +1317,7 @@
   });
 
   $('rejectCallBtn').addEventListener('click', () => {
+    stopRingtone();
     $('incomingCall').classList.remove('show');
     pendingIncomingCall = null;
   });
@@ -663,6 +1325,7 @@
   $('hangupBtn').addEventListener('click', hangup);
 
   function hangup() {
+    stopRingtone();
     if (currentCall) socket.emit('call:leave', { callId: currentCall.callId });
     Object.keys(peerConnections).forEach(removePeer);
     if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
@@ -685,6 +1348,71 @@
     $('toggleCamBtn').classList.toggle('muted', !camEnabled);
   });
 
+  // ---------- Photo de profil ----------
+  function renderMyAvatar() {
+    const avatarUrl = me && me.avatarUrl;
+    [{ el: $('myAvatar'), extraClass: 'avatarSmall' }, { el: $('settingsAvatar'), extraClass: '' }].forEach(({ el, extraClass }) => {
+      if (!el) return;
+      el.className = ('avatar' + (extraClass ? ' ' + extraClass : '')) + (avatarUrl ? ' avatarPhoto' : '');
+      el.style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
+      el.textContent = avatarUrl ? '' : initials(me ? me.name : '');
+    });
+  }
+
+  $('myAvatar').addEventListener('click', () => {
+    if (!me) return;
+    $('avatarInput').click();
+  });
+
+  $('avatarInput').addEventListener('change', async () => {
+    const file = $('avatarInput').files[0];
+    $('avatarInput').value = '';
+    if (!file) return;
+    if (!file.type || !file.type.startsWith('image/')) {
+      alert('Merci de choisir une image.');
+      return;
+    }
+    try {
+      const dataUrl = await resizeImageToDataUrl(file, 256, 0.82);
+      const data = await api('/api/users/me/avatar', { method: 'PATCH', body: JSON.stringify({ avatarUrl: dataUrl }) });
+      me.avatarUrl = data.user.avatarUrl;
+      renderMyAvatar();
+    } catch (err) {
+      alert('Erreur lors de la mise à jour de la photo : ' + err.message);
+    }
+  });
+
+  // Redimensionne et compresse une image côté navigateur (via <canvas>) avant
+  // de l'envoyer, pour ne pas stocker des photos brutes énormes dans la base.
+  function resizeImageToDataUrl(file, maxSize, quality) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          let { width, height } = img;
+          if (width > height && width > maxSize) {
+            height = Math.round(height * (maxSize / width));
+            width = maxSize;
+          } else if (height >= width && height > maxSize) {
+            width = Math.round(width * (maxSize / height));
+            height = maxSize;
+          }
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = () => reject(new Error('Image invalide'));
+        img.src = reader.result;
+      };
+      reader.onerror = () => reject(reader.error || new Error('Lecture échouée'));
+      reader.readAsDataURL(file);
+    });
+  }
+
   // Auto test backend on load
   testBackend();
 
@@ -697,7 +1425,226 @@
         console.warn('Service worker non enregistré :', err.message);
       });
     });
+
+    // Clic sur une notification alors qu'un onglet de l'app était déjà ouvert :
+    // le service worker (sw.js) l'a ramené au premier plan et nous transmet ici
+    // la conversation visée, pour l'ouvrir directement sans recharger la page.
+    navigator.serviceWorker.addEventListener('message', (event) => {
+      const msg = event.data;
+      if (msg && msg.type === 'notification-click' && msg.data && msg.data.conversationId) {
+        pendingConversationIdFromNotification = msg.data.conversationId;
+        maybeOpenPendingConversation();
+      }
+    });
   }
+
+  // ---------- Notifications push ----------
+  // Convertit la clé publique VAPID (texte base64 "URL-safe") au format binaire
+  // attendu par pushManager.subscribe. C'est le format d'échange standard de
+  // l'écosystème Web Push, il n'y a pas d'alternative plus simple ici.
+  function urlBase64ToUint8Array(base64String) {
+    const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }
+
+  // Demande la permission puis abonne ce navigateur/appareil aux notifications
+  // push, et enregistre l'abonnement côté serveur pour l'utilisateur connecté.
+  // N'affiche jamais d'erreur bloquante : si ça échoue (permission refusée,
+  // navigateur non compatible, ex: Safari en onglet normal sur iPhone plutôt
+  // qu'installé sur l'écran d'accueil...), l'app continue de fonctionner sans.
+  async function setupPushNotifications() {
+    try {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+
+      // Important pour Safari/iOS : demander la permission tout de suite, en
+      // premier, sans await avant — certains navigateurs n'affichent la
+      // popup d'autorisation que si l'appel est encore "proche" du geste de
+      // l'utilisateur (clic sur le bouton) qui a déclenché cette fonction.
+      if (Notification.permission === 'denied') return;
+      if (Notification.permission === 'default') {
+        const perm = await Notification.requestPermission();
+        if (perm !== 'granted') return;
+      }
+
+      const { publicKey, enabled } = await api('/api/push/vapid-public-key');
+      if (!enabled || !publicKey) return; // pas encore configuré côté serveur (clés VAPID absentes)
+
+      const registration = await navigator.serviceWorker.ready;
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array(publicKey),
+        });
+      }
+
+      await api('/api/push/subscribe', { method: 'POST', body: JSON.stringify(subscription.toJSON()) });
+    } catch (err) {
+      console.warn('Notifications push non activées :', err.message);
+    }
+  }
+
+  // ---------- Badge sur l'icône de l'app (petit rond avec un chiffre, comme WhatsApp) ----------
+  // Dès que l'utilisateur revient sur l'app (elle redevient visible/au premier plan),
+  // on considère qu'il a "vu" les notifications en attente : on les referme et on
+  // remet le badge à zéro, comme le ferait n'importe quelle appli de messagerie.
+  async function clearNotificationsAndBadge() {
+    try {
+      if ('clearAppBadge' in navigator) navigator.clearAppBadge().catch(() => {});
+      if ('serviceWorker' in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration && registration.getNotifications) {
+          const notifs = await registration.getNotifications();
+          notifs.forEach((n) => n.close());
+        }
+      }
+    } catch (err) {
+      // Pas grave si ça échoue (API non supportée) : ça n'affecte que le badge, pas le chat.
+    }
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && me) clearNotificationsAndBadge();
+  });
+  window.addEventListener('focus', () => {
+    if (me) clearNotificationsAndBadge();
+  });
+
+  // ---------- Paramètres ----------
+  function showSettingsMsg(id, text, isError) {
+    const el = $(id);
+    el.textContent = text;
+    el.className = 'settingsMsg' + (isError ? ' error' : text ? ' success' : '');
+  }
+
+  async function openSettings() {
+    if (!me) return;
+    $('settingsNameInput').value = me.name;
+    $('settingsPhoneText').textContent = me.phone;
+    showSettingsMsg('settingsProfileMsg', '');
+    showSettingsMsg('settingsPasswordMsg', '');
+    $('currentPasswordInput').value = '';
+    $('newPasswordInput').value = '';
+    $('confirmPasswordInput').value = '';
+    $('ringtoneToggle').checked = !ringtoneMuted;
+    $('themeToggle').checked = document.body.classList.contains('theme-light');
+    $('settingsOverlay').classList.add('show');
+    refreshNotifToggleState();
+  }
+
+  function closeSettings() {
+    $('settingsOverlay').classList.remove('show');
+  }
+
+  $('settingsBtn').addEventListener('click', openSettings);
+  $('closeSettingsBtn').addEventListener('click', closeSettings);
+  $('settingsOverlay').addEventListener('click', (e) => {
+    if (e.target === $('settingsOverlay')) closeSettings();
+  });
+  $('settingsAvatar').addEventListener('click', () => { if (me) $('avatarInput').click(); });
+
+  $('saveNameBtn').addEventListener('click', async () => {
+    const name = $('settingsNameInput').value.trim();
+    if (!name) return showSettingsMsg('settingsProfileMsg', 'Le nom ne peut pas être vide.', true);
+    try {
+      const data = await api('/api/users/me/name', { method: 'PATCH', body: JSON.stringify({ name }) });
+      me.name = data.user.name;
+      $('whoamiText').textContent = me.name + ' (' + me.phone + ')';
+      renderMyAvatar();
+      showSettingsMsg('settingsProfileMsg', 'Nom mis à jour.');
+    } catch (err) {
+      showSettingsMsg('settingsProfileMsg', err.message, true);
+    }
+  });
+
+  $('changePasswordBtn').addEventListener('click', async () => {
+    const currentPassword = $('currentPasswordInput').value;
+    const newPassword = $('newPasswordInput').value;
+    const confirmPassword = $('confirmPasswordInput').value;
+    if (!currentPassword || !newPassword) {
+      return showSettingsMsg('settingsPasswordMsg', 'Mot de passe actuel et nouveau mot de passe requis.', true);
+    }
+    if (newPassword.length < 6) {
+      return showSettingsMsg('settingsPasswordMsg', 'Le nouveau mot de passe doit contenir au moins 6 caractères.', true);
+    }
+    if (newPassword !== confirmPassword) {
+      return showSettingsMsg('settingsPasswordMsg', 'La confirmation ne correspond pas au nouveau mot de passe.', true);
+    }
+    try {
+      await api('/api/users/me/password', { method: 'PATCH', body: JSON.stringify({ currentPassword, newPassword }) });
+      $('currentPasswordInput').value = '';
+      $('newPasswordInput').value = '';
+      $('confirmPasswordInput').value = '';
+      showSettingsMsg('settingsPasswordMsg', 'Mot de passe changé avec succès.');
+    } catch (err) {
+      showSettingsMsg('settingsPasswordMsg', err.message, true);
+    }
+  });
+
+  $('ringtoneToggle').addEventListener('change', () => {
+    ringtoneMuted = !$('ringtoneToggle').checked;
+    localStorage.setItem('seourou_ringtone_muted', ringtoneMuted ? '1' : '0');
+  });
+
+  $('themeToggle').addEventListener('change', () => {
+    const light = $('themeToggle').checked;
+    document.body.classList.toggle('theme-light', light);
+    localStorage.setItem('seourou_theme', light ? 'light' : 'dark');
+  });
+
+  // Reflète l'état réel de l'abonnement (permission + abonnement navigateur
+  // actif), plutôt qu'une simple préférence mémorisée : évite d'afficher le
+  // bouton "activé" alors que la permission a été retirée depuis les réglages
+  // du téléphone sans passer par cette application.
+  async function refreshNotifToggleState() {
+    const toggle = $('notifToggle');
+    if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
+      toggle.checked = false;
+      toggle.disabled = true;
+      showSettingsMsg('settingsNotifMsg', 'Notifications non disponibles sur cet appareil/navigateur.', true);
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      toggle.checked = false;
+      toggle.disabled = true;
+      showSettingsMsg('settingsNotifMsg', 'Notifications bloquées dans les réglages du téléphone/navigateur.', true);
+      return;
+    }
+    toggle.disabled = false;
+    showSettingsMsg('settingsNotifMsg', '');
+    try {
+      const registration = await navigator.serviceWorker.getRegistration();
+      const subscription = registration ? await registration.pushManager.getSubscription() : null;
+      toggle.checked = Boolean(subscription);
+    } catch (err) {
+      toggle.checked = false;
+    }
+  }
+
+  $('notifToggle').addEventListener('change', async () => {
+    const toggle = $('notifToggle');
+    toggle.disabled = true;
+    try {
+      if (toggle.checked) {
+        await setupPushNotifications();
+      } else {
+        const registration = await navigator.serviceWorker.getRegistration();
+        const subscription = registration ? await registration.pushManager.getSubscription() : null;
+        if (subscription) {
+          await api('/api/push/unsubscribe', { method: 'POST', body: JSON.stringify({ endpoint: subscription.endpoint }) });
+          await subscription.unsubscribe();
+        }
+      }
+    } catch (err) {
+      showSettingsMsg('settingsNotifMsg', err.message, true);
+    } finally {
+      await refreshNotifToggleState();
+    }
+  });
 })();
 </script>
 </body>
