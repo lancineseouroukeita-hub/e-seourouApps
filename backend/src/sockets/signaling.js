@@ -1,4 +1,4 @@
-const prisma = require('../config/prisma');
+﻿const prisma = require('../config/prisma');
 const { roomName } = require('./chat');
 const { sendPushToUser } = require('../utils/push');
 
@@ -125,10 +125,19 @@ async function leaveCall(io, socket, callId) {
 
     if (room.size === 0) {
       activeCalls.delete(callId);
-      await prisma.call.update({
+      const call = await prisma.call.update({
         where: { id: callId },
         data: { status: 'ended', endedAt: new Date() },
-      }).catch(() => {}); // ignore si l'appel a déjà été marqué comme terminé
+      }).catch(() => null); // ignore si l'appel a déjà été marqué comme terminé
+
+      // Prévient TOUS les participants de la conversation (pas seulement ceux
+      // déjà dans la "room" de l'appel WebRTC) : indispensable quand l'appelant
+      // raccroche avant que quiconque ait décroché — sinon la personne appelée
+      // n'a jamais rejoint la room de l'appel, ne reçoit donc pas "call:user-left"
+      // ci-dessus, et son téléphone continue de sonner indéfiniment.
+      if (call) {
+        io.to(roomName(call.conversationId)).emit('call:cancelled', { callId });
+      }
     }
   } catch (err) {
     console.error('leaveCall cleanup error:', err);
