@@ -96,6 +96,20 @@
   .filterChip{flex-shrink:0;padding:6px 12px;border-radius:16px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:12px;cursor:pointer;white-space:nowrap;}
   .filterChip:hover{background:var(--border);}
   .filterChip.active{background:var(--accent);border-color:var(--accent);color:white;}
+  /* Bouton "+" tout au bout des filtres : crée un filtre personnalisé (ex:
+     "Famille", "Travail"), comme dans WhatsApp. Rond plutôt qu'en pilule pour
+     le distinguer visuellement des filtres eux-mêmes. */
+  .filterChip.addFilterChip{width:28px;height:28px;padding:0;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;line-height:1;}
+  .filterChip.customChip{position:relative;padding-right:20px;}
+  .filterChip.customChip .customChipRemove{position:absolute;right:5px;top:50%;transform:translateY(-50%);font-size:10px;opacity:.75;}
+  .filterChip.customChip .customChipRemove:hover{opacity:1;}
+  /* Petit menu qui s'ouvre au clic sur l'icône étiquette 🏷️ d'une discussion,
+     pour l'ajouter/la retirer d'un ou plusieurs filtres personnalisés. */
+  .tagMenu{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px;z-index:200;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .tagMenu label{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 4px;cursor:pointer;}
+  .tagMenu .tagMenuEmpty{color:var(--muted);font-size:12px;padding:4px;max-width:180px;}
+  .convTagBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.55;padding:0;line-height:1;color:inherit;}
+  .convTagBtn:hover{opacity:1;}
 
   .sideSection{padding:12px 14px 6px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);}
   #convList,#userList{overflow-y:auto;}
@@ -119,7 +133,17 @@
   #chatArea{flex:1;display:flex;flex-direction:column;min-width:0;}
   #chatHeader{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
   #chatHeader .title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  #backToListBtn{display:none;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:15px;flex-shrink:0;}
+  /* Bouton "retour à la liste" : un rond avec un chevron, comme le bouton
+     retour natif de WhatsApp/iOS, pour qu'il soit reconnaissable comme un vrai
+     bouton d'app (et pas confondu avec le geste de retour du navigateur, qui
+     lui quitterait complètement l'application). Visible seulement sur mobile
+     (écran étroit), voir la media query plus bas. */
+  /* Spécificité "#chatHeader #backToListBtn" (et pas juste "#backToListBtn")
+     nécessaire pour l'emporter sur la règle générique "#chatHeader button"
+     ci-dessous (qui a un sélecteur de type en plus, donc gagnerait sinon
+     malgré l'ordre d'écriture) : sans ça, le bouton perdait sa forme ronde et
+     sa taille de police au profit du style générique des autres boutons. */
+  #chatHeader #backToListBtn{display:none;align-items:center;justify-content:center;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:34px;height:34px;padding:0;cursor:pointer;font-size:22px;line-height:1;flex-shrink:0;}
   #chatHeader button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;}
   #chatHeader button:hover{background:#282e3a;}
   /* Boutons d'appel en pilule avec icônes seules (comme WhatsApp), plus
@@ -152,7 +176,18 @@
   .ticks.read{opacity:1;color:#63d4ff;}
   .deleteMsgBtn{background:none;border:none;cursor:pointer;font-size:11px;opacity:.55;padding:0;line-height:1;color:inherit;}
   .deleteMsgBtn:hover{opacity:1;}
-  .msgDeleted{font-style:italic;opacity:.65;font-size:13px;}
+  .eraseMsgBtn{background:none;border:none;cursor:pointer;font-size:11px;opacity:.55;padding:0;line-height:1;color:inherit;}
+  .eraseMsgBtn:hover{opacity:1;color:#ff5c5c;}
+  .msgDeleted{font-style:italic;opacity:.65;font-size:13px;display:flex;align-items:center;gap:6px;}
+  .blockUserBtn{background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11px;padding:5px 9px;color:inherit;opacity:.8;white-space:nowrap;}
+  .blockUserBtn:hover{opacity:1;}
+  .blockUserBtn.isBlocked{border-color:#ff5c5c;color:#ff5c5c;}
+  .convDeleteBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
+  .convDeleteBtn:hover{opacity:1;color:#ff5c5c;}
+  .blockedUserRow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+  .blockedUserRow:last-child{border-bottom:none;}
+  .blockedUserRow .liText{flex:1;}
+  #blockedUsersList .emptyHint{color:var(--muted);font-size:12px;padding:6px 0;}
   #typingIndicator{padding:0 18px 4px;font-size:12px;color:var(--muted);min-height:16px;}
   /* padding-bottom en plus : sur iPhone/Android récents, la barre de geste du bas
      (home indicator) peut chevaucher le bouton "Envoyer" sans cette marge de sécurité. */
@@ -270,7 +305,7 @@
     #mainScreen.show.chatOpen #sidebar{display:none;}
     #mainScreen.show.chatOpen #chatArea{display:flex;}
 
-    #backToListBtn{display:inline-flex;align-items:center;justify-content:center;}
+    #chatHeader #backToListBtn{display:flex;}
     .bubble{max-width:82%;}
     .msgImage{max-width:min(240px, 70vw);max-height:min(240px, 70vw);}
   }
@@ -343,6 +378,7 @@
         <button class="filterChip" data-filter="nonlues">Non lues</button>
         <button class="filterChip" data-filter="favoris">Favoris</button>
         <button class="filterChip" data-filter="groupes">Groupes</button>
+        <button class="filterChip addFilterChip" id="addFilterBtn" title="Créer un filtre personnalisé">+</button>
       </div>
       <div id="convList"></div>
       <div class="sideSection">Autres utilisateurs</div>
@@ -352,7 +388,7 @@
       <div id="emptyState">Choisissez un utilisateur à gauche pour démarrer une conversation.</div>
       <div id="activeChat" style="display:none;flex-direction:column;flex:1;min-height:0;">
         <div id="chatHeader">
-          <button id="backToListBtn" title="Retour à la liste">←</button>
+          <button id="backToListBtn" title="Retour à la liste des discussions">‹</button>
           <div class="avatar" id="chatAvatar">?</div>
           <div class="title" id="chatTitle">—</div>
           <div class="callBtns">
@@ -456,6 +492,12 @@
         </section>
 
         <section class="settingsSection">
+          <h3>Confidentialité</h3>
+          <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:8px;">Utilisateurs bloqués — ils ne peuvent plus vous envoyer de message ni vous appeler.</label>
+          <div id="blockedUsersList"></div>
+        </section>
+
+        <section class="settingsSection">
           <h3>Mot de passe</h3>
           <input id="currentPasswordInput" type="password" placeholder="Mot de passe actuel" autocomplete="current-password">
           <input id="newPasswordInput" type="password" placeholder="Nouveau mot de passe" autocomplete="new-password">
@@ -506,9 +548,16 @@
 
   // ---------- Recherche et filtres de la liste des discussions ----------
   let convSearchTerm = '';
-  let convFilter = 'toutes'; // toutes | nonlues | favoris | groupes
+  let convFilter = 'toutes'; // toutes | nonlues | favoris | groupes | custom:<id>
   let favoriteConvIds = new Set(JSON.parse(localStorage.getItem('seourou_favorites') || '[]'));
   function saveFavorites() { localStorage.setItem('seourou_favorites', JSON.stringify([...favoriteConvIds])); }
+
+  // Filtres personnalisés (bouton "+" à côté de "Groupes", comme WhatsApp) :
+  // propres à cet appareil, stockés localement. Chaque filtre a un nom et une
+  // liste d'ids de conversations qui lui sont rattachées (via l'icône 🏷️ sur
+  // chaque discussion).
+  let customFilters = JSON.parse(localStorage.getItem('seourou_custom_filters') || '[]');
+  function saveCustomFilters() { localStorage.setItem('seourou_custom_filters', JSON.stringify(customFilters)); }
 
   // Pièces jointes (photo, fichier, message vocal) : taille max côté client,
   // doit rester cohérente avec la limite vérifiée côté serveur (chat.js).
@@ -822,6 +871,26 @@
       if (conversationId === activeConversationId) renderMessages();
     });
 
+    // Un message déjà supprimé vient d'être effacé définitivement (message:erase) :
+    // on le retire complètement de la conversation, et on recalcule l'aperçu de
+    // la liste des discussions si c'était le dernier message affiché.
+    socket.on('message:erased', ({ conversationId, messageId }) => {
+      const list = messagesByConv[conversationId];
+      if (list) {
+        const idx = list.findIndex((x) => x.id === messageId);
+        if (idx !== -1) list.splice(idx, 1);
+      }
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
+        const remaining = list && list.length ? list[list.length - 1] : null;
+        conv.lastMessage = remaining
+          ? { id: remaining.id, content: messagePreviewText(remaining), senderId: remaining.sender ? remaining.sender.id : remaining.senderId, createdAt: remaining.createdAt }
+          : null;
+        renderConvList();
+      }
+      if (conversationId === activeConversationId) renderMessages();
+    });
+
     // L'autre participant vient d'ouvrir/lire la conversation : on met à jour
     // son "lastReadAt" localement pour afficher les doubles coches sur nos messages.
     socket.on('conversation:read-receipt', ({ conversationId, userId, readAt }) => {
@@ -951,9 +1020,64 @@
       const div = document.createElement('div');
       div.className = 'listItem';
       div.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl)}
-        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.phone)}</div></div>`;
-      div.addEventListener('click', () => startConversationWith(u.id));
+        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.phone)}</div></div>
+        <button class="blockUserBtn${u.blocked ? ' isBlocked' : ''}" data-user-id="${u.id}" title="${u.blocked ? 'Débloquer cet utilisateur' : 'Bloquer cet utilisateur'}">${u.blocked ? 'Débloquer' : 'Bloquer'}</button>`;
+      div.querySelector('.liText').addEventListener('click', () => startConversationWith(u.id));
+      div.querySelector('.avatar').addEventListener('click', () => startConversationWith(u.id));
+      div.querySelector('.blockUserBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await toggleBlockUser(u);
+      });
       el.appendChild(div);
+    });
+  }
+
+  // Bloque/débloque un utilisateur (Paramètres → Confidentialité, ou depuis la
+  // liste "nouvelle discussion"). Met à jour l'état local sans recharger toute
+  // la liste des utilisateurs, et rafraîchit aussi le panneau Paramètres s'il
+  // est ouvert, pour que les deux listes restent cohérentes entre elles.
+  async function toggleBlockUser(u) {
+    const wasBlocked = Boolean(u.blocked);
+    try {
+      await api('/api/users/' + u.id + (wasBlocked ? '/unblock' : '/block'), { method: 'POST' });
+      u.blocked = !wasBlocked;
+      renderUserList();
+      renderBlockedUsersList();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  }
+
+  // ---------- Utilisateurs bloqués (Paramètres → Confidentialité) ----------
+  let blockedUsers = [];
+
+  async function loadBlockedUsers() {
+    try {
+      const data = await api('/api/users/blocked');
+      blockedUsers = data.users;
+      renderBlockedUsersList();
+    } catch (err) { console.error(err); }
+  }
+
+  function renderBlockedUsersList() {
+    const el = $('blockedUsersList');
+    if (!el) return;
+    el.innerHTML = '';
+    if (blockedUsers.length === 0) {
+      el.innerHTML = '<div class="emptyHint">Aucun utilisateur bloqué.</div>';
+      return;
+    }
+    blockedUsers.forEach((u) => {
+      const row = document.createElement('div');
+      row.className = 'blockedUserRow';
+      row.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl)}
+        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.phone)}</div></div>
+        <button class="blockUserBtn isBlocked" data-user-id="${u.id}" title="Débloquer cet utilisateur">Débloquer</button>`;
+      row.querySelector('.blockUserBtn').addEventListener('click', async () => {
+        const known = users.find((x) => x.id === u.id);
+        await toggleBlockUser(known || Object.assign({}, u, { blocked: true }));
+      });
+      el.appendChild(row);
     });
   }
 
@@ -975,7 +1099,69 @@
     return c.isGroup ? (c.name || 'Groupe') : (other ? other.name : '—');
   }
 
+  // Insère les chips de filtres personnalisés (créés via le "+") juste avant
+  // le bouton "+" lui-même, en conservant l'ordre de création. Rappelée à
+  // chaque renderConvList() pour que l'état actif reste synchronisé.
+  function renderFilterChips() {
+    const container = $('filterChips');
+    container.querySelectorAll('.customChip').forEach((el) => el.remove());
+    const addBtn = $('addFilterBtn');
+    customFilters.forEach((f) => {
+      const btn = document.createElement('button');
+      btn.className = 'filterChip customChip' + (convFilter === 'custom:' + f.id ? ' active' : '');
+      btn.dataset.filter = 'custom:' + f.id;
+      btn.innerHTML = `${escapeHtml(f.name)}<span class="customChipRemove" title="Supprimer ce filtre">✕</span>`;
+      btn.querySelector('.customChipRemove').addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!confirm(`Supprimer le filtre "${f.name}" ? Les discussions elles-mêmes ne seront pas supprimées.`)) return;
+        customFilters = customFilters.filter((x) => x.id !== f.id);
+        saveCustomFilters();
+        if (convFilter === 'custom:' + f.id) convFilter = 'toutes';
+        renderConvList();
+      });
+      container.insertBefore(btn, addBtn);
+    });
+  }
+
+  // Ouvre un petit menu à cocher (créé/détruit à la volée) permettant de
+  // rattacher une discussion à un ou plusieurs filtres personnalisés.
+  function closeTagMenu() {
+    const existing = document.querySelector('.tagMenu');
+    if (existing) existing.remove();
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.tagMenu') && !e.target.closest('.convTagBtn')) closeTagMenu();
+  });
+
+  function openTagMenu(btn, conversationId) {
+    closeTagMenu();
+    const menu = document.createElement('div');
+    menu.className = 'tagMenu';
+    if (customFilters.length === 0) {
+      menu.innerHTML = '<div class="tagMenuEmpty">Créez d\'abord un filtre personnalisé avec le "+" à côté de "Groupes".</div>';
+    } else {
+      menu.innerHTML = customFilters.map((f) => `
+        <label><input type="checkbox" data-filter-id="${f.id}" ${f.convIds.includes(conversationId) ? 'checked' : ''}> ${escapeHtml(f.name)}</label>
+      `).join('');
+      menu.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+        cb.addEventListener('change', () => {
+          const f = customFilters.find((x) => x.id === cb.dataset.filterId);
+          if (!f) return;
+          if (cb.checked) { if (!f.convIds.includes(conversationId)) f.convIds.push(conversationId); }
+          else { f.convIds = f.convIds.filter((id) => id !== conversationId); }
+          saveCustomFilters();
+          renderConvList();
+        });
+      });
+    }
+    document.body.appendChild(menu);
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + 'px';
+    menu.style.left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  }
+
   function renderConvList() {
+    renderFilterChips();
     const el = $('convList');
     el.innerHTML = '';
     const term = convSearchTerm;
@@ -983,10 +1169,17 @@
     if (convFilter === 'nonlues') list = list.filter(isConvUnread);
     else if (convFilter === 'favoris') list = list.filter((c) => favoriteConvIds.has(c.id));
     else if (convFilter === 'groupes') list = list.filter((c) => c.isGroup);
+    else if (convFilter.startsWith('custom:')) {
+      const f = customFilters.find((x) => 'custom:' + x.id === convFilter);
+      list = f ? list.filter((c) => f.convIds.includes(c.id)) : [];
+    }
 
-    // Compteur affiché sur le filtre "Non lues", comme dans WhatsApp.
+    // Compteurs affichés sur les filtres, comme dans WhatsApp.
     const unreadCount = conversations.filter(isConvUnread).length;
     $('filterChips').querySelector('[data-filter="nonlues"]').textContent = unreadCount > 0 ? `Non lues ${unreadCount}` : 'Non lues';
+    $('filterChips').querySelector('[data-filter="toutes"]').textContent = conversations.length > 0 ? `Toutes ${conversations.length}` : 'Toutes';
+    const groupCount = conversations.filter((c) => c.isGroup).length;
+    $('filterChips').querySelector('[data-filter="groupes"]').textContent = groupCount > 0 ? `Groupes ${groupCount}` : 'Groupes';
 
     if (list.length === 0) {
       el.innerHTML = `<div style="padding:16px 14px;color:var(--muted);font-size:13px;">Aucune discussion${term ? ' pour cette recherche' : ''}.</div>`;
@@ -1006,6 +1199,8 @@
         <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>
         <div class="liMeta">
           <button class="favStar${isFav ? ' active' : ''}" data-conv-id="${c.id}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${isFav ? '★' : '☆'}</button>
+          <button class="convTagBtn" data-conv-id="${c.id}" title="Ajouter à un filtre personnalisé">🏷️</button>
+          <button class="convDeleteBtn" data-conv-id="${c.id}" title="Supprimer cette discussion">🗑️</button>
           ${unread ? '<span class="unreadDot"></span>' : ''}
         </div>`;
       div.querySelector('.favStar').addEventListener('click', (e) => {
@@ -1014,9 +1209,39 @@
         saveFavorites();
         renderConvList();
       });
+      div.querySelector('.convTagBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openTagMenu(e.currentTarget, c.id);
+      });
+      div.querySelector('.convDeleteBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await deleteConversation(c.id, label);
+      });
       div.addEventListener('click', () => openConversation(c.id));
       el.appendChild(div);
     });
+  }
+
+  // Supprime une discussion de ma propre liste (l'autre personne garde son
+  // historique de son côté, comme "supprimer la discussion" sur WhatsApp).
+  // Si la conversation supprimée était ouverte, on revient à l'écran vide.
+  async function deleteConversation(conversationId, label) {
+    if (!confirm(`Supprimer la discussion avec ${label} ? Elle disparaîtra de votre liste.`)) return;
+    try {
+      await api('/api/conversations/' + conversationId, { method: 'DELETE' });
+      conversations = conversations.filter((c) => c.id !== conversationId);
+      delete messagesByConv[conversationId];
+      favoriteConvIds.delete(conversationId);
+      saveFavorites();
+      if (activeConversationId === conversationId) {
+        activeConversationId = null;
+        $('emptyState').style.display = 'flex';
+        $('activeChat').style.display = 'none';
+      }
+      renderConvList();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
   }
 
   $('convSearchInput').addEventListener('input', () => {
@@ -1026,10 +1251,25 @@
 
   $('filterChips').addEventListener('click', (e) => {
     const btn = e.target.closest('.filterChip');
-    if (!btn) return;
+    // Le bouton "+" (addFilterBtn) est aussi un ".filterChip" pour hériter du
+    // même style, mais il n'a pas de data-filter : il a son propre écouteur
+    // dédié plus bas, pas celui-ci (qui sert à sélectionner un filtre existant).
+    if (!btn || !btn.dataset.filter) return;
     $('filterChips').querySelectorAll('.filterChip').forEach((b) => b.classList.remove('active'));
     btn.classList.add('active');
     convFilter = btn.dataset.filter;
+    renderConvList();
+  });
+
+  // "+" à côté de "Groupes" : crée un nouveau filtre personnalisé (nom libre),
+  // dans lequel on pourra ensuite ranger des discussions via l'icône 🏷️.
+  $('addFilterBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const name = (prompt('Nom du nouveau filtre (ex: Famille, Travail) :') || '').trim();
+    if (!name) return;
+    const id = 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    customFilters.push({ id, name, convIds: [] });
+    saveCustomFilters();
     renderConvList();
   });
 
@@ -1110,7 +1350,9 @@
       const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
       const row = document.createElement('div');
       row.className = 'msgRow' + (mine ? ' mine' : '');
-      const body = m.deleted ? `<div class="msgDeleted">🚫 Message supprimé</div>` : renderMessageBody(m);
+      const body = m.deleted
+        ? `<div class="msgDeleted">🚫 Message supprimé${mine ? `<button class="eraseMsgBtn" data-id="${m.id}" title="Effacer définitivement cette trace">✕</button>` : ''}</div>`
+        : renderMessageBody(m);
       const deleteBtn = (mine && !m.deleted)
         ? `<button class="deleteMsgBtn" data-id="${m.id}" title="Supprimer ce message">🗑️</button>`
         : '';
@@ -1229,6 +1471,20 @@
     if (!messageId) return;
     if (!confirm('Supprimer ce message ? Cette action est irréversible.')) return;
     socket.emit('message:delete', { messageId }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+    });
+  });
+
+  // Clic sur le "✕" affiché sur un message déjà supprimé (bulle "🚫 Message
+  // supprimé") : efface définitivement cette trace de la conversation, pour
+  // tout le monde (contrairement à "Supprimer" ci-dessus qui garde une trace).
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.eraseMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    if (!messageId) return;
+    if (!confirm('Effacer définitivement cette trace ? Elle disparaîtra complètement de la conversation, pour tout le monde.')) return;
+    socket.emit('message:erase', { messageId }, (res) => {
       if (res && res.error) alert('Erreur : ' + res.error);
     });
   });
@@ -1857,6 +2113,7 @@
     refreshAccentSwatchSelection();
     $('settingsOverlay').classList.add('show');
     refreshNotifToggleState();
+    loadBlockedUsers();
   }
 
   function closeSettings() {
