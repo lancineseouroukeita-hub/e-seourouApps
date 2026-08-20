@@ -124,9 +124,18 @@
   #chatHeader button:hover{background:#282e3a;}
   /* Boutons d'appel en pilule avec icônes seules (comme WhatsApp), plus
      spécifique que la règle générique "#chatHeader button" ci-dessus. */
-  #chatHeader .callBtns{margin-left:auto;display:flex;gap:2px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:3px;}
-  #chatHeader .callBtns button{background:transparent;border:none;border-radius:50%;width:34px;height:34px;padding:0;font-size:15px;display:flex;align-items:center;justify-content:center;}
-  #chatHeader .callBtns button:hover{background:var(--border);}
+  #chatHeader .callBtns{margin-left:auto;display:flex;gap:8px;}
+  #chatHeader .callBtns button{border:none;border-radius:50%;width:34px;height:34px;padding:0;font-size:15px;display:flex;align-items:center;justify-content:center;}
+  /* Vidéo en bleu (couleur d'accent), audio en vert : deux couleurs distinctes
+     pour différencier les deux types d'appel d'un coup d'œil. Les emoji 🎥/📞
+     ont leurs propres couleurs fixes qu'on ne peut pas recolorer directement ;
+     le filtre s'applique donc seulement à l'icône (span imbriqué), jamais au
+     bouton entier, sinon le fond coloré lui-même serait décoloré avec elle. */
+  #chatHeader .callBtns .callIcon{filter:grayscale(1) brightness(1.8);display:flex;}
+  #chatHeader .callBtns #videoCallBtn{background:var(--accent);}
+  #chatHeader .callBtns #audioCallBtn{background:var(--success);}
+  #chatHeader .callBtns #videoCallBtn:hover{background:var(--accent2);}
+  #chatHeader .callBtns #audioCallBtn:hover{filter:brightness(1.1);}
   #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
   .msgRow{display:flex;}
   .msgRow.mine{justify-content:flex-end;}
@@ -347,8 +356,8 @@
           <div class="avatar" id="chatAvatar">?</div>
           <div class="title" id="chatTitle">—</div>
           <div class="callBtns">
-            <button id="videoCallBtn" title="Appel vidéo">🎥</button>
-            <button id="audioCallBtn" title="Appel audio">📞</button>
+            <button id="videoCallBtn" title="Appel vidéo"><span class="callIcon">🎥</span></button>
+            <button id="audioCallBtn" title="Appel audio"><span class="callIcon">📞</span></button>
           </div>
         </div>
         <div id="messages"></div>
