@@ -4519,12 +4519,17 @@
 
   // ---------- "Autres produits" (Paramètres) ----------
   // Rangée de raccourcis façon "Autres produits Meta" dans WhatsApp, mais
-  // vide pour l'instant : seourouApps n'étant pas affilié à Meta, on ne
-  // reprend pas ses logos/liens. Remplacez cette liste par les vrais
-  // produits/liens Geniosity dès qu'ils existent — { icon: emoji ou URL
-  // d'image, label: nom affiché, url: lien ouvert dans un nouvel onglet } —
-  // et la section apparaîtra automatiquement (masquée tant que la liste est vide).
-  const OTHER_PRODUCTS = [];
+  // avec des icônes génériques (pas les logos Facebook/Instagram/WhatsApp :
+  // seourouApps n'est pas affilié à Meta, les reprendre laisserait croire à
+  // une affiliation qui n'existe pas — voir la discussion à ce sujet).
+  // Remplacez cette liste par les vrais produits/liens Geniosity dès qu'ils
+  // existent — { icon: emoji ou URL d'image, label: nom affiché, url: lien
+  // ouvert dans un nouvel onglet, ou null pour ne pas être cliquable }.
+  const OTHER_PRODUCTS = [
+    { icon: '🧩', label: 'Produit 1', url: null },
+    { icon: '🌐', label: 'Produit 2', url: null },
+    { icon: '⚙️', label: 'Produit 3', url: null },
+  ];
 
   function renderOtherProducts() {
     const section = $('otherProductsSection');
