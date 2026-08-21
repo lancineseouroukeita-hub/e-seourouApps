@@ -8,6 +8,19 @@ const { isBlockedBetween } = require('../utils/blocking');
 // l'adaptateur Redis de Socket.io) afin que tous les serveurs partagent la même vue des appels.
 const activeCalls = new Map();
 
+// Délai de grâce avant de considérer qu'un participant a VRAIMENT quitté un
+// appel après une déconnexion involontaire du socket (coupure réseau, passage
+// wifi/4G, application mise en arrière-plan...). Sans ce délai, la moindre
+// coupure de quelques secondes raccrochait l'appel des DEUX côtés — alors que
+// le socket se reconnecte de lui-même (Socket.io) et que le client rejoint
+// alors automatiquement la même room d'appel (voir "rejoinCallAfterReconnect"
+// côté frontend). Un raccrochage volontaire (bouton "Raccrocher", évènement
+// "call:leave") reste lui immédiat, jamais retardé.
+const DISCONNECT_GRACE_MS = 20000;
+// clé "callId:userId" -> { timer, socketId } : permet d'annuler le départ
+// différé si le même utilisateur rejoint le même appel avant l'expiration.
+const pendingDisconnectLeaves = new Map();
+
 function getOrCreateCallRoom(callId) {
   if (!activeCalls.has(callId)) activeCalls.set(callId, new Map());
   return activeCalls.get(callId);
@@ -71,6 +84,18 @@ function registerSignalingHandlers(io, socket) {
         });
       }
 
+      // Si ce même utilisateur avait un départ différé en attente pour cet
+      // appel (déconnexion récente, voir plus bas), on l'annule : il est
+      // revenu à temps, personne d'autre n'a besoin d'être prévenu qu'il est
+      // parti puisque, de leur point de vue, il n'est jamais vraiment sorti
+      // de la room d'appel.
+      const pendingKey = call.id + ':' + userId;
+      const pending = pendingDisconnectLeaves.get(pendingKey);
+      if (pending) {
+        clearTimeout(pending.timer);
+        pendingDisconnectLeaves.delete(pendingKey);
+      }
+
       await prisma.callParticipant.create({ data: { callId: call.id, userId } });
 
       const room = getOrCreateCallRoom(call.id);
@@ -122,34 +147,74 @@ function registerSignalingHandlers(io, socket) {
     socket.to(callRoomName(callId)).emit('call:peer-ping', { callId, socketId: socket.id });
   });
 
+  // Raccrochage volontaire (bouton "Raccrocher") : immédiat, jamais retardé.
   socket.on('call:leave', async ({ callId }) => {
     await leaveCall(io, socket, callId);
   });
 
-  socket.on('disconnect', async () => {
+  // Déconnexion du socket (perte réseau, mise en arrière-plan, fermeture de
+  // l'onglet...) : on ne sait pas encore si c'est involontaire et temporaire
+  // (l'utilisateur va probablement se reconnecter tout seul, voir Socket.io
+  // côté client) ou définitif — on retire donc ce socket de la room tout de
+  // suite (il ne peut plus rien recevoir), mais on NE prévient PAS encore les
+  // autres participants : on attend le délai de grâce (voir scheduleDisconnectLeave).
+  socket.on('disconnect', () => {
     for (const callId of activeCalls.keys()) {
-      if (activeCalls.get(callId).has(socket.id)) {
-        await leaveCall(io, socket, callId);
+      const room = activeCalls.get(callId);
+      if (room.has(socket.id)) {
+        const info = room.get(socket.id);
+        room.delete(socket.id);
+        scheduleDisconnectLeave(io, callId, socket.user.id, socket.id);
       }
     }
   });
 }
 
+// Programme le départ différé d'un utilisateur déconnecté d'un appel : s'il
+// ne revient pas (nouveau socket qui rejoint le même appel, voir call:join)
+// avant l'expiration du délai de grâce, on applique alors les mêmes
+// conséquences qu'un raccrochage volontaire (accusé de départ + fin d'appel
+// si plus personne d'autre n'est présent).
+function scheduleDisconnectLeave(io, callId, userId, socketId) {
+  const key = callId + ':' + userId;
+  const existing = pendingDisconnectLeaves.get(key);
+  if (existing) clearTimeout(existing.timer);
+
+  const timer = setTimeout(() => {
+    pendingDisconnectLeaves.delete(key);
+    finalizeLeave(io, callId, userId, socketId).catch((err) => {
+      console.error('finalizeLeave error:', err);
+    });
+  }, DISCONNECT_GRACE_MS);
+
+  pendingDisconnectLeaves.set(key, { timer, socketId });
+}
+
+// Raccrochage volontaire (bouton "Raccrocher", "call:leave") : effet immédiat.
 async function leaveCall(io, socket, callId) {
   const room = activeCalls.get(callId);
   if (!room || !room.has(socket.id)) return;
 
   room.delete(socket.id);
   socket.leave(callRoomName(callId));
-  socket.to(callRoomName(callId)).emit('call:user-left', { callId, socketId: socket.id });
+  await finalizeLeave(io, callId, socket.user.id, socket.id);
+}
+
+// Applique réellement les conséquences d'un départ (volontaire ou après
+// expiration du délai de grâce d'une déconnexion) : accusé "call:user-left"
+// envoyé aux autres participants encore présents, marquage en base, et fin de
+// l'appel si plus personne n'y participe.
+async function finalizeLeave(io, callId, userId, socketId) {
+  const room = activeCalls.get(callId);
+  io.to(callRoomName(callId)).emit('call:user-left', { callId, socketId });
 
   try {
     await prisma.callParticipant.updateMany({
-      where: { callId, userId: socket.user.id, leftAt: null },
+      where: { callId, userId, leftAt: null },
       data: { leftAt: new Date() },
     });
 
-    if (room.size === 0) {
+    if (!room || room.size === 0) {
       activeCalls.delete(callId);
       const call = await prisma.call.update({
         where: { id: callId },
@@ -166,7 +231,7 @@ async function leaveCall(io, socket, callId) {
       }
     }
   } catch (err) {
-    console.error('leaveCall cleanup error:', err);
+    console.error('finalizeLeave cleanup error:', err);
   }
 }
 
