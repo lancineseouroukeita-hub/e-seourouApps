@@ -260,7 +260,10 @@
   #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
   .msgRow{display:flex;}
   .msgRow.mine{justify-content:flex-end;}
-  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:calc(15px * var(--chat-font-scale));line-height:1.4;}
+  /* -webkit-touch-callout:none évite qu'un appui long déclenche EN PLUS le
+     menu natif du navigateur (sélection de texte/"copier" iOS) par-dessus
+     notre propre menu d'actions (voir plus bas, openMessageActionMenu). */
+  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:calc(15px * var(--chat-font-scale));line-height:1.4;-webkit-touch-callout:none;}
   .msgRow.mine .bubble{background:var(--accent);color:white;border-bottom-right-radius:4px;}
   .msgRow:not(.mine) .bubble{background:var(--panel2);border-bottom-left-radius:4px;}
   .bubble .sender{font-size:11px;color:var(--muted);margin-bottom:2px;}
@@ -316,6 +319,21 @@
   .reactionPicker{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px;z-index:200;display:flex;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.4);}
   .reactionPicker button{background:none;border:none;font-size:20px;cursor:pointer;padding:2px 4px;line-height:1;border-radius:8px;}
   .reactionPicker button:hover{background:var(--panel2);transform:scale(1.15);}
+  /* Menu d'actions sur un message façon iOS/WhatsApp : appui long sur mobile
+     (pas de survol possible), clic droit sur PC. Un fond transparent
+     (msgContextMenuBackdrop) capte le clic/tap "à côté" pour fermer le menu,
+     sans quoi il faudrait un bouton "fermer" dédié. */
+  .msgContextMenuBackdrop{position:fixed;inset:0;z-index:199;background:transparent;}
+  .msgContextMenu{position:fixed;min-width:220px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:6px;z-index:200;box-shadow:0 12px 32px rgba(0,0,0,.45);display:flex;flex-direction:column;}
+  .msgContextMenuItem{display:flex;align-items:center;gap:12px;background:none;border:none;color:inherit;text-align:left;padding:10px 12px;font-size:14.5px;border-radius:8px;cursor:pointer;width:100%;}
+  .msgContextMenuItem:hover{background:var(--panel2);}
+  .msgContextMenuItem.danger{color:var(--danger);}
+  .msgContextMenuIcon{font-size:16px;flex-shrink:0;width:20px;text-align:center;}
+  .msgContextMenuDivider{height:1px;background:var(--border);margin:4px 2px;}
+  /* Petite carte "Infos" (heure d'envoi, modification, statut de lecture) :
+     même habillage que le menu d'actions, contenu texte statique. */
+  .msgInfoCard{padding:12px 14px;font-size:13px;line-height:1.6;color:var(--muted);}
+  .msgInfoCard strong{color:var(--text);}
   /* Bandeau "réponse à …" au-dessus de la barre de saisie, avec bouton d'annulation. */
   #replyBanner{display:flex;align-items:center;gap:8px;padding:8px 18px;border-top:1px solid var(--border);background:var(--panel2);}
   #replyBanner .replyBannerBar{width:3px;align-self:stretch;background:var(--accent);border-radius:2px;flex-shrink:0;}
@@ -3353,6 +3371,194 @@
     targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
     targetRow.classList.add('highlightFlash');
     setTimeout(() => targetRow.classList.remove('highlightFlash'), 1500);
+  });
+
+  // ---------- Menu d'actions sur un message (appui long / clic droit) ----------
+  // Vient en complément des petites icônes déjà révélées au survol
+  // (.msgActions) : sur téléphone, un appui long est le geste attendu (comme
+  // WhatsApp/iMessage) plutôt que de compter uniquement sur des icônes
+  // toujours affichées mais minuscules. Clic droit sur PC pour la même raison.
+  let msgContextMenuOpen = false;
+
+  function closeMessageActionMenu() {
+    document.querySelectorAll('.msgContextMenu, .msgContextMenuBackdrop').forEach((el) => el.remove());
+    msgContextMenuOpen = false;
+  }
+
+  async function copyMessageText(m) {
+    const text = m.content || '';
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      // Repli pour les contextes sans Clipboard API (ex: page servie en http
+      // non sécurisé) : un textarea temporaire hors écran + execCommand.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (err2) { /* rien de mieux à faire */ }
+      document.body.removeChild(ta);
+    }
+  }
+
+  function showMessageInfo(m, x, y) {
+    closeMessageActionMenu();
+    const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
+    const conv = conversations.find((c) => c.id === activeConversationId);
+    const lines = [`<strong>Envoyé</strong> · ${fmtTime(m.createdAt)}`];
+    if (m.edited) lines.push(`<strong>Modifié</strong> · ${m.editedAt ? fmtTime(m.editedAt) : ''}`);
+    if (m.forwarded) lines.push('<strong>Transféré</strong>');
+    if (mine) lines.push(`<strong>Statut</strong> · ${isReadByOthers(m, conv) ? 'Lu ✓✓' : 'Envoyé ✓'}`);
+    const card = document.createElement('div');
+    card.className = 'msgContextMenu msgInfoCard';
+    card.innerHTML = lines.join('<br>');
+    document.body.appendChild(card);
+    positionFloatingMenu(card, x, y);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'msgContextMenuBackdrop';
+    backdrop.addEventListener('click', closeMessageActionMenu);
+    document.body.insertBefore(backdrop, card);
+    msgContextMenuOpen = true;
+  }
+
+  function positionFloatingMenu(el, x, y) {
+    // Bornée aux deux côtés (pas seulement à droite/en bas) pour ne jamais
+    // dépasser l'écran, y compris pour un appui près du bord gauche/haut.
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + 'px';
+    el.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + 'px';
+  }
+
+  function openMessageActionMenu(bubbleEl, messageId, x, y, expanded) {
+    closeMessageActionMenu();
+    closeReactionPicker();
+    closeTagMenu();
+    const list = messagesByConv[activeConversationId] || [];
+    const m = list.find((msg) => msg.id === messageId);
+    if (!m || m.deleted) return;
+    const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
+    const isTextType = (m.type || 'text') === 'text';
+
+    const items = [];
+    items.push({ icon: '↩️', label: 'Répondre', action: () => startReply(m) });
+    items.push({ icon: '↪️', label: 'Transférer', action: () => openForwardModal(messageId) });
+    if (m.content) items.push({ icon: '📋', label: 'Copier', action: () => copyMessageText(m) });
+    items.push({ icon: 'ℹ️', label: 'Infos', action: () => showMessageInfo(m, x, y) });
+    items.push({ icon: '📌', label: m.pinned ? 'Ne plus garder (désépingler)' : 'Garder (épingler)', action: () => togglePin(messageId, !m.pinned) });
+    if (expanded) {
+      items.push({ icon: '😊', label: 'Réagir', action: () => openReactionPicker(bubbleEl, messageId) });
+      if (mine && isTextType) items.push({ icon: '✏️', label: 'Modifier', action: () => startEdit(m) });
+    }
+
+    const menu = document.createElement('div');
+    menu.className = 'msgContextMenu';
+    let html = items.map((it, i) => `
+      <button class="msgContextMenuItem" data-i="${i}">
+        <span class="msgContextMenuIcon">${it.icon}</span>
+        <span>${it.label}</span>
+      </button>
+    `).join('');
+    if (mine) {
+      html += `<div class="msgContextMenuDivider"></div>
+        <button class="msgContextMenuItem danger" data-i="delete">
+          <span class="msgContextMenuIcon">🗑️</span>
+          <span>Supprimer</span>
+        </button>`;
+    }
+    if (!expanded) {
+      html += `<div class="msgContextMenuDivider"></div>
+        <button class="msgContextMenuItem" data-i="more">
+          <span class="msgContextMenuIcon">⋯</span>
+          <span>Plus...</span>
+        </button>`;
+    }
+    menu.innerHTML = html;
+    menu.querySelectorAll('.msgContextMenuItem').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.i;
+        if (key === 'more') { openMessageActionMenu(bubbleEl, messageId, x, y, true); return; }
+        closeMessageActionMenu();
+        if (key === 'delete') {
+          if (!confirm('Supprimer ce message ? Cette action est irréversible.')) return;
+          socket.emit('message:delete', { messageId }, (res) => { if (res && res.error) alert('Erreur : ' + res.error); });
+          return;
+        }
+        const it = items[Number(key)];
+        if (it) it.action();
+      });
+    });
+    document.body.appendChild(menu);
+    positionFloatingMenu(menu, x, y);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'msgContextMenuBackdrop';
+    backdrop.addEventListener('click', closeMessageActionMenu);
+    document.body.insertBefore(backdrop, menu);
+    msgContextMenuOpen = true;
+  }
+
+  // Échap ferme le menu (ou la carte "Infos"), comme n'importe quel menu
+  // contextuel natif sur PC — plus fiable qu'un clic "à côté" quand le menu
+  // occupe une grande partie de l'écran (petit mobile) ou est repositionné
+  // près du bord.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && msgContextMenuOpen) closeMessageActionMenu();
+  });
+
+  // Clic droit (PC) sur une bulle : ouvre le menu au lieu du menu contextuel
+  // par défaut du navigateur.
+  $('messages').addEventListener('contextmenu', (e) => {
+    const bubble = e.target.closest('.bubble');
+    const row = e.target.closest('.msgRow');
+    // "msgDeleted" est une classe posée sur le contenu à l'intérieur de la
+    // bulle (voir renderMessages), pas sur .msgRow lui-même — vérifier avec
+    // .querySelector plutôt que row.classList.
+    if (!bubble || !row || bubble.querySelector('.msgDeleted')) return;
+    e.preventDefault();
+    openMessageActionMenu(bubble, row.dataset.id, e.clientX, e.clientY, false);
+  });
+
+  // Appui long (tactile) sur une bulle : même menu, ouvert au point de contact.
+  // Un déplacement du doigt trop important (défilement) ou un relâchement
+  // avant le délai annule l'ouverture, pour ne pas gêner le défilement normal
+  // de la liste des messages.
+  let msgLongPressTimer = null;
+  let msgLongPressStart = null;
+  const LONG_PRESS_MS = 480;
+  const LONG_PRESS_MOVE_TOLERANCE = 10;
+
+  $('messages').addEventListener('touchstart', (e) => {
+    const bubble = e.target.closest('.bubble');
+    const row = e.target.closest('.msgRow');
+    // "msgDeleted" est une classe posée sur le contenu à l'intérieur de la
+    // bulle (voir renderMessages), pas sur .msgRow lui-même — vérifier avec
+    // .querySelector plutôt que row.classList.
+    if (!bubble || !row || bubble.querySelector('.msgDeleted')) return;
+    const touch = e.touches[0];
+    msgLongPressStart = { x: touch.clientX, y: touch.clientY };
+    clearTimeout(msgLongPressTimer);
+    msgLongPressTimer = setTimeout(() => {
+      openMessageActionMenu(bubble, row.dataset.id, touch.clientX, touch.clientY, false);
+      msgLongPressStart = null;
+    }, LONG_PRESS_MS);
+  }, { passive: true });
+
+  $('messages').addEventListener('touchmove', (e) => {
+    if (!msgLongPressStart) return;
+    const touch = e.touches[0];
+    const moved = Math.hypot(touch.clientX - msgLongPressStart.x, touch.clientY - msgLongPressStart.y);
+    if (moved > LONG_PRESS_MOVE_TOLERANCE) {
+      clearTimeout(msgLongPressTimer);
+      msgLongPressStart = null;
+    }
+  }, { passive: true });
+
+  ['touchend', 'touchcancel'].forEach((evt) => {
+    $('messages').addEventListener(evt, () => {
+      clearTimeout(msgLongPressTimer);
+      msgLongPressStart = null;
+    });
   });
 
   // ---------- Recherche de texte à l'intérieur de la discussion ----------
