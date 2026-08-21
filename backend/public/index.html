@@ -137,8 +137,7 @@
   .tagMenu{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px;z-index:200;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.4);}
   .tagMenu label{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 4px;cursor:pointer;}
   .tagMenu .tagMenuEmpty{color:var(--muted);font-size:12px;padding:4px;max-width:180px;}
-  .convTagBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.55;padding:0;line-height:1;color:inherit;}
-  .convTagBtn:hover{opacity:1;}
+  .convTagBtn{background:none;border:none;cursor:pointer;font-size:12px;padding:0;line-height:1;color:inherit;}
 
   /* Ligne "Archivées" façon WhatsApp : une entrée à part au-dessus de la
      liste, pas un chip de filtre — cliquer dessus bascule vers la sous-vue
@@ -159,6 +158,18 @@
   .unreadDot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex-shrink:0;}
   .favStar{background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;color:var(--muted);flex-shrink:0;}
   .favStar.active{color:#f5b944;}
+  /* Les 6 boutons d'action (favori, étiquette, sourdine, archive, verrouillage,
+     suppression) sont regroupés ici : masqués par défaut, révélés au survol
+     de la ligne (souris) ou par le menu ouvert par appui long/clic droit
+     (openConvActionMenu) — jamais affichés en permanence, sinon ils
+     agrandissent la ligne pour tous les faire rentrer empilés verticalement
+     (c'était le problème avant ce changement). Masqués en permanence sur
+     tactile (pas de survol) : le menu est alors la seule voie d'accès. */
+  .convActions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;opacity:0;transition:opacity .12s ease;}
+  .listItem:hover .convActions{opacity:1;}
+  @media (hover:none){
+    .convActions{display:none;}
+  }
   .listItem{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-left:3px solid transparent;}
   .listItem:hover{background:var(--panel2);}
   .listItem.active{background:var(--panel2);border-left-color:var(--accent);}
@@ -386,10 +397,9 @@
   .blockUserBtn{background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11px;padding:5px 9px;color:inherit;opacity:.8;white-space:nowrap;}
   .blockUserBtn:hover{opacity:1;}
   .blockUserBtn.isBlocked{border-color:#ff5c5c;color:#ff5c5c;}
-  .convDeleteBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
-  .convDeleteBtn:hover{opacity:1;color:#ff5c5c;}
-  .convMuteBtn,.convArchiveBtn,.convLockBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
-  .convMuteBtn:hover,.convArchiveBtn:hover,.convLockBtn:hover{opacity:1;}
+  .convDeleteBtn{background:none;border:none;cursor:pointer;font-size:12px;padding:0;line-height:1;color:inherit;}
+  .convDeleteBtn:hover{color:#ff5c5c;}
+  .convMuteBtn,.convArchiveBtn,.convLockBtn{background:none;border:none;cursor:pointer;font-size:12px;padding:0;line-height:1;color:inherit;}
   .blockedUserRow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
   .blockedUserRow:last-child{border-bottom:none;}
   .blockedUserRow .liText{flex:1;}
@@ -2820,12 +2830,14 @@
         <div class="liText"><div class="liName">${escapeHtml(label)}${c.muted ? ' 🔇' : ''}</div>
         <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>
         <div class="liMeta">
-          <button class="favStar${isFav ? ' active' : ''}" data-conv-id="${c.id}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${isFav ? '★' : '☆'}</button>
-          <button class="convTagBtn" data-conv-id="${c.id}" title="Ajouter à un filtre personnalisé">🏷️</button>
-          <button class="convMuteBtn" data-conv-id="${c.id}" title="${c.muted ? 'Réactiver les notifications' : 'Mettre en sourdine'}">${c.muted ? '🔔' : '🔕'}</button>
-          <button class="convArchiveBtn" data-conv-id="${c.id}" title="${c.archived ? 'Désarchiver' : 'Archiver'}">${c.archived ? '📤' : '📥'}</button>
-          <button class="convLockBtn" data-conv-id="${c.id}" title="${c.locked ? 'Déverrouiller cette discussion' : 'Verrouiller cette discussion'}">${c.locked ? '🔓' : '🔒'}</button>
-          <button class="convDeleteBtn" data-conv-id="${c.id}" title="Supprimer cette discussion">🗑️</button>
+          <div class="convActions">
+            <button class="favStar${isFav ? ' active' : ''}" data-conv-id="${c.id}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${isFav ? '★' : '☆'}</button>
+            <button class="convTagBtn" data-conv-id="${c.id}" title="Ajouter à un filtre personnalisé">🏷️</button>
+            <button class="convMuteBtn" data-conv-id="${c.id}" title="${c.muted ? 'Réactiver les notifications' : 'Mettre en sourdine'}">${c.muted ? '🔔' : '🔕'}</button>
+            <button class="convArchiveBtn" data-conv-id="${c.id}" title="${c.archived ? 'Désarchiver' : 'Archiver'}">${c.archived ? '📤' : '📥'}</button>
+            <button class="convLockBtn" data-conv-id="${c.id}" title="${c.locked ? 'Déverrouiller cette discussion' : 'Verrouiller cette discussion'}">${c.locked ? '🔓' : '🔒'}</button>
+            <button class="convDeleteBtn" data-conv-id="${c.id}" title="Supprimer cette discussion">🗑️</button>
+          </div>
           ${unread ? '<span class="unreadDot"></span>' : ''}
         </div>`;
       div.querySelector('.favStar').addEventListener('click', (e) => {
@@ -2861,6 +2873,130 @@
       el.appendChild(div);
     });
   }
+
+  // ---------- Menu d'actions sur une discussion (appui long / clic droit) ----------
+  // Même idée que openMessageActionMenu pour les messages : les 6 boutons
+  // (.convActions) sont masqués par défaut (révélés au survol sur PC, jamais
+  // sur tactile) pour garder une ligne compacte comme WhatsApp ; ce menu
+  // offre les mêmes actions en appui long (mobile) ou clic droit (PC).
+  // Réutilise volontairement les classes CSS .msgContextMenu* (même habillage
+  // visuel, pas besoin de les dupliquer) même si leur nom vient du menu des
+  // messages.
+  function openConvActionMenu(rowEl, c, x, y) {
+    closeMessageActionMenu();
+    closeTagMenu();
+    closeReactionPicker();
+    const label = convLabel(c);
+    const isFav = favoriteConvIds.has(c.id);
+
+    const items = [
+      {
+        icon: isFav ? '★' : '☆',
+        label: isFav ? 'Retirer des favoris' : 'Ajouter aux favoris',
+        action: () => { if (favoriteConvIds.has(c.id)) favoriteConvIds.delete(c.id); else favoriteConvIds.add(c.id); saveFavorites(); renderConvList(); },
+      },
+      { icon: '🏷️', label: 'Ajouter à un filtre personnalisé', action: () => openTagMenu(rowEl, c.id) },
+      { icon: c.muted ? '🔔' : '🔕', label: c.muted ? 'Réactiver les notifications' : 'Mettre en sourdine', action: () => toggleConversationSetting(c, 'muted') },
+      { icon: c.archived ? '📤' : '📥', label: c.archived ? 'Désarchiver' : 'Archiver', action: () => toggleConversationSetting(c, 'archived') },
+      { icon: c.locked ? '🔓' : '🔒', label: c.locked ? 'Déverrouiller cette discussion' : 'Verrouiller cette discussion', action: () => toggleConversationSetting(c, 'locked') },
+    ];
+
+    const menu = document.createElement('div');
+    menu.className = 'msgContextMenu';
+    let html = items.map((it, i) => `
+      <button class="msgContextMenuItem" data-i="${i}">
+        <span class="msgContextMenuIcon">${it.icon}</span>
+        <span>${it.label}</span>
+      </button>
+    `).join('');
+    html += `<div class="msgContextMenuDivider"></div>
+      <button class="msgContextMenuItem danger" data-i="delete">
+        <span class="msgContextMenuIcon">🗑️</span>
+        <span>Supprimer cette discussion</span>
+      </button>`;
+    menu.innerHTML = html;
+    menu.querySelectorAll('.msgContextMenuItem').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.i;
+        closeMessageActionMenu();
+        if (key === 'delete') { deleteConversation(c.id, label); return; }
+        const it = items[Number(key)];
+        if (it) it.action();
+      });
+    });
+    document.body.appendChild(menu);
+    positionFloatingMenu(menu, x, y);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'msgContextMenuBackdrop';
+    backdrop.addEventListener('click', closeMessageActionMenu);
+    document.body.insertBefore(backdrop, menu);
+    msgContextMenuOpen = true;
+  }
+
+  // Clic droit (PC) sur une discussion : ouvre le menu au lieu du menu
+  // contextuel par défaut du navigateur.
+  $('convList').addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.listItem');
+    if (!row) return;
+    const c = conversations.find((x) => x.id === row.dataset.convId);
+    if (!c) return;
+    e.preventDefault();
+    openConvActionMenu(row, c, e.clientX, e.clientY);
+  });
+
+  // Appui long (tactile) sur une discussion : même menu. Voir les
+  // constantes LONG_PRESS_MS / LONG_PRESS_MOVE_TOLERANCE définies plus haut
+  // (partagées avec le menu des messages).
+  let convLongPressTimer = null;
+  let convLongPressStart = null;
+  // Contrairement aux messages, une ligne de discussion a son propre
+  // gestionnaire de clic (openConversation, voir plus haut) : après un appui
+  // long réussi, le navigateur synthétise quand même un "click" à la fin du
+  // toucher, ce qui ouvrirait la conversation juste sous le menu qu'on vient
+  // d'afficher. On mémorise que l'appui long a bien déclenché le menu pour
+  // annuler ce clic fantôme dans le touchend qui suit.
+  let convLongPressFired = false;
+
+  $('convList').addEventListener('touchstart', (e) => {
+    const row = e.target.closest('.listItem');
+    if (!row) return;
+    const touch = e.touches[0];
+    convLongPressStart = { x: touch.clientX, y: touch.clientY };
+    convLongPressFired = false;
+    clearTimeout(convLongPressTimer);
+    convLongPressTimer = setTimeout(() => {
+      const c = conversations.find((x) => x.id === row.dataset.convId);
+      if (c) { openConvActionMenu(row, c, touch.clientX, touch.clientY); convLongPressFired = true; }
+      convLongPressStart = null;
+    }, LONG_PRESS_MS);
+  }, { passive: true });
+
+  $('convList').addEventListener('touchmove', (e) => {
+    if (!convLongPressStart) return;
+    const touch = e.touches[0];
+    const moved = Math.hypot(touch.clientX - convLongPressStart.x, touch.clientY - convLongPressStart.y);
+    if (moved > LONG_PRESS_MOVE_TOLERANCE) {
+      clearTimeout(convLongPressTimer);
+      convLongPressStart = null;
+    }
+  }, { passive: true });
+
+  // Volontairement PAS { passive: true } ici : on doit pouvoir annuler le
+  // clic fantôme ci-dessous avec preventDefault().
+  $('convList').addEventListener('touchend', (e) => {
+    clearTimeout(convLongPressTimer);
+    convLongPressStart = null;
+    if (convLongPressFired) {
+      e.preventDefault();
+      convLongPressFired = false;
+    }
+  });
+
+  $('convList').addEventListener('touchcancel', () => {
+    clearTimeout(convLongPressTimer);
+    convLongPressStart = null;
+    convLongPressFired = false;
+  });
 
   // Supprime une discussion de ma propre liste (l'autre personne garde son
   // historique de son côté, comme "supprimer la discussion" sur WhatsApp).
