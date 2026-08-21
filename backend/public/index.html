@@ -464,6 +464,16 @@
   .settingsMsg{margin-top:8px;font-size:12.5px;min-height:16px;}
   .settingsMsg.error{color:var(--danger);}
   .settingsMsg.success{color:var(--success);}
+  .adminUserList{max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px;}
+  .adminUserRow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);}
+  .adminUserRow:last-child{border-bottom:none;}
+  .adminUserInfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .adminUserName{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .adminUserPhone{font-size:12px;color:var(--muted);}
+  .adminBadge{display:inline-block;font-size:10.5px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;}
+  .adminDeleteUserBtn{flex-shrink:0;background:none;border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:6px 10px;font-size:12.5px;cursor:pointer;}
+  .adminDeleteUserBtn:hover{background:var(--danger);color:white;}
+  .adminEmptyText{padding:14px;text-align:center;font-size:12.5px;color:var(--muted);}
   .switchRow{display:flex;align-items:center;gap:10px;font-size:14.5px;cursor:pointer;margin-bottom:12px;}
   .switchRow:last-child{margin-bottom:0;}
   .switchRow input{position:absolute;opacity:0;width:0;height:0;}
@@ -1011,6 +1021,19 @@
           <input id="confirmPasswordInput" type="password" placeholder="Confirmer le nouveau mot de passe" autocomplete="new-password">
           <button id="changePasswordBtn">Changer le mot de passe</button>
           <div class="settingsMsg" id="settingsPasswordMsg"></div>
+        </section>
+
+        <!-- Administration : réservé aux comptes administrateurs (voir
+             ADMIN_PHONES côté serveur), masqué pour tout le monde d'autre.
+             Permet de supprimer le compte de n'importe quel utilisateur. -->
+        <section class="settingsSection" id="adminSection" style="display:none;">
+          <h3><span class="settingsIcon">🛠️</span>Administration</h3>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Vous pouvez supprimer définitivement le compte de n'importe quel autre utilisateur. Cette action est irréversible : ses messages et ses discussions sont supprimés avec son compte.</label>
+          <input id="adminUserSearchInput" type="text" placeholder="Rechercher par nom ou numéro...">
+          <div id="adminUserList" class="adminUserList"></div>
+          <label style="display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;">Votre mot de passe (pour confirmer une suppression) :</label>
+          <input id="adminActionPasswordInput" type="password" placeholder="Votre mot de passe" autocomplete="current-password">
+          <div class="settingsMsg" id="settingsAdminMsg"></div>
         </section>
 
         <!-- Suppression de compte (irréversible) : confirmée par le mot de
@@ -4306,7 +4329,82 @@
     $('otpCodeBlock').style.display = 'none';
     $('deleteAccountPasswordInput').value = '';
     showSettingsMsg('settingsDeleteAccountMsg', '');
+    refreshAdminSection();
   }
+
+  // ---------- Administration (visible uniquement pour un compte administrateur) ----------
+  function refreshAdminSection() {
+    const isAdmin = Boolean(me && me.isAdmin);
+    $('adminSection').style.display = isAdmin ? 'block' : 'none';
+    if (!isAdmin) return;
+    $('adminUserSearchInput').value = '';
+    $('adminActionPasswordInput').value = '';
+    showSettingsMsg('settingsAdminMsg', '');
+    loadAdminUsers('');
+  }
+
+  let adminUsersCache = [];
+  async function loadAdminUsers(q) {
+    $('adminUserList').innerHTML = '<div class="adminEmptyText">Chargement...</div>';
+    try {
+      const data = await api('/api/admin/users' + (q ? '?q=' + encodeURIComponent(q) : ''));
+      adminUsersCache = data.users;
+      renderAdminUserList();
+    } catch (err) {
+      $('adminUserList').innerHTML = '<div class="adminEmptyText"></div>';
+      showSettingsMsg('settingsAdminMsg', err.message, true);
+    }
+  }
+
+  function renderAdminUserList() {
+    const list = $('adminUserList');
+    // On ne se propose jamais soi-même : la suppression de son propre compte
+    // se fait toujours via "Supprimer mon compte" plus bas (voir
+    // admin.controller.js deleteUser, qui refuse explicitement ce cas).
+    const rows = adminUsersCache.filter((u) => u.id !== me.id);
+    if (!rows.length) {
+      list.innerHTML = '<div class="adminEmptyText">Aucun utilisateur trouvé.</div>';
+      return;
+    }
+    list.innerHTML = rows.map((u) => `
+      <div class="adminUserRow" data-user-id="${u.id}">
+        <div class="adminUserInfo">
+          <span class="adminUserName">${escapeHtml(u.name)}${u.isAdmin ? '<span class="adminBadge">admin</span>' : ''}</span>
+          <span class="adminUserPhone">${escapeHtml(u.phone)}</span>
+        </div>
+        <button class="adminDeleteUserBtn" data-user-id="${u.id}">Supprimer</button>
+      </div>
+    `).join('');
+  }
+
+  let adminSearchDebounce = null;
+  $('adminUserSearchInput').addEventListener('input', () => {
+    clearTimeout(adminSearchDebounce);
+    const q = $('adminUserSearchInput').value.trim();
+    adminSearchDebounce = setTimeout(() => loadAdminUsers(q), 300);
+  });
+
+  $('adminUserList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.adminDeleteUserBtn');
+    if (!btn) return;
+    const userId = btn.dataset.userId;
+    const target = adminUsersCache.find((u) => u.id === userId);
+    const label = target ? (target.name + ' (' + target.phone + ')') : 'cet utilisateur';
+    const password = $('adminActionPasswordInput').value;
+    if (!password) return showSettingsMsg('settingsAdminMsg', 'Votre mot de passe est requis pour confirmer.', true);
+    if (!confirm('Supprimer définitivement le compte de ' + label + ' ? Cette action est irréversible.')) return;
+
+    btn.disabled = true;
+    try {
+      await api('/api/admin/users/' + userId, { method: 'DELETE', body: JSON.stringify({ password }) });
+      adminUsersCache = adminUsersCache.filter((u) => u.id !== userId);
+      renderAdminUserList();
+      showSettingsMsg('settingsAdminMsg', 'Compte de ' + label + ' supprimé.', false);
+    } catch (err) {
+      showSettingsMsg('settingsAdminMsg', err.message, true);
+      btn.disabled = false;
+    }
+  });
 
   // ---------- Vérification du numéro par OTP (Paramètres) ----------
   function refreshPhoneVerifySection() {

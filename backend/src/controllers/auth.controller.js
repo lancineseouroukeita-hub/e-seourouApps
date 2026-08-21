@@ -2,6 +2,7 @@ const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const { signToken } = require('../utils/jwt');
 const { createAndSendOtp, verifyOtp } = require('../utils/otp');
+const { isAdminPhone } = require('../utils/adminPhones');
 
 // Retire les espaces/tirets pour que "+224 621 00 00 00" et "+224-621-00-00-00"
 // soient reconnus comme le même numéro à l'inscription comme à la connexion.
@@ -31,7 +32,23 @@ function toPublicUser(user) {
     // verifyPhone plus bas) : purement informatif pour l'instant, affiché comme
     // un badge "Numéro vérifié" dans Paramètres.
     phoneVerified: Boolean(user.phoneVerified),
+    // Administrateur de l'application (voir utils/adminPhones.js) : affiché
+    // côté client pour ne montrer la section Paramètres → Administration
+    // qu'aux personnes concernées.
+    isAdmin: Boolean(user.isAdmin),
   };
+}
+
+// Si ce numéro est listé dans ADMIN_PHONES mais que le compte n'a pas encore
+// le statut administrateur en base (premier login après ajout du numéro dans
+// la variable d'environnement, ou compte créé avant), on le met à jour ici —
+// pas besoin d'action manuelle en base de données. Ne retire jamais isAdmin
+// automatiquement : voir le commentaire sur User.isAdmin dans schema.prisma.
+async function ensureAdminFlag(user) {
+  if (!user.isAdmin && isAdminPhone(user.phone)) {
+    return prisma.user.update({ where: { id: user.id }, data: { isAdmin: true } });
+  }
+  return user;
 }
 
 async function register(req, res) {
@@ -56,9 +73,10 @@ async function register(req, res) {
     }
 
     const hashed = await bcrypt.hash(password, 10);
-    const user = await prisma.user.create({
+    let user = await prisma.user.create({
       data: { name, phone, password: hashed },
     });
+    user = await ensureAdminFlag(user);
 
     const token = signToken({ id: user.id, phone: user.phone, name: user.name });
     return res.status(201).json({ user: toPublicUser(user), token });
@@ -76,7 +94,7 @@ async function login(req, res) {
       return res.status(400).json({ error: 'phone et password sont requis.' });
     }
 
-    const user = await prisma.user.findUnique({ where: { phone } });
+    let user = await prisma.user.findUnique({ where: { phone } });
     if (!user) {
       return res.status(401).json({ error: 'Numéro de téléphone ou mot de passe incorrect.' });
     }
@@ -85,6 +103,7 @@ async function login(req, res) {
     if (!valid) {
       return res.status(401).json({ error: 'Numéro de téléphone ou mot de passe incorrect.' });
     }
+    user = await ensureAdminFlag(user);
 
     const token = signToken({ id: user.id, phone: user.phone, name: user.name });
     return res.json({ user: toPublicUser(user), token });
@@ -95,8 +114,9 @@ async function login(req, res) {
 }
 
 async function me(req, res) {
-  const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+  let user = await prisma.user.findUnique({ where: { id: req.user.id } });
   if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+  user = await ensureAdminFlag(user);
   return res.json({ user: toPublicUser(user) });
 }
 

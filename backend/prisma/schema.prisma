@@ -35,6 +35,14 @@ model User {
   // juste un badge "Numéro vérifié" affiché dans Paramètres, comme un premier pas
   // vers une vérification obligatoire plus tard.
   phoneVerified Boolean @default(false)
+  // Administrateur de l'application (pas d'un groupe/communauté en
+  // particulier) : peut supprimer le compte de n'importe quel autre
+  // utilisateur depuis Paramètres → Administration. Attribué automatiquement
+  // au(x) numéro(s) listé(s) dans la variable d'environnement ADMIN_PHONES
+  // (voir utils/adminPhones.js) — pas d'interface pour le retirer pour
+  // l'instant, volontairement : ce n'est pas demandé et une mauvaise
+  // manipulation ici serait plus grave qu'ailleurs.
+  isAdmin Boolean @default(false)
 
   participations ConversationParticipant[]
   messages        Message[]
