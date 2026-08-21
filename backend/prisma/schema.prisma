@@ -18,6 +18,18 @@ model User {
   avatarUrl   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  // Dernière fois que cet utilisateur avait au moins un appareil/onglet
+  // connecté au socket temps réel (mis à jour quand son dernier socket se
+  // déconnecte, voir utils/presence.js) — sert à afficher "vu à ..." quand il
+  // n'est pas actuellement en ligne, comme WhatsApp. "En ligne" en revanche
+  // n'est jamais stocké en base : c'est un état purement en mémoire (voir
+  // presence.js), diffusé en direct via Socket.io.
+  lastSeenAt  DateTime?
+  // Confidentialité "dernière connexion" (Paramètres → Confidentialité), comme
+  // WhatsApp : quand activé, "en ligne"/"vu à ..." n'est jamais communiqué aux
+  // AUTRES utilisateurs (ni via l'API, ni via les événements temps réel). Ne
+  // change rien à ce que l'utilisateur voit lui-même des autres.
+  hideLastSeen Boolean @default(false)
 
   participations ConversationParticipant[]
   messages        Message[]
@@ -33,6 +45,8 @@ model User {
   // auxquelles j'appartiens (en tant que membre ou admin).
   createdCommunities Community[]
   communityMemberships CommunityMember[]
+  // Réactions emoji laissées sur des messages (👍 ❤️ 😂 ...), comme WhatsApp.
+  messageReactions MessageReaction[]
 }
 
 // Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
@@ -108,8 +122,35 @@ model Message {
   // un texte de substitution ("Message supprimé") côté client.
   deleted         Boolean @default(false)
 
+  // Réponse citée (comme WhatsApp) : référence facultative vers le message
+  // auquel celui-ci répond. onDelete: SetNull plutôt que Cascade — si le
+  // message d'origine est effacé définitivement (voir message:erase), la
+  // réponse elle-même doit rester, juste sans aperçu du message cité.
+  replyToId String?
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
+  reactions MessageReaction[]
+
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+// Réaction emoji sur un message (👍 ❤️ 😂 😮 😢 🙏, comme WhatsApp) : une seule
+// réaction par utilisateur et par message (choisir un nouvel emoji remplace
+// l'ancien, comme WhatsApp — pas d'accumulation de plusieurs réactions du
+// même utilisateur sur le même message).
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
 }
 
 model Call {

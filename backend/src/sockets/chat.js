@@ -3,6 +3,21 @@ const { toPublicUser } = require('../controllers/auth.controller');
 const { previewLabel } = require('../controllers/conversation.controller');
 const { sendPushToUser } = require('../utils/push');
 const { isBlockedBetween } = require('../utils/blocking');
+const { roomName } = require('../utils/rooms');
+const { aggregateReactions } = require('../utils/reactions');
+
+// Aperçu du message cité (réponse, comme WhatsApp) inclus dans le message qui
+// y répond : juste assez d'infos pour afficher un petit encart au-dessus de la
+// bulle, pas besoin d'aller rechercher le message d'origine séparément.
+function replyPreview(replyTo) {
+  if (!replyTo) return null;
+  return {
+    id: replyTo.id,
+    senderName: replyTo.sender ? replyTo.sender.name : '',
+    content: previewLabel(replyTo),
+    deleted: replyTo.deleted,
+  };
+}
 
 // Taille max d'un fichier joint (avant encodage) : 5 Mo. Une fois encodé en
 // base64, une chaîne grossit d'environ 33% (4 caractères pour 3 octets), d'où
@@ -31,7 +46,7 @@ function registerChatHandlers(io, socket) {
     if (conversationId) socket.join(roomName(conversationId));
   });
 
-  socket.on('message:send', async ({ conversationId, content, attachment }, callback) => {
+  socket.on('message:send', async ({ conversationId, content, attachment, replyToId }, callback) => {
     try {
       const trimmedContent = (content || '').trim();
       const hasAttachment = attachment && attachment.data;
@@ -72,10 +87,22 @@ function registerChatHandlers(io, socket) {
         }
       }
 
+      // Réponse citée (comme WhatsApp) : on vérifie que le message cité existe
+      // bien et appartient à la même conversation, sinon on l'ignore silencieusement
+      // plutôt que de faire échouer tout l'envoi pour une histoire de citation.
+      let validReplyToId = null;
+      if (replyToId) {
+        const original = await prisma.message.findUnique({ where: { id: replyToId } });
+        if (original && original.conversationId === conversationId) {
+          validReplyToId = original.id;
+        }
+      }
+
       let data = {
         conversationId,
         senderId: userId,
         content: trimmedContent,
+        replyToId: validReplyToId,
       };
 
       if (hasAttachment) {
@@ -98,7 +125,7 @@ function registerChatHandlers(io, socket) {
 
       const message = await prisma.message.create({
         data,
-        include: { sender: true },
+        include: { sender: true, replyTo: { include: { sender: true } } },
       });
 
       const payload = {
@@ -116,6 +143,8 @@ function registerChatHandlers(io, socket) {
         } : null,
         createdAt: message.createdAt,
         sender: toPublicUser(message.sender),
+        replyTo: replyPreview(message.replyTo),
+        reactions: [],
       };
 
       io.to(roomName(conversationId)).emit('message:new', payload);
@@ -130,6 +159,65 @@ function registerChatHandlers(io, socket) {
     } catch (err) {
       console.error('message:send error:', err);
       callback && callback({ error: 'Erreur serveur lors de l\'envoi du message.' });
+    }
+  });
+
+  // Réaction emoji sur un message (comme WhatsApp) : appuyer à nouveau sur la
+  // même réaction la retire (toggle), en poser une autre remplace la précédente
+  // (une seule réaction par utilisateur et par message, cf. @@unique en base).
+  socket.on('message:react', async ({ messageId, emoji }, callback) => {
+    try {
+      if (!messageId || !emoji) {
+        return callback && callback({ error: 'messageId et emoji sont requis.' });
+      }
+
+      const message = await prisma.message.findUnique({ where: { id: messageId } });
+      if (!message) return callback && callback({ error: 'Message introuvable.' });
+
+      const participant = await prisma.conversationParticipant.findUnique({
+        where: { conversationId_userId: { conversationId: message.conversationId, userId } },
+      });
+      if (!participant) {
+        return callback && callback({ error: 'Vous ne participez pas à cette conversation.' });
+      }
+
+      const conv = await prisma.conversation.findUnique({
+        where: { id: message.conversationId },
+        include: { participants: { select: { userId: true } } },
+      });
+      if (!conv.isGroup) {
+        const other = conv.participants.find((p) => p.userId !== userId);
+        if (other && await isBlockedBetween(userId, other.userId)) {
+          return callback && callback({ error: 'Impossible de réagir : utilisateur bloqué.' });
+        }
+      }
+
+      const existing = await prisma.messageReaction.findUnique({
+        where: { messageId_userId: { messageId, userId } },
+      });
+
+      if (existing && existing.emoji === emoji) {
+        await prisma.messageReaction.delete({ where: { id: existing.id } });
+      } else {
+        await prisma.messageReaction.upsert({
+          where: { messageId_userId: { messageId, userId } },
+          update: { emoji },
+          create: { messageId, userId, emoji },
+        });
+      }
+
+      const reactions = await prisma.messageReaction.findMany({ where: { messageId } });
+      const aggregated = aggregateReactions(reactions);
+
+      io.to(roomName(message.conversationId)).emit('message:reaction', {
+        conversationId: message.conversationId,
+        messageId,
+        reactions: aggregated,
+      });
+      callback && callback({ ok: true, reactions: aggregated });
+    } catch (err) {
+      console.error('message:react error:', err);
+      callback && callback({ error: 'Erreur serveur lors de la réaction au message.' });
     }
   });
 
@@ -254,10 +342,6 @@ async function notifyNewMessage(conversationId, senderId, message) {
     tag: 'conversation:' + conversationId,
     data: { type: 'message', conversationId },
   })));
-}
-
-function roomName(conversationId) {
-  return `conversation:${conversationId}`;
 }
 
 module.exports = { registerChatHandlers, roomName };

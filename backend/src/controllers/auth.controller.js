@@ -18,6 +18,14 @@ function toPublicUser(user) {
     phone: user.phone,
     avatarUrl: user.avatarUrl,
     createdAt: user.createdAt,
+    // Dernière fois qu'il avait au moins un appareil connecté (voir
+    // utils/presence.js) : le champ "online" calculé séparément (voir
+    // user.controller.js listUsers) prévaut côté client quand il est présent.
+    lastSeenAt: user.lastSeenAt || null,
+    // Vue par le propriétaire du compte lui-même (ex: écran Paramètres) : la
+    // vraie valeur. Les autres utilisateurs ne la voient jamais (voir
+    // user.controller.js / conversation.controller.js, qui la masquent).
+    hideLastSeen: Boolean(user.hideLastSeen),
   };
 }
 

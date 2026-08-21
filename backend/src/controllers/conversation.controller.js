@@ -1,5 +1,36 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
+const { userRoomName } = require('../utils/rooms');
+const { isOnline } = require('../utils/presence');
+const { aggregateReactions } = require('../utils/reactions');
+
+// Aperçu du message cité (réponse) inclus dans l'historique — même format que
+// celui construit en temps réel côté socket (sockets/chat.js), pour que
+// l'affichage soit identique qu'on reçoive le message en direct ou via l'historique.
+function replyPreview(replyTo) {
+  if (!replyTo) return null;
+  return {
+    id: replyTo.id,
+    senderName: replyTo.sender ? replyTo.sender.name : '',
+    content: previewLabel(replyTo),
+    deleted: replyTo.deleted,
+  };
+}
+
+// Notifie en temps réel (via Socket.io) les participants d'une conversation
+// qu'ils viennent d'en rejoindre une, en excluant l'utilisateur à l'origine
+// de l'action (il connaît déjà la conversation, c'est lui qui vient de la
+// créer/qui a créé le groupe). Sans ça, les autres participants ne verraient
+// cette conversation qu'au prochain rechargement de l'application.
+function notifyConversationCreated(req, conversation, excludeUserId) {
+  const io = req.app.get('io');
+  if (!io) return; // pas de socket configuré (ex: tests) : pas grave, juste pas de temps réel
+  const serialized = serializeConversation(conversation);
+  conversation.participants
+    .map((p) => p.userId || (p.user && p.user.id))
+    .filter((id) => id && id !== excludeUserId)
+    .forEach((id) => io.to(userRoomName(id)).emit('conversation:new', { conversation: serialized }));
+}
 
 // Texte d'aperçu affiché dans la liste des conversations pour un message avec
 // pièce jointe (pas de texte, ou en complément d'une légende).
@@ -20,7 +51,13 @@ function serializeConversation(conv, currentUserId) {
     // On inclut lastReadAt (par participant) en plus des infos publiques de
     // l'utilisateur : c'est ce qui permet au client d'afficher une coche simple
     // (envoyé) ou double (lu par le destinataire), comme WhatsApp/iMessage.
-    participants: conv.participants.map((p) => Object.assign({}, toPublicUser(p.user), { lastReadAt: p.lastReadAt })),
+    // Comme dans listUsers : un participant qui masque sa dernière connexion
+    // n'expose jamais online/lastSeenAt aux autres.
+    participants: conv.participants.map((p) => {
+      const pub = toPublicUser(p.user);
+      if (p.user.hideLastSeen) pub.lastSeenAt = null;
+      return Object.assign(pub, { lastReadAt: p.lastReadAt, online: p.user.hideLastSeen ? false : isOnline(p.user.id) });
+    }),
     lastMessage: conv.messages && conv.messages[0]
       ? {
         id: conv.messages[0].id,
@@ -85,6 +122,8 @@ async function createConversation(req, res) {
     include: { participants: { include: { user: true } }, messages: true },
   });
 
+  notifyConversationCreated(req, conversation, req.user.id);
+
   return res.status(201).json({ conversation: serializeConversation(conversation, req.user.id) });
 }
 
@@ -102,7 +141,11 @@ async function getMessages(req, res) {
   const messages = await prisma.message.findMany({
     where: { conversationId },
     orderBy: { createdAt: 'asc' },
-    include: { sender: true },
+    include: {
+      sender: true,
+      replyTo: { include: { sender: true } },
+      reactions: true,
+    },
   });
 
   return res.json({
@@ -121,6 +164,8 @@ async function getMessages(req, res) {
       } : null,
       createdAt: m.createdAt,
       sender: toPublicUser(m.sender),
+      replyTo: replyPreview(m.replyTo),
+      reactions: aggregateReactions(m.reactions),
     })),
   });
 }
@@ -151,5 +196,13 @@ async function leaveConversation(req, res) {
   }
 }
 
-module.exports = { listConversations, createConversation, getMessages, previewLabel, leaveConversation };
+module.exports = {
+  listConversations,
+  createConversation,
+  getMessages,
+  previewLabel,
+  leaveConversation,
+  serializeConversation,
+  notifyConversationCreated,
+};
 

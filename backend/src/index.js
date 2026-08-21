@@ -59,6 +59,13 @@ const io = new Server(server, {
 });
 setupSocket(io);
 
+// Accessible depuis les contrôleurs REST (req.app.get('io')) pour notifier en
+// temps réel les participants d'une conversation/communauté créée via l'API
+// HTTP (ex: nouvelle discussion, nouveau groupe) — sans ça, un participant
+// ajouté à une conversation existante ne la voit apparaître qu'après avoir
+// rechargé l'application, puisque son socket n'a jamais rejoint cette room.
+app.set('io', io);
+
 const PORT = process.env.PORT || 4000;
 server.listen(PORT, () => {
   console.log(`Serveur API + signalisation WebRTC démarré sur le port ${PORT}`);
