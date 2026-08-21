@@ -110,6 +110,12 @@ model ConversationParticipant {
   // à chaque participant, comme WhatsApp (archiver chez moi ne l'archive pas
   // chez l'autre).
   archived Boolean @default(false)
+  // Verrouillage (comme "Discussions verrouillées" de WhatsApp) : masque la
+  // conversation de la liste principale ET de l'archivage, visible uniquement
+  // dans la sous-vue "Discussions verrouillées" après re-saisie du mot de passe
+  // du compte (voir auth.controller.js, verifyPassword). Propre à chaque
+  // participant, comme muted/archived.
+  locked   Boolean @default(false)
 
   @@unique([conversationId, userId])
 }

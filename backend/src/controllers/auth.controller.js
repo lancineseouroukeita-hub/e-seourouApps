@@ -212,6 +212,28 @@ async function deleteMyAccount(req, res) {
   }
 }
 
+// Revérifie le mot de passe du compte connecté, sans rien changer : sert de
+// "porte d'entrée" pour les Discussions verrouillées (comme le déverrouillage
+// biométrique/code de WhatsApp) — on redemande une preuve d'identité avant de
+// révéler ces conversations, sans exiger une reconnexion complète.
+async function verifyPassword(req, res) {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'Mot de passe requis.' });
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: 'Mot de passe incorrect.' });
+
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('verifyPassword error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la vérification du mot de passe.' });
+  }
+}
+
 module.exports = {
   register,
   login,
@@ -222,4 +244,5 @@ module.exports = {
   forgotPassword,
   resetPassword,
   deleteMyAccount,
+  verifyPassword,
 };

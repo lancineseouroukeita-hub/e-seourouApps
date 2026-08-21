@@ -140,6 +140,17 @@
   .convTagBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.55;padding:0;line-height:1;color:inherit;}
   .convTagBtn:hover{opacity:1;}
 
+  /* Ligne "Archivées" façon WhatsApp : une entrée à part au-dessus de la
+     liste, pas un chip de filtre — cliquer dessus bascule vers la sous-vue
+     dédiée (archivedHeaderRow), qui remplace alors filterChips/archivedRow. */
+  .archivedRow{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;color:var(--muted);border-bottom:1px solid var(--border);}
+  .archivedRow:hover{background:var(--panel2);}
+  .archivedIcon{font-size:15px;flex-shrink:0;}
+  .archivedRowLabel{flex:1;font-size:13.5px;}
+  .archivedRowCount{font-size:12px;flex-shrink:0;}
+  .archivedHeaderRow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;font-size:14.5px;}
+  .archivedHeaderRow button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:30px;height:30px;padding:0;cursor:pointer;font-size:20px;line-height:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+
   .sideSection{padding:12px 14px 6px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);}
   #convList,#userList{overflow-y:auto;}
   .listItem.unread .liName{font-weight:700;}
@@ -359,8 +370,8 @@
   .blockUserBtn.isBlocked{border-color:#ff5c5c;color:#ff5c5c;}
   .convDeleteBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
   .convDeleteBtn:hover{opacity:1;color:#ff5c5c;}
-  .convMuteBtn,.convArchiveBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
-  .convMuteBtn:hover,.convArchiveBtn:hover{opacity:1;}
+  .convMuteBtn,.convArchiveBtn,.convLockBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
+  .convMuteBtn:hover,.convArchiveBtn:hover,.convLockBtn:hover{opacity:1;}
   .blockedUserRow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
   .blockedUserRow:last-child{border-bottom:none;}
   .blockedUserRow .liText{flex:1;}
@@ -554,6 +565,18 @@
   #forwardSelectedCount{font-size:12.5px;color:var(--muted);}
   #forwardFooter .primaryBtn{width:auto;margin-top:0;padding:9px 18px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:14px;cursor:pointer;}
   #forwardFooter .primaryBtn:disabled{opacity:.5;cursor:not-allowed;}
+
+  /* ---------- Discussions verrouillées : demande du mot de passe ---------- */
+  #lockedUnlockOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
+  #lockedUnlockOverlay.show{display:flex;}
+  #lockedUnlockCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:360px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #lockedUnlockHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #lockedUnlockHeader h2{margin:0;font-size:16px;}
+  #lockedUnlockHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #lockedUnlockBody{padding:16px;}
+  #lockedUnlockBody input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15px;}
+  #lockedUnlockBody .primaryBtn{background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;}
+  #lockedUnlockBody .primaryBtn:hover{background:var(--accent2);}
   #communityDescInput{min-height:60px;resize:vertical;}
   .pickerLabel{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
   .memberPicker{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
@@ -714,8 +737,33 @@
         <button class="filterChip" data-filter="nonlues">Non lues</button>
         <button class="filterChip" data-filter="favoris">Favoris</button>
         <button class="filterChip" data-filter="groupes">Groupes</button>
-        <button class="filterChip" data-filter="archivees">Archivées</button>
         <button class="filterChip addFilterChip" id="addFilterBtn" title="Créer un filtre personnalisé">+</button>
+      </div>
+      <!-- Ligne "Discussions verrouillées" façon WhatsApp : au-dessus
+           d'"Archivées", visible seulement s'il existe au moins une discussion
+           verrouillée. Cliquer dessus redemande le mot de passe du compte
+           (lockedUnlockOverlay) avant de révéler la sous-vue dédiée. -->
+      <div id="lockedRow" class="archivedRow" style="display:none;">
+        <span class="archivedIcon">🔒</span>
+        <span class="archivedRowLabel">Discussions verrouillées</span>
+        <span id="lockedRowCount" class="archivedRowCount"></span>
+      </div>
+      <div id="lockedHeaderRow" class="archivedHeaderRow" style="display:none;">
+        <button id="lockedBackBtn" title="Retour aux discussions">‹</button>
+        <span>Discussions verrouillées</span>
+      </div>
+      <!-- Ligne "Archivées" façon WhatsApp : une entrée à part (pas un chip de
+           filtre) juste au-dessus de la liste, visible seulement s'il existe au
+           moins une discussion archivée. Cliquer dessus ouvre une sous-vue
+           dédiée (archivedHeaderRow ci-dessous remplace alors filterChips). -->
+      <div id="archivedRow" class="archivedRow" style="display:none;">
+        <span class="archivedIcon">🗄️</span>
+        <span class="archivedRowLabel">Archivées</span>
+        <span id="archivedRowCount" class="archivedRowCount"></span>
+      </div>
+      <div id="archivedHeaderRow" class="archivedHeaderRow" style="display:none;">
+        <button id="archivedBackBtn" title="Retour aux discussions">‹</button>
+        <span>Discussions archivées</span>
       </div>
       <div id="convList"></div>
       <div class="sideSection">Autres utilisateurs</div>
@@ -1100,6 +1148,22 @@
     </div>
   </div>
 
+  <!-- ---------- Discussions verrouillées : demande du mot de passe ---------- -->
+  <div id="lockedUnlockOverlay">
+    <div id="lockedUnlockCard">
+      <div id="lockedUnlockHeader">
+        <h2>🔒 Discussions verrouillées</h2>
+        <button id="closeLockedUnlockBtn" title="Fermer">✕</button>
+      </div>
+      <div id="lockedUnlockBody">
+        <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Confirmez votre mot de passe pour accéder à ces discussions.</label>
+        <input id="lockedUnlockPasswordInput" type="password" placeholder="Mot de passe" autocomplete="current-password">
+        <button id="lockedUnlockConfirmBtn" class="primaryBtn" style="width:100%;margin-top:10px;">Déverrouiller</button>
+        <div class="settingsMsg" id="lockedUnlockMsg"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ---------- Communautés : ajout d'un membre existant ---------- -->
   <div id="communityAddMemberOverlay">
     <div id="communityAddMemberCard">
@@ -1185,7 +1249,11 @@
 
   // ---------- Recherche et filtres de la liste des discussions ----------
   let convSearchTerm = '';
-  let convFilter = 'toutes'; // toutes | nonlues | favoris | groupes | custom:<id>
+  let convFilter = 'toutes'; // toutes | nonlues | favoris | groupes | archivees | locked | custom:<id>
+  // Vrai une fois le mot de passe re-confirmé pour ouvrir "Discussions
+  // verrouillées" (comme un déverrouillage biométrique WhatsApp) : remis à
+  // faux à chaque rechargement de page, jamais persisté.
+  let lockedChatsUnlocked = false;
   let favoriteConvIds = new Set(JSON.parse(localStorage.getItem('seourou_favorites') || '[]'));
   function saveFavorites() { localStorage.setItem('seourou_favorites', JSON.stringify([...favoriteConvIds])); }
 
@@ -1520,6 +1588,11 @@
     if (socket) socket.disconnect();
     token = null; me = null; activeConversationId = null;
     conversations = []; users = []; messagesByConv = {};
+    // lockedChatsUnlocked est propre à la personne connectée : sans ça, un
+    // autre compte connecté ensuite sur ce même appareil verrait directement
+    // ses "Discussions verrouillées" sans jamais redemander de mot de passe.
+    lockedChatsUnlocked = false;
+    convFilter = 'toutes';
     $('mainScreen').classList.remove('show', 'chatOpen');
     $('authScreen').style.display = 'flex';
     $('whoamiText').textContent = '';
@@ -2621,12 +2694,16 @@
     el.innerHTML = '';
     const term = convSearchTerm;
     let list = conversations.filter((c) => !term || convLabel(c).toLowerCase().includes(term));
-    // Comme WhatsApp : une discussion archivée disparaît de tous les autres
-    // filtres, seul le filtre "Archivées" l'affiche.
-    if (convFilter === 'archivees') {
-      list = list.filter((c) => c.archived);
+    // Comme WhatsApp : une discussion verrouillée ou archivée disparaît de
+    // tous les autres filtres, seule sa propre sous-vue dédiée l'affiche.
+    // Le verrouillage prime sur l'archivage (une discussion verrouillée reste
+    // cachée même si elle est aussi archivée).
+    if (convFilter === 'locked') {
+      list = list.filter((c) => c.locked);
+    } else if (convFilter === 'archivees') {
+      list = list.filter((c) => c.archived && !c.locked);
     } else {
-      list = list.filter((c) => !c.archived);
+      list = list.filter((c) => !c.archived && !c.locked);
       if (convFilter === 'nonlues') list = list.filter(isConvUnread);
       else if (convFilter === 'favoris') list = list.filter((c) => favoriteConvIds.has(c.id));
       else if (convFilter === 'groupes') list = list.filter((c) => c.isGroup);
@@ -2637,15 +2714,29 @@
     }
 
     // Compteurs affichés sur les filtres, comme dans WhatsApp (les discussions
-    // archivées ne comptent pas dans "Toutes"/"Non lues"/"Groupes").
-    const nonArchived = conversations.filter((c) => !c.archived);
-    const unreadCount = nonArchived.filter(isConvUnread).length;
+    // verrouillées/archivées ne comptent pas dans "Toutes"/"Non lues"/"Groupes").
+    const nonHidden = conversations.filter((c) => !c.archived && !c.locked);
+    const unreadCount = nonHidden.filter(isConvUnread).length;
     $('filterChips').querySelector('[data-filter="nonlues"]').textContent = unreadCount > 0 ? `Non lues ${unreadCount}` : 'Non lues';
-    $('filterChips').querySelector('[data-filter="toutes"]').textContent = nonArchived.length > 0 ? `Toutes ${nonArchived.length}` : 'Toutes';
-    const groupCount = nonArchived.filter((c) => c.isGroup).length;
+    $('filterChips').querySelector('[data-filter="toutes"]').textContent = nonHidden.length > 0 ? `Toutes ${nonHidden.length}` : 'Toutes';
+    const groupCount = nonHidden.filter((c) => c.isGroup).length;
     $('filterChips').querySelector('[data-filter="groupes"]').textContent = groupCount > 0 ? `Groupes ${groupCount}` : 'Groupes';
-    const archivedCount = conversations.filter((c) => c.archived).length;
-    $('filterChips').querySelector('[data-filter="archivees"]').textContent = archivedCount > 0 ? `Archivées ${archivedCount}` : 'Archivées';
+    // "Archivées"/"Discussions verrouillées" façon WhatsApp : des lignes à part
+    // au-dessus de la liste (archivedRow/lockedRow), pas des chips de filtre.
+    // En sous-vue, la ligne correspondante est remplacée par un petit en-tête
+    // avec bouton de retour, et les chips de filtre normaux sont masqués.
+    const archivedCount = conversations.filter((c) => c.archived && !c.locked).length;
+    const lockedCount = conversations.filter((c) => c.locked).length;
+    const inArchivedView = convFilter === 'archivees';
+    const inLockedView = convFilter === 'locked';
+    const inSubview = inArchivedView || inLockedView;
+    $('filterChips').style.display = inSubview ? 'none' : 'flex';
+    $('archivedHeaderRow').style.display = inArchivedView ? 'flex' : 'none';
+    $('archivedRow').style.display = (!inSubview && archivedCount > 0) ? 'flex' : 'none';
+    $('archivedRowCount').textContent = archivedCount > 0 ? String(archivedCount) : '';
+    $('lockedHeaderRow').style.display = inLockedView ? 'flex' : 'none';
+    $('lockedRow').style.display = (!inSubview && lockedCount > 0) ? 'flex' : 'none';
+    $('lockedRowCount').textContent = lockedCount > 0 ? String(lockedCount) : '';
 
     // Petit badge vert sur l'onglet "Discussions" de la barre du bas (mobile),
     // comme le badge de notifications sur l'app WhatsApp.
@@ -2656,7 +2747,8 @@
     }
 
     if (list.length === 0) {
-      el.innerHTML = `<div style="padding:16px 14px;color:var(--muted);font-size:13px;">Aucune discussion${term ? ' pour cette recherche' : ''}.</div>`;
+      const emptyText = inLockedView ? 'Aucune discussion verrouillée.' : inArchivedView ? 'Aucune discussion archivée.' : `Aucune discussion${term ? ' pour cette recherche' : ''}.`;
+      el.innerHTML = `<div style="padding:16px 14px;color:var(--muted);font-size:13px;">${emptyText}</div>`;
       return;
     }
 
@@ -2676,6 +2768,7 @@
           <button class="convTagBtn" data-conv-id="${c.id}" title="Ajouter à un filtre personnalisé">🏷️</button>
           <button class="convMuteBtn" data-conv-id="${c.id}" title="${c.muted ? 'Réactiver les notifications' : 'Mettre en sourdine'}">${c.muted ? '🔔' : '🔕'}</button>
           <button class="convArchiveBtn" data-conv-id="${c.id}" title="${c.archived ? 'Désarchiver' : 'Archiver'}">${c.archived ? '📤' : '📥'}</button>
+          <button class="convLockBtn" data-conv-id="${c.id}" title="${c.locked ? 'Déverrouiller cette discussion' : 'Verrouiller cette discussion'}">${c.locked ? '🔓' : '🔒'}</button>
           <button class="convDeleteBtn" data-conv-id="${c.id}" title="Supprimer cette discussion">🗑️</button>
           ${unread ? '<span class="unreadDot"></span>' : ''}
         </div>`;
@@ -2696,6 +2789,13 @@
       div.querySelector('.convArchiveBtn').addEventListener('click', async (e) => {
         e.stopPropagation();
         await toggleConversationSetting(c, 'archived');
+      });
+      div.querySelector('.convLockBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        // Verrouiller ne demande rien (on est déjà connecté) ; on est par
+        // contre forcément déjà dans la sous-vue déverrouillée pour pouvoir
+        // cliquer "déverrouiller" sur une discussion qui l'était déjà.
+        await toggleConversationSetting(c, 'locked');
       });
       div.querySelector('.convDeleteBtn').addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -2757,6 +2857,68 @@
     btn.classList.add('active');
     convFilter = btn.dataset.filter;
     renderConvList();
+  });
+
+  // Ligne "Archivées" (façon WhatsApp) : ouvre la sous-vue dédiée aux
+  // discussions archivées. Le bouton "‹" de cette sous-vue revient à "Toutes".
+  $('archivedRow').addEventListener('click', () => {
+    convFilter = 'archivees';
+    renderConvList();
+  });
+  $('archivedBackBtn').addEventListener('click', () => {
+    $('filterChips').querySelectorAll('.filterChip').forEach((b) => b.classList.remove('active'));
+    $('filterChips').querySelector('[data-filter="toutes"]').classList.add('active');
+    convFilter = 'toutes';
+    renderConvList();
+  });
+
+  // Ligne "Discussions verrouillées" (façon WhatsApp) : redemande le mot de
+  // passe du compte avant d'ouvrir la sous-vue dédiée — sauf si déjà
+  // déverrouillé plus tôt dans cette même session (lockedChatsUnlocked).
+  $('lockedRow').addEventListener('click', () => {
+    if (lockedChatsUnlocked) {
+      convFilter = 'locked';
+      renderConvList();
+    } else {
+      openLockedUnlockModal();
+    }
+  });
+  $('lockedBackBtn').addEventListener('click', () => {
+    $('filterChips').querySelectorAll('.filterChip').forEach((b) => b.classList.remove('active'));
+    $('filterChips').querySelector('[data-filter="toutes"]').classList.add('active');
+    convFilter = 'toutes';
+    renderConvList();
+  });
+
+  function openLockedUnlockModal() {
+    $('lockedUnlockPasswordInput').value = '';
+    showSettingsMsg('lockedUnlockMsg', '');
+    $('lockedUnlockOverlay').classList.add('show');
+    $('lockedUnlockPasswordInput').focus();
+  }
+  function closeLockedUnlockModal() {
+    $('lockedUnlockOverlay').classList.remove('show');
+  }
+  $('closeLockedUnlockBtn').addEventListener('click', closeLockedUnlockModal);
+  $('lockedUnlockOverlay').addEventListener('click', (e) => {
+    if (e.target === $('lockedUnlockOverlay')) closeLockedUnlockModal();
+  });
+  async function confirmLockedUnlock() {
+    const password = $('lockedUnlockPasswordInput').value;
+    if (!password) return showSettingsMsg('lockedUnlockMsg', 'Mot de passe requis.', true);
+    try {
+      await api('/api/auth/verify-password', { method: 'POST', body: JSON.stringify({ password }) });
+      lockedChatsUnlocked = true;
+      closeLockedUnlockModal();
+      convFilter = 'locked';
+      renderConvList();
+    } catch (err) {
+      showSettingsMsg('lockedUnlockMsg', err.message, true);
+    }
+  }
+  $('lockedUnlockConfirmBtn').addEventListener('click', confirmLockedUnlock);
+  $('lockedUnlockPasswordInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmLockedUnlock();
   });
 
   // "+" à côté de "Groupes" : crée un nouveau filtre personnalisé (nom libre),

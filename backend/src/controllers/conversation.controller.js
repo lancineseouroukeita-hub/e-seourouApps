@@ -51,6 +51,7 @@ function serializeConversation(conv, currentUserId) {
     createdAt: conv.createdAt,
     muted: Boolean(mine && mine.muted),
     archived: Boolean(mine && mine.archived),
+    locked: Boolean(mine && mine.locked),
     // On inclut lastReadAt (par participant) en plus des infos publiques de
     // l'utilisateur : c'est ce qui permet au client d'afficher une coche simple
     // (envoyé) ou double (lu par le destinataire), comme WhatsApp/iMessage.
@@ -190,13 +191,14 @@ async function getMessages(req, res) {
   });
 }
 
-// Met à jour la sourdine/l'archivage de CETTE conversation pour l'utilisateur
-// connecté (propre à chaque participant, voir ConversationParticipant.muted/archived).
+// Met à jour la sourdine/l'archivage/le verrouillage de CETTE conversation
+// pour l'utilisateur connecté (propre à chaque participant, voir
+// ConversationParticipant.muted/archived/locked).
 async function updateMyConversationSettings(req, res) {
   const { conversationId } = req.params;
-  const { muted, archived } = req.body || {};
-  if (typeof muted !== 'boolean' && typeof archived !== 'boolean') {
-    return res.status(400).json({ error: 'muted et/ou archived (booléen) sont requis.' });
+  const { muted, archived, locked } = req.body || {};
+  if (typeof muted !== 'boolean' && typeof archived !== 'boolean' && typeof locked !== 'boolean') {
+    return res.status(400).json({ error: 'muted, archived et/ou locked (booléen) sont requis.' });
   }
   try {
     const participant = await prisma.conversationParticipant.findUnique({
@@ -207,12 +209,13 @@ async function updateMyConversationSettings(req, res) {
     const data = {};
     if (typeof muted === 'boolean') data.muted = muted;
     if (typeof archived === 'boolean') data.archived = archived;
+    if (typeof locked === 'boolean') data.locked = locked;
 
     const updated = await prisma.conversationParticipant.update({
       where: { id: participant.id },
       data,
     });
-    return res.json({ ok: true, muted: updated.muted, archived: updated.archived });
+    return res.json({ ok: true, muted: updated.muted, archived: updated.archived, locked: updated.locked });
   } catch (err) {
     console.error('updateMyConversationSettings error:', err);
     return res.status(500).json({ error: 'Erreur serveur lors de la mise à jour de la discussion.' });

@@ -8,6 +8,7 @@ const {
   forgotPassword,
   resetPassword,
   deleteMyAccount,
+  verifyPassword,
 } = require('../controllers/auth.controller');
 const { requireAuth } = require('../middleware/auth');
 const { asyncHandler } = require('../utils/asyncHandler');
@@ -32,5 +33,8 @@ router.post('/reset-password', authRateLimit, asyncHandler(resetPassword));
 
 // Suppression de compte (Paramètres).
 router.delete('/me', requireAuth, asyncHandler(deleteMyAccount));
+
+// Revérification du mot de passe (porte d'entrée des Discussions verrouillées).
+router.post('/verify-password', requireAuth, authRateLimit, asyncHandler(verifyPassword));
 
 module.exports = router;
