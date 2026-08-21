@@ -6,13 +6,13 @@ const {
   leaveConversation,
 } = require('../controllers/conversation.controller');
 const { requireAuth } = require('../middleware/auth');
+const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
 
-router.get('/', requireAuth, listConversations);
-router.post('/', requireAuth, createConversation);
-router.get('/:conversationId/messages', requireAuth, getMessages);
-router.delete('/:conversationId', requireAuth, leaveConversation);
+router.get('/', requireAuth, asyncHandler(listConversations));
+router.post('/', requireAuth, asyncHandler(createConversation));
+router.get('/:conversationId/messages', requireAuth, asyncHandler(getMessages));
+router.delete('/:conversationId', requireAuth, asyncHandler(leaveConversation));
 
 module.exports = router;
-

@@ -276,7 +276,15 @@
   .msgRow:not(.mine) .msgActions{order:1;}
   .msgActionBtn{background:var(--panel2);border:1px solid var(--border);border-radius:50%;width:26px;height:26px;padding:0;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:inherit;flex-shrink:0;}
   .msgActionBtn:hover{background:var(--border);}
-  @media (hover:none){ .msgActions{opacity:1;} }
+  @media (hover:none){
+    /* Sur tactile (pas de survol), les actions sont toujours visibles — donc
+       toujours "au doigt" plutôt que révélées par un hover qui n'existe pas.
+       On agrandit aussi la zone cliquable (32px, proche du minimum recommandé
+       ~44px compte tenu de l'espace disponible sur une bulle étroite) pour
+       réduire les appuis ratés. */
+    .msgActions{opacity:1;}
+    .msgActionBtn{width:32px;height:32px;font-size:15px;}
+  }
   /* Citation du message auquel on répond, affichée en haut de la bulle
      (comme WhatsApp) : un petit bandeau plus sombre/plus clair selon le sens. */
   .replyQuote{border-left:3px solid var(--accent);border-radius:6px;padding:4px 8px;margin-bottom:5px;font-size:calc(12.5px * var(--chat-font-scale));background:rgba(0,0,0,.12);cursor:pointer;}
@@ -2015,6 +2023,11 @@
       const list = messagesByConv[conversationId];
       const m = list && list.find((x) => x.id === messageId);
       if (m) { m.deleted = true; m.content = ''; m.attachment = null; }
+      // Toute bulle qui citait ce message en réponse gardait jusqu'ici l'ancien
+      // texte (chargé au moment de l'envoi de la réponse) : on la met à jour en
+      // direct pour qu'elle affiche "Message supprimé", comme le fait déjà le
+      // message original lui-même ci-dessus.
+      updateStaleReplyQuotes(list, messageId, { deleted: true, content: '🚫 Message supprimé' });
       const conv = conversations.find((c) => c.id === conversationId);
       if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
         conv.lastMessage.content = '🚫 Message supprimé';
@@ -2032,6 +2045,11 @@
         const idx = list.findIndex((x) => x.id === messageId);
         if (idx !== -1) list.splice(idx, 1);
       }
+      // Contrairement à message:deleted (le message reste, juste vidé), ici le
+      // message disparaît complètement : toute réponse qui le citait doit donc
+      // perdre sa citation (comme le fait la base de données via replyToId
+      // SetNull), plutôt que de continuer à afficher un aperçu figé.
+      updateStaleReplyQuotes(list, messageId, null);
       const conv = conversations.find((c) => c.id === conversationId);
       if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
         const remaining = list && list.length ? list[list.length - 1] : null;
@@ -2339,8 +2357,8 @@
     }
     document.body.appendChild(menu);
     const rect = btn.getBoundingClientRect();
-    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + 'px';
-    menu.style.left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
+    menu.style.top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8)) + 'px';
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
   }
 
   function renderConvList() {
@@ -2563,6 +2581,21 @@
     const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
     if (d.toDateString() === yesterday.toDateString()) return 'hier à ' + time;
     return 'le ' + d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' à ' + time;
+  }
+
+  // Met à jour toute bulle de RÉPONSE qui citait `targetMessageId` (aperçu
+  // "replyTo" capturé une fois pour toutes au moment de l'envoi de la
+  // réponse), suite à une suppression/effacement du message original arrivé
+  // APRÈS coup. `replacement` vaut soit un objet à fusionner dans replyTo
+  // (ex: { deleted:true, content:'...' }), soit null pour effacer la
+  // citation entièrement (message erasé, plus rien à montrer).
+  function updateStaleReplyQuotes(list, targetMessageId, replacement) {
+    if (!list) return;
+    list.forEach((m) => {
+      if (m.replyTo && m.replyTo.id === targetMessageId) {
+        m.replyTo = replacement ? Object.assign({}, m.replyTo, replacement) : null;
+      }
+    });
   }
 
   function renderMessages() {
@@ -2806,7 +2839,9 @@
     document.body.appendChild(menu);
     const rect = btn.getBoundingClientRect();
     menu.style.top = Math.max(8, rect.top - 44) + 'px';
-    menu.style.left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
+    // Math.max ET Math.min : borne les deux côtés, pas seulement le bord droit
+    // (sinon le picker pouvait légèrement dépasser à gauche sur un petit écran).
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
   }
 
   // ---------- Réponse citée (reply) ----------

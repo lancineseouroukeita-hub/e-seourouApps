@@ -1,8 +1,8 @@
 const prisma = require('../config/prisma');
 const { isBlockedBetween } = require('../utils/blocking');
+const { MAX_ATTACHMENT_BYTES } = require('../utils/limits'); // même limite que les pièces jointes du chat
 
 const STATUS_LIFETIME_MS = 24 * 60 * 60 * 1000; // 24h, comme les Statuts WhatsApp
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024; // même limite que les pièces jointes du chat
 
 // Liste tous les statuts actifs (non expirés), les miens en premier (avec le
 // nombre de vues), puis ceux des autres utilisateurs (en excluant les

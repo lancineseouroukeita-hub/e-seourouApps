@@ -128,6 +128,14 @@ function registerSignalingHandlers(io, socket) {
   // d'un pair précis à un autre. Le serveur ne comprend pas le contenu, il relaie simplement.
   socket.on('call:signal', ({ callId, to, signal }) => {
     if (!callId || !to || !signal) return;
+    // L'émetteur ET le destinataire doivent être des participants ACTIFS de
+    // CET appel précis (présents dans activeCalls, rempli par call:join) :
+    // sans cette vérification, n'importe quel utilisateur authentifié
+    // pouvait relayer du signal WebRTC vers un socketId aperçu ailleurs (ex:
+    // via l'évènement "call:user-joined", diffusé à toute la room de la
+    // conversation) sans avoir lui-même rejoint l'appel — usurpation possible.
+    const room = activeCalls.get(callId);
+    if (!room || !room.has(socket.id) || !room.has(to)) return;
     io.to(to).emit('call:signal', {
       callId,
       from: socket.id,
@@ -149,7 +157,11 @@ function registerSignalingHandlers(io, socket) {
 
   // Raccrochage volontaire (bouton "Raccrocher") : immédiat, jamais retardé.
   socket.on('call:leave', async ({ callId }) => {
-    await leaveCall(io, socket, callId);
+    try {
+      await leaveCall(io, socket, callId);
+    } catch (err) {
+      console.error('call:leave error:', err);
+    }
   });
 
   // Déconnexion du socket (perte réseau, mise en arrière-plan, fermeture de

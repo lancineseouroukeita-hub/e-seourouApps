@@ -5,25 +5,21 @@ const { sendPushToUser } = require('../utils/push');
 const { isBlockedBetween } = require('../utils/blocking');
 const { roomName } = require('../utils/rooms');
 const { aggregateReactions } = require('../utils/reactions');
+const { replyPreview: buildReplyPreview } = require('../utils/replyPreview');
+const { MAX_ATTACHMENT_BASE64_LENGTH } = require('../utils/limits');
 
-// Aperçu du message cité (réponse, comme WhatsApp) inclus dans le message qui
-// y répond : juste assez d'infos pour afficher un petit encart au-dessus de la
-// bulle, pas besoin d'aller rechercher le message d'origine séparément.
+// Applique previewLabel (de conversation.controller.js) telle que définie ici,
+// pour garder un affichage identique à celui de l'historique REST.
 function replyPreview(replyTo) {
-  if (!replyTo) return null;
-  return {
-    id: replyTo.id,
-    senderName: replyTo.sender ? replyTo.sender.name : '',
-    content: previewLabel(replyTo),
-    deleted: replyTo.deleted,
-  };
+  return buildReplyPreview(replyTo, previewLabel);
 }
 
-// Taille max d'un fichier joint (avant encodage) : 5 Mo. Une fois encodé en
-// base64, une chaîne grossit d'environ 33% (4 caractères pour 3 octets), d'où
-// cette marge lors de la vérification côté serveur.
-const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
-const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 1024;
+// Longueur max du texte d'un message : rien ne la limitait côté serveur
+// jusqu'ici (seule la taille des pièces jointes l'était), ce qui permettait
+// d'envoyer plusieurs Mo de texte dans un seul message (jusqu'à la limite
+// technique de maxHttpBufferSize de Socket.io). 20 000 caractères est déjà
+// largement au-delà de tout message réel.
+const MAX_MESSAGE_LENGTH = 20000;
 
 /**
  * Attache les gestionnaires d'événements liés à la messagerie texte sur un socket déjà authentifié.
@@ -53,6 +49,9 @@ function registerChatHandlers(io, socket) {
 
       if (!conversationId || (!trimmedContent && !hasAttachment)) {
         return callback && callback({ error: 'conversationId et un contenu (texte ou pièce jointe) sont requis.' });
+      }
+      if (trimmedContent.length > MAX_MESSAGE_LENGTH) {
+        return callback && callback({ error: 'Message trop long (20 000 caractères maximum).' });
       }
 
       const participant = await prisma.conversationParticipant.findUnique({
@@ -167,12 +166,15 @@ function registerChatHandlers(io, socket) {
   // (une seule réaction par utilisateur et par message, cf. @@unique en base).
   socket.on('message:react', async ({ messageId, emoji }, callback) => {
     try {
-      if (!messageId || !emoji) {
-        return callback && callback({ error: 'messageId et emoji sont requis.' });
+      if (!messageId || !emoji || typeof emoji !== 'string' || emoji.length > 8) {
+        return callback && callback({ error: 'messageId et emoji (valide) sont requis.' });
       }
 
       const message = await prisma.message.findUnique({ where: { id: messageId } });
       if (!message) return callback && callback({ error: 'Message introuvable.' });
+      // Un message supprimé (douce ou définitive) n'a plus rien à afficher : pas
+      // de raison d'accumuler des réactions sur une bulle "Message supprimé".
+      if (message.deleted) return callback && callback({ error: 'Impossible de réagir à un message supprimé.' });
 
       const participant = await prisma.conversationParticipant.findUnique({
         where: { conversationId_userId: { conversationId: message.conversationId, userId } },
@@ -185,6 +187,9 @@ function registerChatHandlers(io, socket) {
         where: { id: message.conversationId },
         include: { participants: { select: { userId: true } } },
       });
+      // Conversation déjà supprimée entre-temps (cas limite rare) : même garde
+      // que message:send, pour éviter un plantage sur "conv.isGroup" si conv est null.
+      if (!conv) return callback && callback({ error: 'Conversation introuvable.' });
       if (!conv.isGroup) {
         const other = conv.participants.find((p) => p.userId !== userId);
         if (other && await isBlockedBetween(userId, other.userId)) {

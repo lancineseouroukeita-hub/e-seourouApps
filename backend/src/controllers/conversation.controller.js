@@ -3,18 +3,13 @@ const { toPublicUser } = require('./auth.controller');
 const { userRoomName } = require('../utils/rooms');
 const { isOnline } = require('../utils/presence');
 const { aggregateReactions } = require('../utils/reactions');
+const { isBlockedBetween } = require('../utils/blocking');
+const { replyPreview: buildReplyPreview } = require('../utils/replyPreview');
 
-// Aperçu du message cité (réponse) inclus dans l'historique — même format que
-// celui construit en temps réel côté socket (sockets/chat.js), pour que
-// l'affichage soit identique qu'on reçoive le message en direct ou via l'historique.
+// Même aperçu de message cité qu'en temps réel (sockets/chat.js) : centralisé
+// dans utils/replyPreview.js pour que les deux affichages restent identiques.
 function replyPreview(replyTo) {
-  if (!replyTo) return null;
-  return {
-    id: replyTo.id,
-    senderName: replyTo.sender ? replyTo.sender.name : '',
-    content: previewLabel(replyTo),
-    deleted: replyTo.deleted,
-  };
+  return buildReplyPreview(replyTo, previewLabel);
 }
 
 // Notifie en temps réel (via Socket.io) les participants d'une conversation
@@ -95,6 +90,18 @@ async function createConversation(req, res) {
 
   const allParticipantIds = Array.from(new Set([req.user.id, ...participantIds]));
   const isGroupConversation = Boolean(isGroup) || allParticipantIds.length > 2;
+
+  // Comme pour l'envoi de message/les appels (voir sockets/chat.js,
+  // signaling.js) : impossible de démarrer une conversation 1-à-1 avec
+  // quelqu'un qui a bloqué (ou qui est bloqué par) l'utilisateur courant.
+  // Sans ça, la conversation apparaissait quand même côté client, et seul
+  // l'envoi du premier message échouait ensuite — incohérent.
+  if (!isGroupConversation) {
+    const otherId = allParticipantIds.find((id) => id !== req.user.id);
+    if (otherId && await isBlockedBetween(req.user.id, otherId)) {
+      return res.status(403).json({ error: 'Impossible de démarrer cette conversation : utilisateur bloqué.' });
+    }
+  }
 
   // Pour une conversation 1-à-1, on réutilise une conversation existante si elle existe déjà.
   if (!isGroupConversation) {
