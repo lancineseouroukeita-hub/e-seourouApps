@@ -278,9 +278,12 @@
   .deleteMsgBtn:hover{opacity:1;}
   .eraseMsgBtn{background:none;border:none;cursor:pointer;font-size:11px;opacity:.55;padding:0;line-height:1;color:inherit;}
   .eraseMsgBtn:hover{opacity:1;color:#ff5c5c;}
-  /* Boutons "répondre" / "réagir" : masqués par défaut, révélés au survol de la
-     bulle (souris) ; toujours visibles sur mobile (pas de survol) via la media
-     query tactile plus bas. */
+  /* Boutons "répondre" / "réagir" / etc. : masqués par défaut, révélés au
+     survol de la bulle (souris uniquement). Sur tactile (pas de survol), ils
+     restent masqués en permanence — voir la media query tactile plus bas —
+     car le menu d'action ouvert par appui long (openMessageActionMenu) offre
+     déjà les mêmes actions ; les garder aussi visibles en plus serait
+     redondant et encombrerait chaque bulle. */
   .msgRow{position:relative;}
   .msgActions{display:flex;gap:2px;align-self:center;opacity:0;transition:opacity .12s ease;}
   .msgRow:hover .msgActions{opacity:1;}
@@ -293,13 +296,10 @@
   .msgActionBtn{background:var(--panel2);border:1px solid var(--border);border-radius:50%;width:26px;height:26px;padding:0;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:inherit;flex-shrink:0;}
   .msgActionBtn:hover{background:var(--border);}
   @media (hover:none){
-    /* Sur tactile (pas de survol), les actions sont toujours visibles — donc
-       toujours "au doigt" plutôt que révélées par un hover qui n'existe pas.
-       On agrandit aussi la zone cliquable (32px, proche du minimum recommandé
-       ~44px compte tenu de l'espace disponible sur une bulle étroite) pour
-       réduire les appuis ratés. */
-    .msgActions{opacity:1;}
-    .msgActionBtn{width:32px;height:32px;font-size:15px;}
+    /* Sur tactile, ces icônes disparaissent complètement (display:none, pas
+       juste opacity:0) : l'appui long ouvre le même jeu d'actions dans un
+       menu, comme sur WhatsApp/iMessage — pas besoin des deux à la fois. */
+    .msgActions{display:none;}
   }
   /* Citation du message auquel on répond, affichée en haut de la bulle
      (comme WhatsApp) : un petit bandeau plus sombre/plus clair selon le sens. */
@@ -492,6 +492,10 @@
   .adminDeleteUserBtn{flex-shrink:0;background:none;border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:6px 10px;font-size:12.5px;cursor:pointer;}
   .adminDeleteUserBtn:hover{background:var(--danger);color:white;}
   .adminEmptyText{padding:14px;text-align:center;font-size:12.5px;color:var(--muted);}
+  .otherProductsRow{display:flex;gap:18px;overflow-x:auto;padding-top:2px;}
+  .otherProductItem{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;color:inherit;flex-shrink:0;width:64px;}
+  .otherProductIcon{width:52px;height:52px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+  .otherProductLabel{font-size:11.5px;text-align:center;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;}
   .switchRow{display:flex;align-items:center;gap:10px;font-size:14.5px;cursor:pointer;margin-bottom:12px;}
   .switchRow:last-child{margin-bottom:0;}
   .switchRow input{position:absolute;opacity:0;width:0;height:0;}
@@ -1039,6 +1043,17 @@
           <input id="confirmPasswordInput" type="password" placeholder="Confirmer le nouveau mot de passe" autocomplete="new-password">
           <button id="changePasswordBtn">Changer le mot de passe</button>
           <div class="settingsMsg" id="settingsPasswordMsg"></div>
+        </section>
+
+        <!-- "Autres produits" : même idée que "Autres produits Meta" dans
+             WhatsApp (rangée de raccourcis en bas de l'onglet "Vous"), mais
+             sans reprendre les logos/liens Meta — seourouApps n'y est pas
+             affilié. Pas de vrais liens pour l'instant : voir OTHER_PRODUCTS
+             dans le script, à remplir dès qu'ils existent (section masquée
+             automatiquement si la liste est vide). -->
+        <section class="settingsSection" id="otherProductsSection">
+          <h3><span class="settingsIcon">🔗</span>Autres produits</h3>
+          <div id="otherProductsRow" class="otherProductsRow"></div>
         </section>
 
         <!-- Administration : réservé aux comptes administrateurs (voir
@@ -4502,6 +4517,30 @@
     if (me) clearNotificationsAndBadge();
   });
 
+  // ---------- "Autres produits" (Paramètres) ----------
+  // Rangée de raccourcis façon "Autres produits Meta" dans WhatsApp, mais
+  // vide pour l'instant : seourouApps n'étant pas affilié à Meta, on ne
+  // reprend pas ses logos/liens. Remplacez cette liste par les vrais
+  // produits/liens Geniosity dès qu'ils existent — { icon: emoji ou URL
+  // d'image, label: nom affiché, url: lien ouvert dans un nouvel onglet } —
+  // et la section apparaîtra automatiquement (masquée tant que la liste est vide).
+  const OTHER_PRODUCTS = [];
+
+  function renderOtherProducts() {
+    const section = $('otherProductsSection');
+    if (!OTHER_PRODUCTS.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    // Sans "url" (le temps qu'un vrai lien existe), l'élément reste un <span>
+    // simplement affiché — pas de <a target="_blank"> qui ouvrirait un onglet
+    // vide pour rien.
+    $('otherProductsRow').innerHTML = OTHER_PRODUCTS.map((p) => {
+      const inner = `<span class="otherProductIcon">${p.icon}</span><span class="otherProductLabel">${escapeHtml(p.label)}</span>`;
+      return p.url
+        ? `<a class="otherProductItem" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${inner}</a>`
+        : `<span class="otherProductItem">${inner}</span>`;
+    }).join('');
+  }
+
   // ---------- Paramètres ----------
   function showSettingsMsg(id, text, isError) {
     const el = $(id);
@@ -4511,6 +4550,7 @@
 
   async function openSettings() {
     if (!me) return;
+    renderOtherProducts();
     $('settingsNameInput').value = me.name;
     $('settingsPhoneText').textContent = me.phone;
     showSettingsMsg('settingsProfileMsg', '');
