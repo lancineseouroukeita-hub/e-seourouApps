@@ -21,6 +21,12 @@ function replyPreview(replyTo) {
 // largement au-delà de tout message réel.
 const MAX_MESSAGE_LENGTH = 20000;
 
+// Fenêtre pendant laquelle un message texte reste modifiable après son envoi
+// (comme WhatsApp, qui limite aussi l'édition dans le temps).
+const EDIT_WINDOW_MS = 15 * 60 * 1000;
+// Nombre max de messages épinglés simultanément par conversation (comme WhatsApp).
+const MAX_PINNED_PER_CONVERSATION = 3;
+
 /**
  * Attache les gestionnaires d'événements liés à la messagerie texte sur un socket déjà authentifié.
  * L'utilisateur rejoint automatiquement une "room" par conversation pour recevoir les nouveaux messages.
@@ -144,6 +150,11 @@ function registerChatHandlers(io, socket) {
         sender: toPublicUser(message.sender),
         replyTo: replyPreview(message.replyTo),
         reactions: [],
+        edited: false,
+        editedAt: null,
+        pinned: false,
+        pinnedAt: null,
+        forwarded: false,
       };
 
       io.to(roomName(conversationId)).emit('message:new', payload);
@@ -223,6 +234,216 @@ function registerChatHandlers(io, socket) {
     } catch (err) {
       console.error('message:react error:', err);
       callback && callback({ error: 'Erreur serveur lors de la réaction au message.' });
+    }
+  });
+
+  // Édition d'un message déjà envoyé (comme WhatsApp) : seul l'auteur peut
+  // modifier, uniquement un message texte (pas de pièce jointe), pas encore
+  // supprimé, et dans la fenêtre de temps autorisée (EDIT_WINDOW_MS).
+  socket.on('message:edit', async ({ messageId, content }, callback) => {
+    try {
+      const trimmedContent = (content || '').trim();
+      if (!messageId || !trimmedContent) {
+        return callback && callback({ error: 'messageId et un nouveau contenu sont requis.' });
+      }
+      if (trimmedContent.length > MAX_MESSAGE_LENGTH) {
+        return callback && callback({ error: 'Message trop long (20 000 caractères maximum).' });
+      }
+
+      const message = await prisma.message.findUnique({ where: { id: messageId } });
+      if (!message) return callback && callback({ error: 'Message introuvable.' });
+      if (message.senderId !== userId) {
+        return callback && callback({ error: 'Vous ne pouvez modifier que vos propres messages.' });
+      }
+      if (message.deleted) {
+        return callback && callback({ error: 'Impossible de modifier un message supprimé.' });
+      }
+      if (message.type !== 'text') {
+        return callback && callback({ error: 'Seuls les messages texte peuvent être modifiés.' });
+      }
+      if (Date.now() - new Date(message.createdAt).getTime() > EDIT_WINDOW_MS) {
+        return callback && callback({ error: 'Ce message ne peut plus être modifié (délai de 15 minutes dépassé).' });
+      }
+
+      const editedAt = new Date();
+      const updated = await prisma.message.update({
+        where: { id: messageId },
+        data: { content: trimmedContent, edited: true, editedAt },
+      });
+
+      io.to(roomName(message.conversationId)).emit('message:edited', {
+        conversationId: message.conversationId,
+        messageId,
+        content: updated.content,
+        editedAt,
+      });
+      callback && callback({ ok: true, content: updated.content, editedAt });
+    } catch (err) {
+      console.error('message:edit error:', err);
+      callback && callback({ error: 'Erreur serveur lors de la modification du message.' });
+    }
+  });
+
+  // Épingler/désépingler un message en haut de la discussion (comme WhatsApp).
+  // N'importe quel participant peut épingler (pas seulement l'auteur), comme
+  // dans un groupe WhatsApp où tout membre peut épingler un message.
+  socket.on('message:pin', async ({ messageId, pinned }, callback) => {
+    try {
+      if (!messageId) return callback && callback({ error: 'messageId requis.' });
+
+      const message = await prisma.message.findUnique({ where: { id: messageId } });
+      if (!message) return callback && callback({ error: 'Message introuvable.' });
+      if (message.deleted) return callback && callback({ error: 'Impossible d\'épingler un message supprimé.' });
+
+      const participant = await prisma.conversationParticipant.findUnique({
+        where: { conversationId_userId: { conversationId: message.conversationId, userId } },
+      });
+      if (!participant) {
+        return callback && callback({ error: 'Vous ne participez pas à cette conversation.' });
+      }
+
+      const shouldPin = pinned !== false;
+      if (shouldPin && !message.pinned) {
+        const pinnedCount = await prisma.message.count({
+          where: { conversationId: message.conversationId, pinned: true },
+        });
+        if (pinnedCount >= MAX_PINNED_PER_CONVERSATION) {
+          return callback && callback({ error: `Vous ne pouvez épingler que ${MAX_PINNED_PER_CONVERSATION} messages maximum par discussion.` });
+        }
+      }
+
+      const pinnedAt = shouldPin ? new Date() : null;
+      await prisma.message.update({
+        where: { id: messageId },
+        data: { pinned: shouldPin, pinnedAt },
+      });
+
+      io.to(roomName(message.conversationId)).emit('message:pinned', {
+        conversationId: message.conversationId,
+        messageId,
+        pinned: shouldPin,
+        pinnedAt,
+      });
+      callback && callback({ ok: true, pinned: shouldPin, pinnedAt });
+    } catch (err) {
+      console.error('message:pin error:', err);
+      callback && callback({ error: 'Erreur serveur lors de l\'épinglage du message.' });
+    }
+  });
+
+  // Transfert d'un message vers une ou plusieurs autres discussions (comme
+  // WhatsApp) : crée une copie indépendante dans chaque discussion cible
+  // (pas de lien avec l'original, pour que sa suppression ultérieure n'affecte
+  // pas les copies transférées), en respectant les mêmes règles que l'envoi
+  // normal (participation requise, blocage, groupe d'annonces).
+  socket.on('message:forward', async ({ messageId, conversationIds }, callback) => {
+    try {
+      if (!messageId || !Array.isArray(conversationIds) || conversationIds.length === 0) {
+        return callback && callback({ error: 'messageId et au moins une conversation cible sont requis.' });
+      }
+
+      const original = await prisma.message.findUnique({ where: { id: messageId } });
+      if (!original || original.deleted) {
+        return callback && callback({ error: 'Message introuvable ou supprimé.' });
+      }
+      const sourceParticipant = await prisma.conversationParticipant.findUnique({
+        where: { conversationId_userId: { conversationId: original.conversationId, userId } },
+      });
+      if (!sourceParticipant) {
+        return callback && callback({ error: 'Vous ne participez pas à la discussion d\'origine.' });
+      }
+
+      const results = [];
+      for (const targetId of conversationIds.slice(0, 20)) { // garde-fou anti-abus
+        try {
+          const participant = await prisma.conversationParticipant.findUnique({
+            where: { conversationId_userId: { conversationId: targetId, userId } },
+          });
+          if (!participant) {
+            results.push({ conversationId: targetId, error: 'Vous ne participez pas à cette discussion.' });
+            continue;
+          }
+
+          const conv = await prisma.conversation.findUnique({
+            where: { id: targetId },
+            include: { participants: { select: { userId: true } } },
+          });
+          if (!conv) {
+            results.push({ conversationId: targetId, error: 'Discussion introuvable.' });
+            continue;
+          }
+          if (!conv.isGroup) {
+            const other = conv.participants.find((p) => p.userId !== userId);
+            if (other && await isBlockedBetween(userId, other.userId)) {
+              results.push({ conversationId: targetId, error: 'Utilisateur bloqué.' });
+              continue;
+            }
+          }
+          if (conv.isAnnouncement && conv.communityId) {
+            const membership = await prisma.communityMember.findUnique({
+              where: { communityId_userId: { communityId: conv.communityId, userId } },
+            });
+            if (!membership || membership.role !== 'admin') {
+              results.push({ conversationId: targetId, error: 'Seuls les admins peuvent écrire ici.' });
+              continue;
+            }
+          }
+
+          const copy = await prisma.message.create({
+            data: {
+              conversationId: targetId,
+              senderId: userId,
+              content: original.content,
+              type: original.type,
+              attachmentData: original.attachmentData,
+              attachmentMime: original.attachmentMime,
+              attachmentName: original.attachmentName,
+              attachmentSize: original.attachmentSize,
+              duration: original.duration,
+              forwarded: true,
+            },
+            include: { sender: true },
+          });
+
+          const payload = {
+            id: copy.id,
+            conversationId: targetId,
+            content: copy.content,
+            type: copy.type,
+            deleted: false,
+            attachment: copy.type !== 'text' ? {
+              data: copy.attachmentData,
+              mime: copy.attachmentMime,
+              name: copy.attachmentName,
+              size: copy.attachmentSize,
+              duration: copy.duration,
+            } : null,
+            createdAt: copy.createdAt,
+            sender: toPublicUser(copy.sender),
+            replyTo: null,
+            reactions: [],
+            edited: false,
+            editedAt: null,
+            pinned: false,
+            pinnedAt: null,
+            forwarded: true,
+          };
+
+          io.to(roomName(targetId)).emit('message:new', payload);
+          notifyNewMessage(targetId, userId, copy).catch((err) => {
+            console.error('push notify (forward) error:', err);
+          });
+          results.push({ conversationId: targetId, ok: true, message: payload });
+        } catch (err) {
+          console.error('message:forward (target) error:', err);
+          results.push({ conversationId: targetId, error: 'Erreur serveur.' });
+        }
+      }
+
+      callback && callback({ ok: true, results });
+    } catch (err) {
+      console.error('message:forward error:', err);
+      callback && callback({ error: 'Erreur serveur lors du transfert du message.' });
     }
   });
 
@@ -333,8 +554,11 @@ function registerChatHandlers(io, socket) {
 async function notifyNewMessage(conversationId, senderId, message) {
   const [sender, others] = await Promise.all([
     prisma.user.findUnique({ where: { id: senderId } }),
+    // muted: false -> un participant qui a mis CETTE conversation en sourdine
+    // ne reçoit pas de notification push pour ses nouveaux messages (voir
+    // ConversationParticipant.muted, propre à chaque participant).
     prisma.conversationParticipant.findMany({
-      where: { conversationId, userId: { not: senderId } },
+      where: { conversationId, userId: { not: senderId }, muted: false },
       select: { userId: true },
     }),
   ]);

@@ -98,6 +98,8 @@
   .authCard label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;}
   .authCard input{width:100%;padding:10px 11px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15.5px;}
   .authCard .primaryBtn{width:100%;margin-top:18px;padding:11px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:15.5px;cursor:pointer;}
+  .authCard .linkBtn{display:block;width:100%;background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;margin-top:12px;padding:4px;text-align:center;}
+  .authCard .linkBtn:hover{text-decoration:underline;}
   .authCard .primaryBtn:hover{background:var(--accent2);}
   .errorMsg{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:16px;}
 
@@ -311,12 +313,54 @@
   #replyBannerContent .replyBannerText{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   #replyBannerClose{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:4px;flex-shrink:0;}
   #replyBannerClose:hover{color:var(--text);}
+  /* Bandeau "Modifier le message" au-dessus du composer : même mise en page
+     que #replyBanner, mais une barre orange (au lieu de la couleur d'accent)
+     pour bien distinguer visuellement "je réponds" de "je modifie". */
+  #editBanner{display:flex;align-items:center;gap:8px;padding:8px 18px;border-top:1px solid var(--border);background:var(--panel2);}
+  #editBanner .replyBannerBar{width:3px;align-self:stretch;background:#f5a623;border-radius:2px;flex-shrink:0;}
+  #editBanner .replyBannerSender{font-weight:600;color:#f5a623;}
+  #editBannerClose{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:4px;flex-shrink:0;margin-left:auto;}
+  #editBannerClose:hover{color:var(--text);}
+  /* Mention "modifié" (comme WhatsApp) à côté de l'heure du message. */
+  .editedLabel{font-size:10px;opacity:.6;font-style:italic;}
+  /* Mention "Transféré" au-dessus du contenu d'un message transféré. */
+  .forwardedLabel{font-size:11px;opacity:.7;font-style:italic;margin-bottom:2px;}
+  /* Bouton "épingler" actif (message déjà épinglé) : couleur d'accent, comme
+     les autres états "actifs" de l'application (favStar.active, etc.). */
+  .msgActionBtn.active{background:var(--accent);color:white;border-color:var(--accent);}
+  /* Léger liseré à gauche pour repérer un message épinglé dans le fil, en plus
+     de sa présence dans #pinnedBanner. */
+  .msgRow.pinnedRow .bubble{box-shadow:-3px 0 0 0 #f5a623;}
+  /* Bandeau des messages épinglés, juste au-dessus de la liste des messages
+     (comme WhatsApp) : une ligne par message épinglé, cliquable pour y aller. */
+  #pinnedBanner{display:flex;flex-direction:column;border-bottom:1px solid var(--border);background:var(--panel2);max-height:110px;overflow-y:auto;flex-shrink:0;}
+  .pinnedItem{display:flex;align-items:center;gap:8px;padding:6px 18px;cursor:pointer;font-size:12.5px;border-bottom:1px solid var(--border);}
+  .pinnedItem:last-child{border-bottom:none;}
+  .pinnedItem:hover{background:var(--panel);}
+  .pinnedIcon{flex-shrink:0;}
+  .pinnedText{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);}
+  .pinnedUnpinBtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px;flex-shrink:0;}
+  .pinnedUnpinBtn:hover{color:#ff5c5c;}
+  /* Barre de recherche dans la discussion ouverte (distincte de la recherche
+     de discussions dans la sidebar), affichée par-dessus l'en-tête. */
+  #chatSearchBar{display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid var(--border);background:var(--panel2);}
+  #chatSearchBar .searchIcon{font-size:13px;color:var(--muted);flex-shrink:0;}
+  #chatSearchBar input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:6px 12px;color:var(--text);font-size:13.5px;}
+  #chatSearchCount{font-size:11.5px;color:var(--muted);white-space:nowrap;flex-shrink:0;}
+  #chatSearchBar button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px;flex-shrink:0;}
+  #chatSearchBar button:hover{color:var(--text);}
+  /* Messages correspondant à la recherche en cours : léger fond jaune, plus
+     marqué pour le résultat actif (celui vers lequel on vient de défiler). */
+  .msgRow.searchMatch .bubble{outline:2px solid rgba(245,166,35,.55);}
+  .msgRow.searchMatchActive .bubble{outline:2px solid #f5a623;}
   .msgDeleted{font-style:italic;opacity:.65;font-size:calc(14px * var(--chat-font-scale));display:flex;align-items:center;gap:6px;}
   .blockUserBtn{background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11px;padding:5px 9px;color:inherit;opacity:.8;white-space:nowrap;}
   .blockUserBtn:hover{opacity:1;}
   .blockUserBtn.isBlocked{border-color:#ff5c5c;color:#ff5c5c;}
   .convDeleteBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
   .convDeleteBtn:hover{opacity:1;color:#ff5c5c;}
+  .convMuteBtn,.convArchiveBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
+  .convMuteBtn:hover,.convArchiveBtn:hover{opacity:1;}
   .blockedUserRow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
   .blockedUserRow:last-child{border-bottom:none;}
   .blockedUserRow .liText{flex:1;}
@@ -400,6 +444,11 @@
   #settingsBody input[type="text"],#settingsBody input[type="password"]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15px;margin-bottom:8px;}
   #settingsBody button{background:var(--accent);border:none;color:white;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:13px;white-space:nowrap;}
   #settingsBody button:hover{background:var(--accent2);}
+  /* Plus spécifique que la règle générique ci-dessus (nécessaire pour
+     l'emporter malgré elle) : garde l'apparence "danger" (contour rouge, fond
+     transparent) du bouton de suppression de compte à l'intérieur de #settingsBody. */
+  #settingsBody button.dangerFullBtn{background:none;border:1px solid var(--danger);color:var(--danger);}
+  #settingsBody button.dangerFullBtn:hover{background:rgba(255,92,92,.12);}
   .settingsStatic{margin-top:12px;font-size:13px;color:var(--muted);}
   .settingsMsg{margin-top:8px;font-size:12.5px;min-height:16px;}
   .settingsMsg.error{color:var(--danger);}
@@ -490,6 +539,21 @@
   #communityComposerHeader button, #communityDetailHeader button, #communityAddMemberHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
   #communityComposerBody, #communityDetailBody, #communityAddMemberBody{padding:16px;overflow-y:auto;}
   #communityNameInput, #communityDescInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;font-family:inherit;}
+
+  /* ---------- Transfert de message : modale de sélection des discussions ---------- */
+  #forwardOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
+  #forwardOverlay.show{display:flex;}
+  #forwardCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #forwardHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #forwardHeader h2{margin:0;font-size:16px;}
+  #forwardHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #forwardBody{padding:16px;overflow-y:auto;max-height:50vh;}
+  .forwardRow{cursor:pointer;}
+  .forwardRow input.forwardCheckbox{margin-right:2px;flex-shrink:0;width:16px;height:16px;}
+  #forwardFooter{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-top:1px solid var(--border);}
+  #forwardSelectedCount{font-size:12.5px;color:var(--muted);}
+  #forwardFooter .primaryBtn{width:auto;margin-top:0;padding:9px 18px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:14px;cursor:pointer;}
+  #forwardFooter .primaryBtn:disabled{opacity:.5;cursor:not-allowed;}
   #communityDescInput{min-height:60px;resize:vertical;}
   .pickerLabel{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
   .memberPicker{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
@@ -596,6 +660,7 @@
         <label>Mot de passe</label>
         <input id="loginPassword" type="password" placeholder="••••••••">
         <button class="primaryBtn" id="loginBtn">Se connecter</button>
+        <button id="forgotPasswordLinkBtn" class="linkBtn">Mot de passe oublié ?</button>
       </div>
 
       <div id="registerForm" style="display:none;">
@@ -606,6 +671,25 @@
         <label>Mot de passe</label>
         <input id="regPassword" type="password" placeholder="6 caractères minimum">
         <button class="primaryBtn" id="registerBtn">Créer le compte</button>
+      </div>
+
+      <!-- Mot de passe oublié : étape 1 (demande du code), puis étape 2 (code
+           reçu par SMS + nouveau mot de passe). Voir auth.controller.js,
+           forgotPassword/resetPassword, et utils/otp.js côté serveur. -->
+      <div id="forgotPasswordForm" style="display:none;">
+        <div id="forgotStep1">
+          <label>Numéro de téléphone</label>
+          <input id="forgotPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
+          <button class="primaryBtn" id="forgotSendCodeBtn">Recevoir un code par SMS</button>
+        </div>
+        <div id="forgotStep2" style="display:none;">
+          <label>Code reçu par SMS</label>
+          <input id="forgotCode" type="text" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres">
+          <label>Nouveau mot de passe</label>
+          <input id="forgotNewPassword" type="password" placeholder="6 caractères minimum">
+          <button class="primaryBtn" id="forgotResetBtn">Réinitialiser le mot de passe</button>
+        </div>
+        <button id="backToLoginBtn" class="linkBtn">‹ Retour à la connexion</button>
       </div>
 
       <div class="errorMsg" id="authError"></div>
@@ -630,6 +714,7 @@
         <button class="filterChip" data-filter="nonlues">Non lues</button>
         <button class="filterChip" data-filter="favoris">Favoris</button>
         <button class="filterChip" data-filter="groupes">Groupes</button>
+        <button class="filterChip" data-filter="archivees">Archivées</button>
         <button class="filterChip addFilterChip" id="addFilterBtn" title="Créer un filtre personnalisé">+</button>
       </div>
       <div id="convList"></div>
@@ -672,16 +757,36 @@
             <div class="subtitle" id="chatSubtitle"></div>
           </div>
           <div class="callBtns">
+            <button id="chatSearchBtn" title="Rechercher dans la discussion"><span class="callIcon">🔍</span></button>
             <button id="videoCallBtn" title="Appel vidéo"><span class="callIcon">🎥</span></button>
             <button id="audioCallBtn" title="Appel audio"><span class="callIcon">📞</span></button>
           </div>
         </div>
+        <!-- Recherche de texte à l'intérieur de la discussion ouverte (comme
+             WhatsApp) : masquée par défaut, affichée par-dessus l'en-tête via
+             chatSearchBtn ci-dessus. -->
+        <div id="chatSearchBar" style="display:none;">
+          <span class="searchIcon">🔍</span>
+          <input id="chatSearchInput" type="text" placeholder="Rechercher dans cette discussion" autocomplete="off">
+          <span id="chatSearchCount"></span>
+          <button id="chatSearchPrevBtn" title="Résultat précédent">↑</button>
+          <button id="chatSearchNextBtn" title="Résultat suivant">↓</button>
+          <button id="chatSearchCloseBtn" title="Fermer la recherche">✕</button>
+        </div>
+        <!-- Messages épinglés (comme WhatsApp) : bandeau juste au-dessus de la
+             liste des messages, masqué s'il n'y en a aucun. -->
+        <div id="pinnedBanner" style="display:none;"></div>
         <div id="messages"></div>
         <div id="typingIndicator"></div>
         <div id="replyBanner" style="display:none;">
           <div class="replyBannerBar"></div>
           <div id="replyBannerContent"></div>
           <button id="replyBannerClose" title="Annuler la réponse">✕</button>
+        </div>
+        <div id="editBanner" style="display:none;">
+          <div class="replyBannerBar"></div>
+          <div id="editBannerContent"><div class="replyBannerSender">Modifier le message</div></div>
+          <button id="editBannerClose" title="Annuler la modification">✕</button>
         </div>
         <div id="composer">
           <input type="file" id="fileInput" style="display:none">
@@ -761,8 +866,28 @@
               </div>
             </div>
           </div>
-          <div class="settingsStatic">Téléphone : <span id="settingsPhoneText"></span></div>
+          <div class="settingsStatic">Téléphone : <span id="settingsPhoneText"></span> <span id="phoneVerifiedBadge" style="display:none;color:var(--success);">✓ Vérifié</span></div>
           <div class="settingsMsg" id="settingsProfileMsg"></div>
+        </section>
+
+        <!-- Vérification du numéro par code OTP envoyé par SMS (voir
+             utils/otp.js / utils/sms.js côté serveur — dégradation gracieuse
+             si aucun fournisseur SMS n'est configuré : le code est alors
+             affiché dans les logs serveur au lieu d'être réellement envoyé). -->
+        <section class="settingsSection" id="phoneVerifySection">
+          <h3><span class="settingsIcon">📱</span>Vérification du numéro</h3>
+          <div id="phoneVerifyAlreadyBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--success);">✓ Votre numéro est vérifié.</label>
+          </div>
+          <div id="phoneVerifyPendingBlock">
+            <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Confirmez que ce numéro vous appartient bien en recevant un code par SMS.</label>
+            <button id="sendOtpBtn" style="width:100%;">Envoyer le code par SMS</button>
+            <div id="otpCodeBlock" style="display:none;margin-top:10px;">
+              <input id="otpCodeInput" type="text" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres">
+              <button id="verifyOtpBtn" style="width:100%;margin-top:8px;">Confirmer le code</button>
+            </div>
+          </div>
+          <div class="settingsMsg" id="settingsOtpMsg"></div>
         </section>
 
         <!-- Installation de l'application (PWA) : bouton natif sur Android/PC
@@ -838,6 +963,16 @@
           <input id="confirmPasswordInput" type="password" placeholder="Confirmer le nouveau mot de passe" autocomplete="new-password">
           <button id="changePasswordBtn">Changer le mot de passe</button>
           <div class="settingsMsg" id="settingsPasswordMsg"></div>
+        </section>
+
+        <!-- Suppression de compte (irréversible) : confirmée par le mot de
+             passe, comme n'importe quelle action destructrice sensible. -->
+        <section class="settingsSection">
+          <h3><span class="settingsIcon">⚠️</span>Supprimer mon compte</h3>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Cette action est définitive : votre compte, vos messages et vos discussions seront supprimés. Cette opération ne peut pas être annulée.</label>
+          <input id="deleteAccountPasswordInput" type="password" placeholder="Mot de passe actuel" autocomplete="current-password">
+          <button id="deleteAccountBtn" class="dangerFullBtn">Supprimer définitivement mon compte</button>
+          <div class="settingsMsg" id="settingsDeleteAccountMsg"></div>
         </section>
 
       </div>
@@ -948,6 +1083,23 @@
     </div>
   </div>
 
+  <!-- ---------- Transfert d'un message vers d'autres discussions ---------- -->
+  <div id="forwardOverlay">
+    <div id="forwardCard">
+      <div id="forwardHeader">
+        <h2>Transférer le message</h2>
+        <button id="closeForwardBtn" title="Fermer">✕</button>
+      </div>
+      <div id="forwardBody">
+        <div id="forwardList"></div>
+      </div>
+      <div id="forwardFooter">
+        <span id="forwardSelectedCount">0 sélectionnée(s)</span>
+        <button id="forwardSendBtn" class="primaryBtn" disabled>Envoyer</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ---------- Communautés : ajout d'un membre existant ---------- -->
   <div id="communityAddMemberOverlay">
     <div id="communityAddMemberCard">
@@ -995,6 +1147,17 @@
   // Message auquel on est en train de répondre (bandeau au-dessus du composer),
   // ou null si aucune réponse en cours. Réinitialisé après envoi/annulation.
   let replyingTo = null;
+  // Message en cours de modification (bandeau au-dessus du composer, comme
+  // replyingTo mais pour message:edit au lieu de message:send), ou null.
+  let editingMessage = null;
+  // Message dont le transfert est en cours (modale de sélection des discussions
+  // cibles), ou null si la modale n'est pas ouverte.
+  let forwardingMessageId = null;
+  // Recherche de texte à l'intérieur de la discussion ouverte (barre dédiée
+  // dans l'en-tête, distincte de la recherche de discussions dans la sidebar).
+  let inChatSearchTerm = '';
+  let inChatSearchMatches = []; // ids de messages correspondant au terme, dans l'ordre d'affichage
+  let inChatSearchIndex = -1; // position actuelle dans inChatSearchMatches
   // Emoji proposés pour les réactions rapides (comme le sélecteur court de WhatsApp).
   const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
@@ -1248,6 +1411,67 @@
     showAuthError('');
   });
 
+  // ---------- Mot de passe oublié ----------
+  function showForgotPasswordForm() {
+    $('loginForm').style.display = 'none';
+    $('registerForm').style.display = 'none';
+    $('forgotPasswordForm').style.display = 'block';
+    $('forgotStep1').style.display = 'block';
+    $('forgotStep2').style.display = 'none';
+    $('forgotPhone').value = $('loginPhone').value;
+    showAuthError('');
+  }
+
+  function backToLoginForm() {
+    $('forgotPasswordForm').style.display = 'none';
+    $('loginForm').style.display = 'block';
+    $('tabLogin').classList.add('active'); $('tabRegister').classList.remove('active');
+    showAuthError('');
+  }
+
+  $('forgotPasswordLinkBtn').addEventListener('click', showForgotPasswordForm);
+  $('backToLoginBtn').addEventListener('click', backToLoginForm);
+
+  $('forgotSendCodeBtn').addEventListener('click', async () => {
+    showAuthError('');
+    apiBase = $('apiBaseInput').value.replace(/\/$/, '');
+    const phone = $('forgotPhone').value.trim();
+    if (!phone) return showAuthError('Numéro de téléphone requis.');
+    const btn = $('forgotSendCodeBtn');
+    btn.disabled = true;
+    try {
+      await api('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ phone }) });
+      $('forgotStep1').style.display = 'none';
+      $('forgotStep2').style.display = 'block';
+    } catch (err) {
+      showAuthError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('forgotResetBtn').addEventListener('click', async () => {
+    showAuthError('');
+    const phone = $('forgotPhone').value.trim();
+    const code = $('forgotCode').value.trim();
+    const newPassword = $('forgotNewPassword').value;
+    if (!code || !newPassword) return showAuthError('Code et nouveau mot de passe requis.');
+    const btn = $('forgotResetBtn');
+    btn.disabled = true;
+    try {
+      await api('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ phone, code, newPassword }) });
+      backToLoginForm();
+      $('loginPhone').value = phone;
+      $('loginPassword').value = '';
+      showAuthError('');
+      alert('Mot de passe réinitialisé. Vous pouvez maintenant vous connecter.');
+    } catch (err) {
+      showAuthError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   $('loginBtn').addEventListener('click', async () => {
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
@@ -1305,6 +1529,13 @@
     $('settingsOverlay').classList.remove('show');
     $('convList').innerHTML = ''; $('userList').innerHTML = '';
     $('emptyState').style.display = 'flex'; $('activeChat').style.display = 'none';
+    // Revient toujours à l'onglet "Connexion" (plutôt que de garder "Inscription"
+    // affiché si c'était le dernier onglet utilisé) : après une déconnexion, on
+    // suppose qu'on veut se reconnecter à un compte existant, pas en recréer un.
+    $('tabLogin').classList.add('active'); $('tabRegister').classList.remove('active');
+    $('loginForm').style.display = 'block'; $('registerForm').style.display = 'none';
+    $('forgotPasswordForm').style.display = 'none';
+    showAuthError('');
   });
 
   // Sur téléphone (écran étroit), la conversation ouverte s'affiche par-dessus
@@ -2107,6 +2338,29 @@
       if (conversationId === activeConversationId) renderMessages();
     });
 
+    // Un message a été modifié (message:edit) : mise à jour en direct du
+    // contenu affiché, sur tous les appareils de tous les participants —
+    // y compris le nôtre si on l'a modifié depuis un autre appareil.
+    socket.on('message:edited', ({ conversationId, messageId, content, editedAt }) => {
+      const list = messagesByConv[conversationId];
+      const m = list && list.find((x) => x.id === messageId);
+      if (m) { m.content = content; m.edited = true; m.editedAt = editedAt; }
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
+        conv.lastMessage.content = content;
+        renderConvList();
+      }
+      if (conversationId === activeConversationId) renderMessages();
+    });
+
+    // Un message a été épinglé/désépinglé (par n'importe quel participant).
+    socket.on('message:pinned', ({ conversationId, messageId, pinned, pinnedAt }) => {
+      const list = messagesByConv[conversationId];
+      const m = list && list.find((x) => x.id === messageId);
+      if (m) { m.pinned = pinned; m.pinnedAt = pinnedAt; }
+      if (conversationId === activeConversationId) renderMessages();
+    });
+
     // Calls
     socket.on('call:incoming', (payload) => {
       pendingIncomingCall = payload;
@@ -2367,20 +2621,31 @@
     el.innerHTML = '';
     const term = convSearchTerm;
     let list = conversations.filter((c) => !term || convLabel(c).toLowerCase().includes(term));
-    if (convFilter === 'nonlues') list = list.filter(isConvUnread);
-    else if (convFilter === 'favoris') list = list.filter((c) => favoriteConvIds.has(c.id));
-    else if (convFilter === 'groupes') list = list.filter((c) => c.isGroup);
-    else if (convFilter.startsWith('custom:')) {
-      const f = customFilters.find((x) => 'custom:' + x.id === convFilter);
-      list = f ? list.filter((c) => f.convIds.includes(c.id)) : [];
+    // Comme WhatsApp : une discussion archivée disparaît de tous les autres
+    // filtres, seul le filtre "Archivées" l'affiche.
+    if (convFilter === 'archivees') {
+      list = list.filter((c) => c.archived);
+    } else {
+      list = list.filter((c) => !c.archived);
+      if (convFilter === 'nonlues') list = list.filter(isConvUnread);
+      else if (convFilter === 'favoris') list = list.filter((c) => favoriteConvIds.has(c.id));
+      else if (convFilter === 'groupes') list = list.filter((c) => c.isGroup);
+      else if (convFilter.startsWith('custom:')) {
+        const f = customFilters.find((x) => 'custom:' + x.id === convFilter);
+        list = f ? list.filter((c) => f.convIds.includes(c.id)) : [];
+      }
     }
 
-    // Compteurs affichés sur les filtres, comme dans WhatsApp.
-    const unreadCount = conversations.filter(isConvUnread).length;
+    // Compteurs affichés sur les filtres, comme dans WhatsApp (les discussions
+    // archivées ne comptent pas dans "Toutes"/"Non lues"/"Groupes").
+    const nonArchived = conversations.filter((c) => !c.archived);
+    const unreadCount = nonArchived.filter(isConvUnread).length;
     $('filterChips').querySelector('[data-filter="nonlues"]').textContent = unreadCount > 0 ? `Non lues ${unreadCount}` : 'Non lues';
-    $('filterChips').querySelector('[data-filter="toutes"]').textContent = conversations.length > 0 ? `Toutes ${conversations.length}` : 'Toutes';
-    const groupCount = conversations.filter((c) => c.isGroup).length;
+    $('filterChips').querySelector('[data-filter="toutes"]').textContent = nonArchived.length > 0 ? `Toutes ${nonArchived.length}` : 'Toutes';
+    const groupCount = nonArchived.filter((c) => c.isGroup).length;
     $('filterChips').querySelector('[data-filter="groupes"]').textContent = groupCount > 0 ? `Groupes ${groupCount}` : 'Groupes';
+    const archivedCount = conversations.filter((c) => c.archived).length;
+    $('filterChips').querySelector('[data-filter="archivees"]').textContent = archivedCount > 0 ? `Archivées ${archivedCount}` : 'Archivées';
 
     // Petit badge vert sur l'onglet "Discussions" de la barre du bas (mobile),
     // comme le badge de notifications sur l'app WhatsApp.
@@ -2404,11 +2669,13 @@
       div.className = 'listItem' + (c.id === activeConversationId ? ' active' : '') + (unread ? ' unread' : '');
       div.dataset.convId = c.id;
       div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null, '', !c.isGroup && other ? other.online : false)}
-        <div class="liText"><div class="liName">${escapeHtml(label)}</div>
+        <div class="liText"><div class="liName">${escapeHtml(label)}${c.muted ? ' 🔇' : ''}</div>
         <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>
         <div class="liMeta">
           <button class="favStar${isFav ? ' active' : ''}" data-conv-id="${c.id}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${isFav ? '★' : '☆'}</button>
           <button class="convTagBtn" data-conv-id="${c.id}" title="Ajouter à un filtre personnalisé">🏷️</button>
+          <button class="convMuteBtn" data-conv-id="${c.id}" title="${c.muted ? 'Réactiver les notifications' : 'Mettre en sourdine'}">${c.muted ? '🔔' : '🔕'}</button>
+          <button class="convArchiveBtn" data-conv-id="${c.id}" title="${c.archived ? 'Désarchiver' : 'Archiver'}">${c.archived ? '📤' : '📥'}</button>
           <button class="convDeleteBtn" data-conv-id="${c.id}" title="Supprimer cette discussion">🗑️</button>
           ${unread ? '<span class="unreadDot"></span>' : ''}
         </div>`;
@@ -2421,6 +2688,14 @@
       div.querySelector('.convTagBtn').addEventListener('click', (e) => {
         e.stopPropagation();
         openTagMenu(e.currentTarget, c.id);
+      });
+      div.querySelector('.convMuteBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await toggleConversationSetting(c, 'muted');
+      });
+      div.querySelector('.convArchiveBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await toggleConversationSetting(c, 'archived');
       });
       div.querySelector('.convDeleteBtn').addEventListener('click', async (e) => {
         e.stopPropagation();
@@ -2447,6 +2722,20 @@
         $('emptyState').style.display = 'flex';
         $('activeChat').style.display = 'none';
       }
+      renderConvList();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  }
+
+  // Bascule la sourdine ou l'archivage d'une discussion (propre à moi, voir
+  // ConversationParticipant.muted/archived côté serveur). `key` vaut
+  // "muted" ou "archived".
+  async function toggleConversationSetting(c, key) {
+    const desired = !c[key];
+    try {
+      await api('/api/conversations/' + c.id + '/settings', { method: 'PATCH', body: JSON.stringify({ [key]: desired }) });
+      c[key] = desired;
       renderConvList();
     } catch (err) {
       alert('Erreur : ' + err.message);
@@ -2544,6 +2833,8 @@
     $('typingIndicator').textContent = '';
     updateChatSubtitle(conv);
     cancelReply(); // une réponse en cours concernait forcément l'ancienne discussion
+    cancelEdit(); // une modification en cours concernait forcément l'ancienne discussion
+    closeChatSearch();
 
     if (!messagesByConv[convId]) {
       try {
@@ -2632,17 +2923,62 @@
             <button class="reactionPill${r.userIds.includes(me.id) ? ' mine' : ''}" data-message-id="${m.id}" data-emoji="${r.emoji}">${r.emoji}<span class="reactionCount">${r.userIds.length}</span></button>
           `).join('')}</div>`
         : '';
+      const editBtn = (mine && !m.deleted && (m.type || 'text') === 'text')
+        ? `<button class="msgActionBtn editMsgBtn" data-id="${m.id}" title="Modifier">✏️</button>`
+        : '';
       const actionsHtml = !m.deleted
         ? `<div class="msgActions">
             <button class="msgActionBtn replyMsgBtn" data-id="${m.id}" title="Répondre">↩️</button>
             <button class="msgActionBtn reactMsgBtn" data-id="${m.id}" title="Réagir">😊</button>
+            ${editBtn}
+            <button class="msgActionBtn pinMsgBtn${m.pinned ? ' active' : ''}" data-id="${m.id}" title="${m.pinned ? 'Désépingler' : 'Épingler'}">📌</button>
+            <button class="msgActionBtn forwardMsgBtn" data-id="${m.id}" title="Transférer">↪️</button>
           </div>`
         : '';
-      row.innerHTML = `${actionsHtml}<div class="bubble">${replyQuoteHtml}${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
-        ${body}${reactionsHtml}<div class="msgMeta">${deleteBtn}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
+      // Mentions "modifié"/"Transféré" (comme WhatsApp), affichées dans le pied
+      // de la bulle, avant l'heure.
+      const editedLabel = (!m.deleted && m.edited) ? '<span class="editedLabel">modifié</span>' : '';
+      const forwardedLabel = (!m.deleted && m.forwarded) ? '<div class="forwardedLabel">↪️ Transféré</div>' : '';
+      row.className += m.pinned ? ' pinnedRow' : '';
+      row.innerHTML = `${actionsHtml}<div class="bubble">${forwardedLabel}${replyQuoteHtml}${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
+        ${body}${reactionsHtml}<div class="msgMeta">${deleteBtn}${editedLabel}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
       el.appendChild(row);
     });
     el.scrollTop = el.scrollHeight;
+    renderPinnedBanner();
+    if (inChatSearchTerm) performChatSearch();
+  }
+
+  // ---------- Messages épinglés (bandeau en haut de la discussion) ----------
+  function renderPinnedBanner() {
+    const banner = $('pinnedBanner');
+    const list = messagesByConv[activeConversationId] || [];
+    const pinned = list.filter((m) => m.pinned && !m.deleted);
+    if (pinned.length === 0) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+    banner.innerHTML = pinned.map((m) => `
+      <div class="pinnedItem" data-goto-id="${m.id}">
+        <span class="pinnedIcon">📌</span>
+        <span class="pinnedText">${escapeHtml(m.sender ? m.sender.name + ' : ' : '')}${escapeHtml(messagePreviewText(m))}</span>
+        <button class="pinnedUnpinBtn" data-id="${m.id}" title="Désépingler">✕</button>
+      </div>
+    `).join('');
+    banner.querySelectorAll('.pinnedItem').forEach((item) => {
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.pinnedUnpinBtn')) return;
+        const targetRow = document.querySelector(`.msgRow[data-id="${item.dataset.gotoId}"]`);
+        if (!targetRow) return;
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetRow.classList.add('highlightFlash');
+        setTimeout(() => targetRow.classList.remove('highlightFlash'), 1500);
+      });
+    });
+    banner.querySelectorAll('.pinnedUnpinBtn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePin(btn.dataset.id, false);
+      });
+    });
+    banner.style.display = 'flex';
   }
 
   // Un message envoyé par moi est considéré "lu" quand TOUS les autres
@@ -2793,6 +3129,34 @@
     sendReaction(pill.dataset.messageId, pill.dataset.emoji);
   });
 
+  // Clic sur "✏️" : prépare la modification de ce message (bandeau au-dessus
+  // du composer, comme startReply mais pour message:edit).
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.editMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    const list = messagesByConv[activeConversationId] || [];
+    const m = list.find((x) => x.id === messageId);
+    if (m) startEdit(m);
+  });
+
+  // Clic sur "📌" : épingle/désépingle ce message.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.pinMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    const list = messagesByConv[activeConversationId] || [];
+    const m = list.find((x) => x.id === messageId);
+    if (m) togglePin(messageId, !m.pinned);
+  });
+
+  // Clic sur "↪️" : ouvre la modale de transfert vers d'autres discussions.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.forwardMsgBtn');
+    if (!btn) return;
+    openForwardModal(btn.dataset.id);
+  });
+
   // Clic sur la citation d'un message répondu : fait défiler jusqu'au message
   // d'origine (s'il est déjà chargé dans l'historique affiché) et le met en évidence.
   $('messages').addEventListener('click', (e) => {
@@ -2804,6 +3168,84 @@
     targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
     targetRow.classList.add('highlightFlash');
     setTimeout(() => targetRow.classList.remove('highlightFlash'), 1500);
+  });
+
+  // ---------- Recherche de texte à l'intérieur de la discussion ----------
+  // Purement côté client : l'historique complet de la discussion ouverte est
+  // déjà chargé en mémoire (messagesByConv), pas besoin d'appeler le serveur.
+  function performChatSearch() {
+    const term = inChatSearchTerm.trim().toLowerCase();
+    const list = messagesByConv[activeConversationId] || [];
+    if (!term) {
+      inChatSearchMatches = [];
+      inChatSearchIndex = -1;
+    } else {
+      inChatSearchMatches = list
+        .filter((m) => !m.deleted && (m.type || 'text') === 'text' && m.content && m.content.toLowerCase().includes(term))
+        .map((m) => m.id);
+      // Le plus récent d'abord, comme une recherche classique dans une conversation.
+      inChatSearchIndex = inChatSearchMatches.length ? inChatSearchMatches.length - 1 : -1;
+    }
+    updateChatSearchUi();
+  }
+
+  function updateChatSearchUi() {
+    document.querySelectorAll('.msgRow.searchMatch').forEach((el) => el.classList.remove('searchMatch', 'searchMatchActive'));
+    inChatSearchMatches.forEach((id) => {
+      const row = document.querySelector(`.msgRow[data-id="${id}"]`);
+      if (row) row.classList.add('searchMatch');
+    });
+    if (inChatSearchIndex >= 0) {
+      const activeId = inChatSearchMatches[inChatSearchIndex];
+      const row = document.querySelector(`.msgRow[data-id="${activeId}"]`);
+      if (row) {
+        row.classList.add('searchMatchActive');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+    $('chatSearchCount').textContent = inChatSearchMatches.length
+      ? (inChatSearchIndex + 1) + '/' + inChatSearchMatches.length
+      : (inChatSearchTerm ? '0/0' : '');
+  }
+
+  function gotoChatSearchMatch(dir) {
+    if (!inChatSearchMatches.length) return;
+    inChatSearchIndex = (inChatSearchIndex + dir + inChatSearchMatches.length) % inChatSearchMatches.length;
+    updateChatSearchUi();
+  }
+
+  function openChatSearch() {
+    $('chatSearchBar').style.display = 'flex';
+    $('chatSearchInput').value = inChatSearchTerm;
+    $('chatSearchInput').focus();
+    performChatSearch();
+  }
+
+  function closeChatSearch() {
+    $('chatSearchBar').style.display = 'none';
+    inChatSearchTerm = '';
+    $('chatSearchInput').value = '';
+    inChatSearchMatches = [];
+    inChatSearchIndex = -1;
+    document.querySelectorAll('.msgRow.searchMatch').forEach((el) => el.classList.remove('searchMatch', 'searchMatchActive'));
+    $('chatSearchCount').textContent = '';
+  }
+
+  $('chatSearchBtn').addEventListener('click', () => {
+    if (!activeConversationId) return;
+    if ($('chatSearchBar').style.display === 'none' || !$('chatSearchBar').style.display) openChatSearch();
+    else closeChatSearch();
+  });
+  $('chatSearchCloseBtn').addEventListener('click', closeChatSearch);
+  $('chatSearchInput').addEventListener('input', () => {
+    inChatSearchTerm = $('chatSearchInput').value;
+    performChatSearch();
+  });
+  $('chatSearchNextBtn').addEventListener('click', () => gotoChatSearchMatch(1));
+  $('chatSearchPrevBtn').addEventListener('click', () => gotoChatSearchMatch(-1));
+  $('chatSearchInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') gotoChatSearchMatch(e.shiftKey ? -1 : 1);
+    if (e.key === 'Escape') closeChatSearch();
   });
 
   // ---------- Réactions emoji ----------
@@ -2846,6 +3288,7 @@
 
   // ---------- Réponse citée (reply) ----------
   function startReply(m) {
+    cancelEdit(); // on ne peut pas répondre et modifier en même temps
     replyingTo = m;
     renderReplyBanner();
     $('msgInput').focus();
@@ -2867,11 +3310,117 @@
 
   $('replyBannerClose').addEventListener('click', cancelReply);
 
+  // ---------- Édition d'un message déjà envoyé ----------
+  function startEdit(m) {
+    cancelReply(); // on ne peut pas répondre et modifier en même temps
+    editingMessage = m;
+    $('msgInput').value = m.content || '';
+    renderEditBanner();
+    $('msgInput').focus();
+    updateComposerButtons();
+  }
+
+  function cancelEdit() {
+    if (editingMessage) $('msgInput').value = '';
+    editingMessage = null;
+    renderEditBanner();
+    updateComposerButtons();
+  }
+
+  function renderEditBanner() {
+    $('editBanner').style.display = editingMessage ? 'flex' : 'none';
+  }
+
+  $('editBannerClose').addEventListener('click', cancelEdit);
+
+  // ---------- Messages épinglés ----------
+  function togglePin(messageId, pinned) {
+    socket.emit('message:pin', { messageId, pinned }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+    });
+  }
+
+  // ---------- Transfert d'un message ----------
+  let forwardSelectedIds = new Set();
+
+  function openForwardModal(messageId) {
+    forwardingMessageId = messageId;
+    forwardSelectedIds = new Set();
+    renderForwardList();
+    $('forwardSelectedCount').textContent = '0 sélectionnée(s)';
+    $('forwardSendBtn').disabled = true;
+    $('forwardOverlay').classList.add('show');
+  }
+
+  function closeForwardModal() {
+    forwardingMessageId = null;
+    $('forwardOverlay').classList.remove('show');
+  }
+
+  function renderForwardList() {
+    const el = $('forwardList');
+    el.innerHTML = '';
+    if (conversations.length === 0) {
+      el.innerHTML = '<div class="comingSoon">Aucune discussion disponible.</div>';
+      return;
+    }
+    conversations.forEach((c) => {
+      const label = convLabel(c);
+      const other = c.participants.find((p) => p.id !== me.id) || c.participants[0];
+      const row = document.createElement('label');
+      row.className = 'listItem forwardRow';
+      row.innerHTML = `<input type="checkbox" class="forwardCheckbox" data-conv-id="${c.id}">
+        ${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null)}
+        <div class="liText"><div class="liName">${escapeHtml(label)}</div></div>`;
+      row.querySelector('.forwardCheckbox').addEventListener('change', (e) => {
+        if (e.target.checked) forwardSelectedIds.add(c.id); else forwardSelectedIds.delete(c.id);
+        $('forwardSelectedCount').textContent = forwardSelectedIds.size + ' sélectionnée(s)';
+        $('forwardSendBtn').disabled = forwardSelectedIds.size === 0;
+      });
+      el.appendChild(row);
+    });
+  }
+
+  $('closeForwardBtn').addEventListener('click', closeForwardModal);
+  $('forwardOverlay').addEventListener('click', (e) => {
+    if (e.target === $('forwardOverlay')) closeForwardModal();
+  });
+
+  $('forwardSendBtn').addEventListener('click', () => {
+    if (!forwardingMessageId || forwardSelectedIds.size === 0) return;
+    const messageId = forwardingMessageId;
+    const conversationIds = Array.from(forwardSelectedIds);
+    $('forwardSendBtn').disabled = true;
+    socket.emit('message:forward', { messageId, conversationIds }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+      else if (res && res.results) {
+        const failed = res.results.filter((r) => r.error);
+        if (failed.length) alert(failed.length + ' transfert(s) ont échoué : ' + failed.map((f) => f.error).join(', '));
+      }
+      closeForwardModal();
+    });
+  });
+
   // "attachment", s'il est fourni, a la forme { data (base64), mime, name, size, duration?, type }.
   // Le texte de #msgInput sert alors de légende optionnelle (ex: une photo avec un petit mot).
   function sendMessage(attachment) {
     const input = $('msgInput');
     const content = input.value.trim();
+
+    // Modification d'un message existant (bandeau "Modifier le message"
+    // affiché) : on passe par message:edit plutôt que message:send, et une
+    // pièce jointe éventuelle est ignorée (l'édition ne concerne que le texte).
+    if (editingMessage) {
+      if (!content) return;
+      const messageId = editingMessage.id;
+      socket.emit('message:edit', { messageId, content }, (res) => {
+        if (res && res.error) alert('Erreur modification : ' + res.error);
+      });
+      input.value = '';
+      cancelEdit();
+      return;
+    }
+
     if (!content && !attachment) return;
     if (!activeConversationId) return;
     const replyToId = replyingTo ? replyingTo.id : undefined;
@@ -3589,7 +4138,74 @@
     $('hideLastSeenToggle').checked = Boolean(me.hideLastSeen);
     showSettingsMsg('settingsStorageMsg', '');
     refreshStorageUsageText();
+    refreshPhoneVerifySection();
+    showSettingsMsg('settingsOtpMsg', '');
+    $('otpCodeInput').value = '';
+    $('otpCodeBlock').style.display = 'none';
+    $('deleteAccountPasswordInput').value = '';
+    showSettingsMsg('settingsDeleteAccountMsg', '');
   }
+
+  // ---------- Vérification du numéro par OTP (Paramètres) ----------
+  function refreshPhoneVerifySection() {
+    const verified = Boolean(me && me.phoneVerified);
+    $('phoneVerifiedBadge').style.display = verified ? 'inline' : 'none';
+    $('phoneVerifyAlreadyBlock').style.display = verified ? 'block' : 'none';
+    $('phoneVerifyPendingBlock').style.display = verified ? 'none' : 'block';
+  }
+
+  $('sendOtpBtn').addEventListener('click', async () => {
+    const btn = $('sendOtpBtn');
+    btn.disabled = true;
+    showSettingsMsg('settingsOtpMsg', '');
+    try {
+      const data = await api('/api/auth/otp/send', { method: 'POST' });
+      if (data.alreadyVerified) {
+        me.phoneVerified = true;
+        refreshPhoneVerifySection();
+      } else {
+        $('otpCodeBlock').style.display = 'block';
+        showSettingsMsg('settingsOtpMsg', data.simulated
+          ? 'Code envoyé (voir les journaux du serveur, aucun fournisseur SMS configuré).'
+          : 'Code envoyé par SMS.', false);
+      }
+    } catch (err) {
+      showSettingsMsg('settingsOtpMsg', err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('verifyOtpBtn').addEventListener('click', async () => {
+    const code = $('otpCodeInput').value.trim();
+    if (!code) return showSettingsMsg('settingsOtpMsg', 'Code requis.', true);
+    try {
+      const data = await api('/api/auth/otp/verify', { method: 'POST', body: JSON.stringify({ code }) });
+      me.phoneVerified = data.user.phoneVerified;
+      refreshPhoneVerifySection();
+      showSettingsMsg('settingsOtpMsg', 'Numéro vérifié avec succès.', false);
+    } catch (err) {
+      showSettingsMsg('settingsOtpMsg', err.message, true);
+    }
+  });
+
+  // ---------- Suppression de compte ----------
+  $('deleteAccountBtn').addEventListener('click', async () => {
+    const password = $('deleteAccountPasswordInput').value;
+    if (!password) return showSettingsMsg('settingsDeleteAccountMsg', 'Mot de passe requis.', true);
+    if (!confirm('Supprimer définitivement votre compte ? Cette action est irréversible.')) return;
+    const btn = $('deleteAccountBtn');
+    btn.disabled = true;
+    try {
+      await api('/api/auth/me', { method: 'DELETE', body: JSON.stringify({ password }) });
+      closeSettings();
+      $('logoutBtn').click();
+    } catch (err) {
+      showSettingsMsg('settingsDeleteAccountMsg', err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   function closeSettings() {
     $('settingsOverlay').classList.remove('show');

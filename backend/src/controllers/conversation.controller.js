@@ -38,11 +38,19 @@ function previewLabel(message) {
 }
 
 function serializeConversation(conv, currentUserId) {
+  // Réglages propres à MOI (sourdine/archivage, voir ConversationParticipant) :
+  // recherchés dans la liste déjà chargée des participants plutôt que par une
+  // requête séparée, pour ne pas alourdir listConversations.
+  const mine = currentUserId && conv.participants
+    ? conv.participants.find((p) => (p.userId || (p.user && p.user.id)) === currentUserId)
+    : null;
   return {
     id: conv.id,
     isGroup: conv.isGroup,
     name: conv.name,
     createdAt: conv.createdAt,
+    muted: Boolean(mine && mine.muted),
+    archived: Boolean(mine && mine.archived),
     // On inclut lastReadAt (par participant) en plus des infos publiques de
     // l'utilisateur : c'est ce qui permet au client d'afficher une coche simple
     // (envoyé) ou double (lu par le destinataire), comme WhatsApp/iMessage.
@@ -173,8 +181,42 @@ async function getMessages(req, res) {
       sender: toPublicUser(m.sender),
       replyTo: replyPreview(m.replyTo),
       reactions: aggregateReactions(m.reactions),
+      edited: m.edited,
+      editedAt: m.editedAt,
+      pinned: m.pinned,
+      pinnedAt: m.pinnedAt,
+      forwarded: m.forwarded,
     })),
   });
+}
+
+// Met à jour la sourdine/l'archivage de CETTE conversation pour l'utilisateur
+// connecté (propre à chaque participant, voir ConversationParticipant.muted/archived).
+async function updateMyConversationSettings(req, res) {
+  const { conversationId } = req.params;
+  const { muted, archived } = req.body || {};
+  if (typeof muted !== 'boolean' && typeof archived !== 'boolean') {
+    return res.status(400).json({ error: 'muted et/ou archived (booléen) sont requis.' });
+  }
+  try {
+    const participant = await prisma.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId: req.user.id } },
+    });
+    if (!participant) return res.status(404).json({ error: 'Conversation introuvable.' });
+
+    const data = {};
+    if (typeof muted === 'boolean') data.muted = muted;
+    if (typeof archived === 'boolean') data.archived = archived;
+
+    const updated = await prisma.conversationParticipant.update({
+      where: { id: participant.id },
+      data,
+    });
+    return res.json({ ok: true, muted: updated.muted, archived: updated.archived });
+  } catch (err) {
+    console.error('updateMyConversationSettings error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la mise à jour de la discussion.' });
+  }
 }
 
 // Supprime une conversation de ma liste (Paramètres → Utilisateurs / liste des
@@ -211,5 +253,6 @@ module.exports = {
   leaveConversation,
   serializeConversation,
   notifyConversationCreated,
+  updateMyConversationSettings,
 };
 

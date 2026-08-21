@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const { signToken } = require('../utils/jwt');
+const { createAndSendOtp, verifyOtp } = require('../utils/otp');
 
 // Retire les espaces/tirets pour que "+224 621 00 00 00" et "+224-621-00-00-00"
 // soient reconnus comme le même numéro à l'inscription comme à la connexion.
@@ -26,6 +27,10 @@ function toPublicUser(user) {
     // vraie valeur. Les autres utilisateurs ne la voient jamais (voir
     // user.controller.js / conversation.controller.js, qui la masquent).
     hideLastSeen: Boolean(user.hideLastSeen),
+    // Vrai si ce numéro a été confirmé par code OTP (voir sendVerificationOtp /
+    // verifyPhone plus bas) : purement informatif pour l'instant, affiché comme
+    // un badge "Numéro vérifié" dans Paramètres.
+    phoneVerified: Boolean(user.phoneVerified),
   };
 }
 
@@ -95,4 +100,126 @@ async function me(req, res) {
   return res.json({ user: toPublicUser(user) });
 }
 
-module.exports = { register, login, me, toPublicUser };
+// Envoie (ou renvoie) un code OTP par SMS pour confirmer le numéro de
+// l'utilisateur connecté (Paramètres → "Vérifier mon numéro"). Toujours son
+// PROPRE numéro (celui de son compte) : pas de paramètre "phone" ici, pour
+// éviter qu'on puisse déclencher l'envoi de SMS vers un numéro arbitraire.
+async function sendVerificationOtp(req, res) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+    if (user.phoneVerified) return res.json({ ok: true, alreadyVerified: true });
+
+    const result = await createAndSendOtp(user.phone, 'verify_phone');
+    if (!result.ok) return res.status(429).json({ error: result.error });
+    return res.json({ ok: true, simulated: result.simulated });
+  } catch (err) {
+    console.error('sendVerificationOtp error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de l\'envoi du code.' });
+  }
+}
+
+// Confirme le code reçu par SMS et marque le numéro comme vérifié.
+async function verifyPhone(req, res) {
+  try {
+    const { code } = req.body;
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    const result = await verifyOtp(user.phone, 'verify_phone', code);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+
+    const updated = await prisma.user.update({ where: { id: user.id }, data: { phoneVerified: true } });
+    return res.json({ ok: true, user: toPublicUser(updated) });
+  } catch (err) {
+    console.error('verifyPhone error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la vérification du code.' });
+  }
+}
+
+// Demande un code de réinitialisation de mot de passe pour un numéro donné
+// (écran "Mot de passe oublié", pas besoin d'être connecté). Répond toujours
+// { ok: true } que le numéro corresponde ou non à un compte existant, pour ne
+// pas laisser deviner quels numéros sont inscrits (énumération de comptes) —
+// seul un compte existant reçoit réellement un SMS.
+async function forgotPassword(req, res) {
+  try {
+    const phone = normalizePhone(req.body.phone);
+    if (!phone || !PHONE_REGEX.test(phone)) {
+      return res.status(400).json({ error: 'Numéro de téléphone invalide.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (user) {
+      const result = await createAndSendOtp(phone, 'reset_password');
+      if (!result.ok) return res.status(429).json({ error: result.error });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('forgotPassword error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la demande de réinitialisation.' });
+  }
+}
+
+// Confirme le code reçu par SMS et enregistre le nouveau mot de passe.
+async function resetPassword(req, res) {
+  try {
+    const phone = normalizePhone(req.body.phone);
+    const { code, newPassword } = req.body;
+    if (!phone || !code || !newPassword) {
+      return res.status(400).json({ error: 'phone, code et newPassword sont requis.' });
+    }
+    if (newPassword.length < 6) {
+      return res.status(400).json({ error: 'Le nouveau mot de passe doit contenir au moins 6 caractères.' });
+    }
+
+    const user = await prisma.user.findUnique({ where: { phone } });
+    if (!user) return res.status(400).json({ error: 'Code incorrect.' }); // pas de fuite d'existence de compte
+
+    const result = await verifyOtp(phone, 'reset_password', code);
+    if (!result.ok) return res.status(400).json({ error: result.error });
+
+    const hashed = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: user.id }, data: { password: hashed } });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('resetPassword error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la réinitialisation du mot de passe.' });
+  }
+}
+
+// Suppression définitive du compte connecté (Paramètres → "Supprimer mon
+// compte"), confirmée par le mot de passe. Cascade en base (voir
+// schema.prisma, onDelete: Cascade sur toutes les relations de User) :
+// messages envoyés, participations aux discussions, appels, statuts,
+// communautés créées, abonnements push, etc. sont supprimés avec le compte.
+async function deleteMyAccount(req, res) {
+  try {
+    const { password } = req.body;
+    if (!password) return res.status(400).json({ error: 'Mot de passe requis pour confirmer la suppression.' });
+
+    const user = await prisma.user.findUnique({ where: { id: req.user.id } });
+    if (!user) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
+    const valid = await bcrypt.compare(password, user.password);
+    if (!valid) return res.status(401).json({ error: 'Mot de passe incorrect.' });
+
+    await prisma.user.delete({ where: { id: user.id } });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('deleteMyAccount error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la suppression du compte.' });
+  }
+}
+
+module.exports = {
+  register,
+  login,
+  me,
+  toPublicUser,
+  sendVerificationOtp,
+  verifyPhone,
+  forgotPassword,
+  resetPassword,
+  deleteMyAccount,
+};
