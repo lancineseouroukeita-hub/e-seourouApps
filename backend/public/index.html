@@ -9,16 +9,32 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
+
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="seourouApps">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<!-- Servi directement par notre propre serveur Socket.io (même origine), plutôt
+     que depuis un CDN externe (cdnjs) : certains réseaux (pare-feu d'entreprise,
+     certains opérateurs/pays) bloquent les CDN tiers sans bloquer le site lui-même,
+     ce qui empêchait toute l'app de fonctionner (l'échec de connexion en temps réel
+     interrompait aussi le chargement des utilisateurs/discussions). Garantit en
+     plus que la version du client correspond toujours exactement à celle du serveur. -->
+<script src="/socket.io/socket.io.js"></script>
 <style>
   :root{
     --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --border:#2a2f3a;
     --text:#e8eaed; --muted:#9aa2b1; --accent:#4f7cff; --accent2:#3a63d6;
     --danger:#e5484d; --success:#2ecc71; --radius:10px;
+    /* Taille de police des discussions (Paramètres → Apparence → Taille du
+       texte, comme WhatsApp) : un seul multiplicateur, appliqué via calc() à
+       chaque endroit concerné (bulles de message, noms/aperçus de la liste,
+       champ de saisie...). 1 = taille normale ; changé par une classe sur
+       <body> (voir body.text-small/text-large plus bas). */
+    --chat-font-scale:1;
   }
+  body.text-small{--chat-font-scale:0.88;}
+  body.text-large{--chat-font-scale:1.2;}
   /* Thème clair (Paramètres → Apparence), activé via une classe sur <body> et
      mémorisé dans ce navigateur — mêmes couleurs d'accent/danger/succès, seules
      les surfaces (fond, panneaux, texte) changent pour rester lisible. */
@@ -54,6 +70,17 @@
   #topbar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:13px;width:220px;}
   #topbar button{background:var(--accent);border:none;color:white;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;}
   #topbar button:hover{background:var(--accent2);}
+  /* Champs de test/débogage (URL de l'API alternative, bouton de test, texte
+     technique du statut de connexion) : utiles en développement, mais n'ont
+     rien à faire dans une vraie application "propre" livrée à des utilisateurs.
+     Masqués par défaut sur toutes les tailles d'écran ; réapparaissent
+     seulement avec "?debug" dans l'URL (voir tout en bas du script). Le petit
+     point de statut (#statusDot) reste toujours visible : discret, il suffit à
+     rassurer sur la connexion sans jargon technique. */
+  #apiBaseInput, #testBackendBtn, #statusText{display:none;}
+  body.debug-mode #apiBaseInput{display:inline-block;}
+  body.debug-mode #testBackendBtn{display:inline-block;}
+  body.debug-mode #statusText{display:inline;}
   #statusDot{width:9px;height:9px;border-radius:50%;background:var(--danger);display:inline-block;}
   #statusDot.ok{background:var(--success);}
   #statusText{color:var(--muted);}
@@ -63,14 +90,14 @@
   /* Auth screen */
   #authScreen{flex:1;display:flex;align-items:center;justify-content:center;}
   .authCard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:340px;}
-  .authCard h1{font-size:18px;margin:0 0 4px;}
+  .authCard h1{font-size:20px;margin:0 0 4px;}
   .authCard p.sub{color:var(--muted);font-size:13px;margin:0 0 18px;}
   .tabs{display:flex;gap:6px;margin-bottom:16px;}
   .tabs button{flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;font-size:13px;}
   .tabs button.active{background:var(--accent);color:white;border-color:var(--accent);}
   .authCard label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;}
-  .authCard input{width:100%;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
-  .authCard .primaryBtn{width:100%;margin-top:18px;padding:10px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:14px;cursor:pointer;}
+  .authCard input{width:100%;padding:10px 11px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15.5px;}
+  .authCard .primaryBtn{width:100%;margin-top:18px;padding:11px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:15.5px;cursor:pointer;}
   .authCard .primaryBtn:hover{background:var(--accent2);}
   .errorMsg{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:16px;}
 
@@ -82,7 +109,7 @@
   /* En-tête façon "Discussions" (titre + appareil photo + nouvelle discussion),
      barre de recherche et filtres, au-dessus de la liste des conversations. */
   #sidebarTopRow{display:flex;align-items:center;gap:6px;padding:12px 10px 8px;flex-shrink:0;}
-  #sidebarTopRow h1{font-size:19px;font-weight:800;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.01em;}
+  #sidebarTopRow h1{font-size:21px;font-weight:800;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.01em;}
   .roundIconBtn,.roundIconBtnPrimary{width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;line-height:1;padding:0;}
   .roundIconBtn{background:var(--panel2);color:var(--text);}
   .roundIconBtn:hover{background:var(--border);}
@@ -122,12 +149,14 @@
   .listItem{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-left:3px solid transparent;}
   .listItem:hover{background:var(--panel2);}
   .listItem.active{background:var(--panel2);border-left-color:var(--accent);}
-  .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;position:relative;}
   .avatar.avatarPhoto{background-size:cover;background-position:center;color:transparent;}
   .avatar.avatarSmall{width:26px;height:26px;font-size:11px;cursor:pointer;}
+  /* Petit point vert "en ligne" façon WhatsApp, superposé au coin de l'avatar. */
+  .onlineDot{position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;background:var(--success);border:2px solid var(--panel);}
   .liText{min-width:0;}
-  .liName{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .liSub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
+  .liName{font-size:calc(15.5px * var(--chat-font-scale));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .liSub{font-size:calc(13px * var(--chat-font-scale));color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
   #userList{border-top:1px solid var(--border);}
 
   /* Écrans de premier niveau accessibles depuis la barre d'onglets du bas
@@ -161,7 +190,7 @@
      (chatOpen) — sur PC elle reste visible même pendant une conversation,
      puisque la liste des discussions et la conversation sont côte à côte. */
   #bottomTabBar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);border-top:1px solid var(--border);padding:6px max(6px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));}
-  .tabBtn{flex:1;background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;cursor:pointer;padding:4px 0 2px;position:relative;}
+  .tabBtn{flex:1;background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;cursor:pointer;padding:4px 0 2px;position:relative;}
   /* Icônes façon "Réglages iOS" : chaque onglet a son propre badge coloré en
      permanence (couleur distincte, pas seulement vert/gris), pour un rendu
      plus professionnel et pour distinguer les sections d'un coup d'œil. */
@@ -181,7 +210,13 @@
 
   #chatArea{flex:1;display:flex;flex-direction:column;min-width:0;}
   #chatHeader{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
-  #chatHeader .title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #chatHeader .titleWrap{display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+  #chatHeader .title{font-size:16.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* "en ligne" / "vu à …" sous le nom, comme WhatsApp. Vide (et sans marge) pour
+     un groupe, ou tant que le statut n'a pas encore été déterminé. */
+  #chatHeader .subtitle{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #chatHeader .subtitle:empty{display:none;}
+  #chatHeader .subtitle.online{color:var(--success);}
   /* Bouton "retour à la liste" : un rond avec un chevron, comme le bouton
      retour natif de WhatsApp/iOS, pour qu'il soit reconnaissable comme un vrai
      bouton d'app (et pas confondu avec le geste de retour du navigateur, qui
@@ -212,7 +247,7 @@
   #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
   .msgRow{display:flex;}
   .msgRow.mine{justify-content:flex-end;}
-  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:13.5px;line-height:1.4;}
+  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:calc(15px * var(--chat-font-scale));line-height:1.4;}
   .msgRow.mine .bubble{background:var(--accent);color:white;border-bottom-right-radius:4px;}
   .msgRow:not(.mine) .bubble{background:var(--panel2);border-bottom-left-radius:4px;}
   .bubble .sender{font-size:11px;color:var(--muted);margin-bottom:2px;}
@@ -227,7 +262,48 @@
   .deleteMsgBtn:hover{opacity:1;}
   .eraseMsgBtn{background:none;border:none;cursor:pointer;font-size:11px;opacity:.55;padding:0;line-height:1;color:inherit;}
   .eraseMsgBtn:hover{opacity:1;color:#ff5c5c;}
-  .msgDeleted{font-style:italic;opacity:.65;font-size:13px;display:flex;align-items:center;gap:6px;}
+  /* Boutons "répondre" / "réagir" : masqués par défaut, révélés au survol de la
+     bulle (souris) ; toujours visibles sur mobile (pas de survol) via la media
+     query tactile plus bas. */
+  .msgRow{position:relative;}
+  .msgActions{display:flex;gap:2px;align-self:center;opacity:0;transition:opacity .12s ease;}
+  .msgRow:hover .msgActions{opacity:1;}
+  /* Les actions sont toujours en premier dans le HTML (avant la bulle) : pour
+     un message reçu (aligné à gauche), on les repousse après la bulle avec
+     "order" afin qu'elles apparaissent à sa droite, comme sur WhatsApp. Pour un
+     message envoyé (aligné à droite, justify-content:flex-end), l'ordre HTML
+     d'origine les place déjà juste à gauche de la bulle. */
+  .msgRow:not(.mine) .msgActions{order:1;}
+  .msgActionBtn{background:var(--panel2);border:1px solid var(--border);border-radius:50%;width:26px;height:26px;padding:0;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:inherit;flex-shrink:0;}
+  .msgActionBtn:hover{background:var(--border);}
+  @media (hover:none){ .msgActions{opacity:1;} }
+  /* Citation du message auquel on répond, affichée en haut de la bulle
+     (comme WhatsApp) : un petit bandeau plus sombre/plus clair selon le sens. */
+  .replyQuote{border-left:3px solid var(--accent);border-radius:6px;padding:4px 8px;margin-bottom:5px;font-size:calc(12.5px * var(--chat-font-scale));background:rgba(0,0,0,.12);cursor:pointer;}
+  .msgRow.mine .replyQuote{background:rgba(255,255,255,.18);border-left-color:rgba(255,255,255,.85);}
+  .replyQuote .replyQuoteSender{font-weight:600;opacity:.9;}
+  .replyQuote .replyQuoteText{opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .msgRow.highlightFlash .bubble{animation:highlightFlash 1.4s ease;}
+  @keyframes highlightFlash{0%{box-shadow:0 0 0 2px var(--accent);}100%{box-shadow:0 0 0 0 transparent;}}
+  /* Pastilles de réactions emoji sous la bulle, comme WhatsApp. */
+  .reactionPills{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;}
+  .reactionPill{background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:1px 7px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px;color:var(--text);}
+  .reactionPill.mine{border-color:var(--accent);background:rgba(11,132,255,.15);}
+  .reactionPill .reactionCount{font-size:10.5px;opacity:.75;}
+  /* Petit sélecteur d'emoji flottant (même style que .tagMenu), ouvert par le
+     bouton "réagir" d'un message. */
+  .reactionPicker{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px;z-index:200;display:flex;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .reactionPicker button{background:none;border:none;font-size:20px;cursor:pointer;padding:2px 4px;line-height:1;border-radius:8px;}
+  .reactionPicker button:hover{background:var(--panel2);transform:scale(1.15);}
+  /* Bandeau "réponse à …" au-dessus de la barre de saisie, avec bouton d'annulation. */
+  #replyBanner{display:flex;align-items:center;gap:8px;padding:8px 18px;border-top:1px solid var(--border);background:var(--panel2);}
+  #replyBanner .replyBannerBar{width:3px;align-self:stretch;background:var(--accent);border-radius:2px;flex-shrink:0;}
+  #replyBannerContent{flex:1;min-width:0;font-size:13px;}
+  #replyBannerContent .replyBannerSender{font-weight:600;color:var(--accent);}
+  #replyBannerContent .replyBannerText{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #replyBannerClose{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:4px;flex-shrink:0;}
+  #replyBannerClose:hover{color:var(--text);}
+  .msgDeleted{font-style:italic;opacity:.65;font-size:calc(14px * var(--chat-font-scale));display:flex;align-items:center;gap:6px;}
   .blockUserBtn{background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11px;padding:5px 9px;color:inherit;opacity:.8;white-space:nowrap;}
   .blockUserBtn:hover{opacity:1;}
   .blockUserBtn.isBlocked{border-color:#ff5c5c;color:#ff5c5c;}
@@ -249,12 +325,12 @@
   .composerIconBtn.recording{background:var(--danger);color:white;animation:recordPulse 1s infinite;}
   @keyframes recordPulse{0%{opacity:1;}50%{opacity:.55;}100%{opacity:1;}}
   #msgInputWrap{position:relative;flex:1;min-width:0;display:flex;align-items:center;}
-  #msgInputWrap input[type="text"]{width:100%;box-sizing:border-box;padding:10px 34px 10px 14px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+  #msgInputWrap input[type="text"]{width:100%;box-sizing:border-box;padding:10px 34px 10px 14px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:calc(15px * var(--chat-font-scale));}
   #msgInputWrap .emojiIcon{position:absolute;right:12px;font-size:15px;color:var(--muted);pointer-events:none;}
   #recordingTime{display:none;position:absolute;right:14px;color:var(--danger);font-size:12.5px;font-variant-numeric:tabular-nums;background:var(--panel2);padding:0 2px;}
   #sendBtn{display:none;background:var(--accent);border:none;color:white;border-radius:50%;width:38px;height:38px;padding:0;cursor:pointer;font-size:15px;align-items:center;justify-content:center;flex-shrink:0;}
   #sendBtn:hover{background:var(--accent2);}
-  #emptyState{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;}
+  #emptyState{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px;}
 
   /* Pièces jointes dans les bulles de message */
   .msgCaption{margin-top:4px;}
@@ -305,7 +381,7 @@
   #settingsBody{padding:14px;overflow-y:auto;}
   .settingsSection{padding:16px;border-radius:14px;background:var(--panel);margin-bottom:12px;}
   .settingsSection:last-child{margin-bottom:0;}
-  .settingsSection h3{margin:0 0 12px;font-size:14px;color:var(--text);font-weight:700;display:flex;align-items:center;gap:10px;}
+  .settingsSection h3{margin:0 0 12px;font-size:15px;color:var(--text);font-weight:700;display:flex;align-items:center;gap:10px;}
   .settingsSection h3 .settingsIcon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--panel2);font-size:13px;flex-shrink:0;}
   .settingsAvatarRow{display:flex;align-items:center;gap:14px;}
   .settingsAvatarRow .avatar{width:56px;height:56px;font-size:20px;cursor:pointer;flex-shrink:0;}
@@ -313,20 +389,31 @@
   .settingsAvatarField label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
   .settingsInlineRow{display:flex;gap:8px;}
   .settingsInlineRow input{flex:1;min-width:0;}
-  #settingsBody input[type="text"],#settingsBody input[type="password"]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:8px;}
+  #settingsBody input[type="text"],#settingsBody input[type="password"]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15px;margin-bottom:8px;}
   #settingsBody button{background:var(--accent);border:none;color:white;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:13px;white-space:nowrap;}
   #settingsBody button:hover{background:var(--accent2);}
   .settingsStatic{margin-top:12px;font-size:13px;color:var(--muted);}
   .settingsMsg{margin-top:8px;font-size:12.5px;min-height:16px;}
   .settingsMsg.error{color:var(--danger);}
   .settingsMsg.success{color:var(--success);}
-  .switchRow{display:flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;margin-bottom:12px;}
+  .switchRow{display:flex;align-items:center;gap:10px;font-size:14.5px;cursor:pointer;margin-bottom:12px;}
   .switchRow:last-child{margin-bottom:0;}
   .switchRow input{position:absolute;opacity:0;width:0;height:0;}
   .switchTrack{position:relative;width:38px;height:22px;border-radius:11px;background:var(--panel2);border:1px solid var(--border);flex-shrink:0;transition:background .15s;}
   .switchTrack::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s;}
   .switchRow input:checked + .switchTrack{background:var(--accent);border-color:var(--accent);}
   .switchRow input:checked + .switchTrack::after{transform:translateX(16px);background:white;}
+
+  /* Taille du texte des discussions (Paramètres → Apparence), même style de
+     "pilules" que les onglets Texte/Photo du composeur de statut. */
+  .textSizeTabs{display:flex;gap:8px;}
+  /* Spécificité "#settingsBody .textSizeTab" (et pas juste ".textSizeTab")
+     nécessaire pour l'emporter sur la règle générique "#settingsBody button"
+     ci-dessus, plus spécifique à cause de son sélecteur d'id : sans ça, les
+     trois boutons (Petite/Moyenne/Grande) apparaissaient tous en bleu plein,
+     impossible de distinguer celui réellement sélectionné. */
+  #settingsBody .textSizeTab{flex:1;padding:7px 0;border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;}
+  #settingsBody .textSizeTab.active{background:var(--accent);border-color:var(--accent);color:white;}
 
   /* Nuancier de couleurs d'accent (Paramètres → Apparence). */
   .accentSwatches{display:flex;flex-wrap:wrap;gap:12px;margin-top:2px;}
@@ -421,8 +508,6 @@
      messagerie habituelles : soit la liste, soit la conversation ouverte,
      avec un bouton retour pour revenir à la liste. */
   @media (max-width: 700px) {
-    /* Les champs de test/débogage (URL de l'API) ne servent qu'en dev, pas au quotidien. */
-    #apiBaseInput, #testBackendBtn, #statusText{display:none;}
     #topbar{gap:8px;padding:max(28px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left));}
     #whoami{gap:6px;}
     #whoamiText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34vw;}
@@ -457,6 +542,16 @@
        largeur (sidebar + zone de conversation cachées par switchBottomTab),
        au lieu de rester coincés dans la largeur de la colonne de gauche. */
     #callsScreen, #statusScreen, #communitiesScreen{flex:1;}
+  }
+
+  /* ---------- Tablette / petite fenêtre PC (701-900px) ---------- */
+  /* La barre latérale à largeur fixe (280px) laisse trop peu de place à la
+     conversation sur un écran juste au-dessus du seuil mobile (ex: tablette
+     en portrait, ou fenêtre de bureau redimensionnée en petit) : on la
+     réduit un peu plutôt que de la garder à la même largeur qu'un grand écran. */
+  @media (min-width: 701px) and (max-width: 900px) {
+    #sidebar{width:230px;}
+    .liSub{max-width:150px;}
   }
 </style>
 </head>
@@ -564,7 +659,10 @@
         <div id="chatHeader">
           <button id="backToListBtn" title="Retour à la liste des discussions">‹</button>
           <div class="avatar" id="chatAvatar">?</div>
-          <div class="title" id="chatTitle">—</div>
+          <div class="titleWrap">
+            <div class="title" id="chatTitle">—</div>
+            <div class="subtitle" id="chatSubtitle"></div>
+          </div>
           <div class="callBtns">
             <button id="videoCallBtn" title="Appel vidéo"><span class="callIcon">🎥</span></button>
             <button id="audioCallBtn" title="Appel audio"><span class="callIcon">📞</span></button>
@@ -572,6 +670,11 @@
         </div>
         <div id="messages"></div>
         <div id="typingIndicator"></div>
+        <div id="replyBanner" style="display:none;">
+          <div class="replyBannerBar"></div>
+          <div id="replyBannerContent"></div>
+          <button id="replyBannerClose" title="Annuler la réponse">✕</button>
+        </div>
         <div id="composer">
           <input type="file" id="fileInput" style="display:none">
           <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
@@ -654,6 +757,24 @@
           <div class="settingsMsg" id="settingsProfileMsg"></div>
         </section>
 
+        <!-- Installation de l'application (PWA) : bouton natif sur Android/PC
+             (Chrome/Edge), instructions manuelles sur iPhone (Safari ne permet
+             pas de déclencher l'installation par script). Masquée entièrement
+             si l'app est déjà installée (voir refreshInstallSection ci-dessous). -->
+        <section class="settingsSection" id="installSection" style="display:none;">
+          <h3><span class="settingsIcon">📲</span>Installation</h3>
+          <div id="installAvailableBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Installez seourouApps sur cet appareil pour l'ouvrir comme une vraie application, avec son icône, en plein écran et hors du navigateur.</label>
+            <button id="installAppBtn" style="width:100%;">📲 Installer l'application</button>
+          </div>
+          <div id="installIosBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--muted);">Sur iPhone/iPad : appuyez sur <strong>Partager</strong> <span style="opacity:.8;">(le carré avec une flèche, en bas de Safari)</span>, puis sur <strong>« Sur l'écran d'accueil »</strong>.</label>
+          </div>
+          <div id="installDoneBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--success);">✓ Application déjà installée sur cet appareil.</label>
+          </div>
+        </section>
+
         <section class="settingsSection">
           <h3><span class="settingsIcon">🔔</span>Notifications</h3>
           <label class="switchRow"><input type="checkbox" id="notifToggle"><span class="switchTrack"></span> Notifications push (nouveaux messages, appels)</label>
@@ -674,12 +795,32 @@
             <button class="accentSwatch" data-accent="rouge" style="background:#ef4444" title="Rouge"></button>
             <button class="accentSwatch" data-accent="turquoise" style="background:#14b8a6" title="Turquoise"></button>
           </div>
+          <label style="display:block;font-size:12px;color:var(--muted);margin:16px 0 8px;">Taille du texte des discussions</label>
+          <div class="textSizeTabs">
+            <button class="textSizeTab" data-size="small">Petite</button>
+            <button class="textSizeTab" data-size="medium">Moyenne</button>
+            <button class="textSizeTab" data-size="large">Grande</button>
+          </div>
         </section>
 
         <section class="settingsSection">
           <h3><span class="settingsIcon">🔒</span>Confidentialité</h3>
+          <label class="switchRow"><input type="checkbox" id="hideLastSeenToggle"><span class="switchTrack"></span> Masquer ma dernière connexion</label>
+          <label style="display:block;font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Personne ne verra plus si vous êtes en ligne ni l'heure de votre dernière connexion (vous continuez à voir celle des autres).</label>
           <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:8px;">Utilisateurs bloqués — ils ne peuvent plus vous envoyer de message ni vous appeler.</label>
           <div id="blockedUsersList"></div>
+        </section>
+
+        <!-- Export/sauvegarde des discussions + gestion du stockage local
+             (cache de l'application, comme WhatsApp → Stockage et données). -->
+        <section class="settingsSection">
+          <h3><span class="settingsIcon">💾</span>Stockage et données</h3>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Téléchargez une sauvegarde de vos discussions (texte, au format JSON) que vous pouvez conserver sur cet appareil.</label>
+          <button id="exportBackupBtn" style="width:100%;margin-bottom:14px;">⬇️ Exporter mes discussions</button>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;">Vide les fichiers mis en cache par l'application (pas vos discussions, qui restent sur le serveur) — utile si l'app affiche une version périmée après une mise à jour.</label>
+          <div id="storageUsageText" style="font-size:11.5px;color:var(--muted);margin-bottom:10px;"></div>
+          <button id="clearCacheBtn" style="width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);">🧹 Vider le cache</button>
+          <div class="settingsMsg" id="settingsStorageMsg"></div>
         </section>
 
         <section class="settingsSection">
@@ -826,6 +967,11 @@
   // tester contre un backend différent pendant le développement).
   document.getElementById('apiBaseInput').value = location.origin;
   let apiBase = document.getElementById('apiBaseInput').value.replace(/\/$/, '');
+  // "?debug" dans l'URL réaffiche les champs techniques (URL de l'API
+  // alternative, bouton de test, statut de connexion en texte) — invisibles
+  // par défaut pour ne pas polluer l'interface d'une vraie utilisatrice/d'un
+  // vrai utilisateur (voir la règle CSS "body.debug-mode" plus haut).
+  if (new URLSearchParams(location.search).has('debug')) document.body.classList.add('debug-mode');
   let token = null;
   let me = null;
   let socket = null;
@@ -838,6 +984,11 @@
   // "?c=<conversationId>" à l'URL d'ouverture : on retrouve la conversation visée ici.
   let pendingConversationIdFromNotification = new URLSearchParams(location.search).get('c') || null;
   let typingTimeout = null;
+  // Message auquel on est en train de répondre (bandeau au-dessus du composer),
+  // ou null si aucune réponse en cours. Réinitialisé après envoi/annulation.
+  let replyingTo = null;
+  // Emoji proposés pour les réactions rapides (comme le sélecteur court de WhatsApp).
+  const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
   // ---------- Préférences locales (Paramètres) ----------
   // Propres à cet appareil/navigateur, pas au compte : pas besoin d'être connecté
@@ -847,6 +998,19 @@
   const ACCENT_COLORS = ['bleu', 'vert', 'violet', 'rose', 'orange', 'rouge', 'turquoise'];
   const savedAccent = localStorage.getItem('seourou_accent');
   document.body.classList.add('accent-' + (ACCENT_COLORS.includes(savedAccent) ? savedAccent : 'bleu'));
+
+  // Taille du texte des discussions (Paramètres → Apparence), comme le
+  // réglage "Taille de police" de WhatsApp : "medium" = taille normale, donc
+  // pas de classe particulière à ajouter dans ce cas (voir --chat-font-scale).
+  const TEXT_SIZES = ['small', 'medium', 'large'];
+  let textSize = TEXT_SIZES.includes(localStorage.getItem('seourou_text_size')) ? localStorage.getItem('seourou_text_size') : 'medium';
+  function applyTextSize(size) {
+    textSize = TEXT_SIZES.includes(size) ? size : 'medium';
+    document.body.classList.remove('text-small', 'text-large');
+    if (textSize !== 'medium') document.body.classList.add('text-' + textSize);
+    localStorage.setItem('seourou_text_size', textSize);
+  }
+  applyTextSize(textSize);
 
   // ---------- Recherche et filtres de la liste des discussions ----------
   let convSearchTerm = '';
@@ -1110,7 +1274,10 @@
     renderMyAvatar();
     $('logoutBtn').style.display = 'inline-block';
     $('settingsBtn').style.display = 'inline-block';
-    connectSocket();
+    // Isolé dans son propre try/catch : même si la connexion temps réel échoue
+    // tout de suite (ex: réseau qui bloque les WebSockets), le reste de l'app
+    // (liste des utilisateurs, discussions déjà envoyées) doit rester utilisable.
+    try { connectSocket(); } catch (err) { console.error('connectSocket a échoué :', err); setStatus(false, 'Connexion temps réel indisponible'); }
     loadUsers();
     loadConversations();
     setupPushNotifications();
@@ -1801,9 +1968,34 @@
   function connectSocket() {
     socket = io(apiBase, { auth: { token } });
 
-    socket.on('connect', () => setStatus(true, 'Connecté en temps réel (' + apiBase + ')'));
+    socket.on('connect', () => {
+      setStatus(true, 'Connecté en temps réel (' + apiBase + ')');
+      // Le socket vient de se (re)connecter alors qu'un appel était en cours
+      // de notre côté (coupure réseau brève, changement wifi/4G, application
+      // remise au premier plan...) : le serveur nous a peut-être déjà retirés
+      // de la room d'appel entre-temps. On rejoint donc à nouveau tout de
+      // suite (avant l'expiration de son délai de grâce, voir signaling.js
+      // côté serveur) et on renégocie une connexion WebRTC fraîche avec
+      // chaque participant encore présent — l'ancienne, liée à la connexion
+      // réseau précédente, ne peut de toute façon plus être réparée.
+      if (currentCall) rejoinCallAfterReconnect();
+    });
     socket.on('connect_error', (err) => setStatus(false, 'Erreur socket: ' + err.message));
-    socket.on('disconnect', () => setStatus(false, 'Déconnecté du serveur temps réel'));
+    socket.on('disconnect', () => {
+      setStatus(false, 'Déconnecté du serveur temps réel');
+      if (currentCall) updateCallInfoText('connexion réseau perdue, reconnexion en cours…');
+    });
+
+    // On vient d'être ajouté à une nouvelle discussion (1-à-1, groupe, ou
+    // groupe d'annonces d'une communauté) : elle doit apparaître tout de suite
+    // dans la liste, sans attendre un rechargement de l'application — comme
+    // WhatsApp quand quelqu'un vous ajoute à un groupe.
+    socket.on('conversation:new', ({ conversation }) => {
+      if (!conversation || conversations.find((c) => c.id === conversation.id)) return;
+      conversations.unshift(conversation);
+      renderConvList();
+      socket.emit('conversation:join', { conversationId: conversation.id });
+    });
 
     socket.on('message:new', (msg) => {
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
@@ -1865,6 +2057,36 @@
     socket.on('typing', ({ conversationId, userId, isTyping }) => {
       if (conversationId !== activeConversationId || userId === me.id) return;
       $('typingIndicator').textContent = isTyping ? 'en train d\'écrire…' : '';
+    });
+
+    // Un utilisateur vient de se connecter/déconnecter (au moins un appareil) :
+    // on met à jour son statut partout où il apparaît (liste d'utilisateurs,
+    // participants des conversations déjà chargées, en-tête de la discussion
+    // ouverte) sans recharger quoi que ce soit depuis le serveur.
+    socket.on('presence:update', ({ userId, online, lastSeenAt }) => {
+      // lastSeenAt peut valoir explicitement null (ex: l'utilisateur vient
+      // d'activer "masquer ma dernière connexion") : il faut alors bien
+      // effacer l'ancienne valeur, pas la conserver — d'où le "!== undefined"
+      // plutôt qu'un simple test de vérité.
+      const u = users.find((x) => x.id === userId);
+      if (u) { u.online = online; if (lastSeenAt !== undefined) u.lastSeenAt = lastSeenAt; }
+      conversations.forEach((c) => {
+        const p = c.participants.find((x) => x.id === userId);
+        if (p) { p.online = online; if (lastSeenAt !== undefined) p.lastSeenAt = lastSeenAt; }
+      });
+      renderUserList();
+      if (document.getElementById('settingsScreen')?.style.display !== 'none') renderBlockedUsersList();
+      const conv = conversations.find((c) => c.id === activeConversationId);
+      if (conv && !conv.isGroup && conv.participants.some((p) => p.id === userId)) updateChatSubtitle(conv);
+    });
+
+    // Réactions emoji mises à jour sur un message (ajout/retrait/changement par
+    // n'importe quel participant, sur n'importe quel appareil).
+    socket.on('message:reaction', ({ conversationId, messageId, reactions }) => {
+      const list = messagesByConv[conversationId];
+      const m = list && list.find((x) => x.id === messageId);
+      if (m) m.reactions = reactions;
+      if (conversationId === activeConversationId) renderMessages();
     });
 
     // Calls
@@ -1959,12 +2181,13 @@
 
   // Rend le HTML d'un avatar : la vraie photo si l'utilisateur en a une,
   // sinon les initiales sur fond de couleur (comportement d'origine).
-  function avatarDivHtml(name, avatarUrl, extraClass) {
+  function avatarDivHtml(name, avatarUrl, extraClass, online) {
     const cls = 'avatar' + (avatarUrl ? ' avatarPhoto' : '') + (extraClass ? ' ' + extraClass : '');
+    const dot = online ? '<span class="onlineDot"></span>' : '';
     if (avatarUrl) {
-      return `<div class="${cls}" style="background-image:url('${escapeCssUrl(avatarUrl)}')"></div>`;
+      return `<div class="${cls}" style="background-image:url('${escapeCssUrl(avatarUrl)}')">${dot}</div>`;
     }
-    return `<div class="${cls}">${escapeHtml(initials(name))}</div>`;
+    return `<div class="${cls}">${escapeHtml(initials(name))}${dot}</div>`;
   }
 
   // Les data URLs base64 ne contiennent pas de guillemets, mais on échappe par
@@ -1979,8 +2202,8 @@
     users.forEach((u) => {
       const div = document.createElement('div');
       div.className = 'listItem';
-      div.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl)}
-        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.phone)}</div></div>
+      div.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl, '', u.online)}
+        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${u.online ? 'en ligne' : escapeHtml(u.phone)}</div></div>
         <button class="blockUserBtn${u.blocked ? ' isBlocked' : ''}" data-user-id="${u.id}" title="${u.blocked ? 'Débloquer cet utilisateur' : 'Bloquer cet utilisateur'}">${u.blocked ? 'Débloquer' : 'Bloquer'}</button>`;
       div.querySelector('.liText').addEventListener('click', () => startConversationWith(u.id));
       div.querySelector('.avatar').addEventListener('click', () => startConversationWith(u.id));
@@ -2162,7 +2385,7 @@
       const div = document.createElement('div');
       div.className = 'listItem' + (c.id === activeConversationId ? ' active' : '') + (unread ? ' unread' : '');
       div.dataset.convId = c.id;
-      div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null)}
+      div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null, '', !c.isGroup && other ? other.online : false)}
         <div class="liText"><div class="liName">${escapeHtml(label)}</div>
         <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>
         <div class="liMeta">
@@ -2301,6 +2524,8 @@
     $('chatAvatar').style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
     $('chatAvatar').textContent = avatarUrl ? '' : initials(label);
     $('typingIndicator').textContent = '';
+    updateChatSubtitle(conv);
+    cancelReply(); // une réponse en cours concernait forcément l'ancienne discussion
 
     if (!messagesByConv[convId]) {
       try {
@@ -2309,6 +2534,35 @@
       } catch (err) { messagesByConv[convId] = []; }
     }
     renderMessages();
+  }
+
+  // Affiche "en ligne" ou "vu à …" sous le nom, comme WhatsApp. Rien pour un
+  // groupe (il n'y a pas un seul statut à afficher pour plusieurs personnes).
+  function updateChatSubtitle(conv) {
+    const el = $('chatSubtitle');
+    if (!conv || conv.isGroup) { el.textContent = ''; el.classList.remove('online'); return; }
+    const other = conv.participants.find((p) => p.id !== me.id);
+    if (!other) { el.textContent = ''; el.classList.remove('online'); return; }
+    if (other.online) {
+      el.textContent = 'en ligne';
+      el.classList.add('online');
+    } else {
+      el.textContent = other.lastSeenAt ? ('vu ' + fmtLastSeen(other.lastSeenAt)) : '';
+      el.classList.remove('online');
+    }
+  }
+
+  // "vu aujourd'hui à 14:32", "vu hier à 09:05", ou "vu le 03/02 à 18:20" selon
+  // l'ancienneté, comme le fait WhatsApp pour la dernière connexion.
+  function fmtLastSeen(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) return "aujourd'hui à " + time;
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'hier à ' + time;
+    return 'le ' + d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' à ' + time;
   }
 
   function renderMessages() {
@@ -2320,6 +2574,7 @@
       const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
       const row = document.createElement('div');
       row.className = 'msgRow' + (mine ? ' mine' : '');
+      row.dataset.id = m.id;
       const body = m.deleted
         ? `<div class="msgDeleted">🚫 Message supprimé${mine ? `<button class="eraseMsgBtn" data-id="${m.id}" title="Effacer définitivement cette trace">✕</button>` : ''}</div>`
         : renderMessageBody(m);
@@ -2329,8 +2584,29 @@
       const ticks = (mine && !m.deleted)
         ? (() => { const read = isReadByOthers(m, conv); return `<span class="ticks${read ? ' read' : ''}">${read ? '✓✓' : '✓'}</span>`; })()
         : '';
-      row.innerHTML = `<div class="bubble">${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
-        ${body}<div class="msgMeta">${deleteBtn}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
+      // Aperçu du message cité, s'il s'agit d'une réponse (comme WhatsApp) :
+      // cliquer sur la citation fait défiler jusqu'au message d'origine.
+      const replyQuoteHtml = (!m.deleted && m.replyTo)
+        ? `<div class="replyQuote" data-goto-id="${m.replyTo.id}">
+            <div class="replyQuoteSender">${escapeHtml(m.replyTo.senderName)}</div>
+            <div class="replyQuoteText">${escapeHtml(m.replyTo.deleted ? '🚫 Message supprimé' : m.replyTo.content)}</div>
+          </div>`
+        : '';
+      // Pastilles de réactions déjà posées sur ce message (WhatsApp) : cliquer
+      // sur une pastille pose/retire la même réaction pour soi-même.
+      const reactionsHtml = (!m.deleted && m.reactions && m.reactions.length)
+        ? `<div class="reactionPills">${m.reactions.map((r) => `
+            <button class="reactionPill${r.userIds.includes(me.id) ? ' mine' : ''}" data-message-id="${m.id}" data-emoji="${r.emoji}">${r.emoji}<span class="reactionCount">${r.userIds.length}</span></button>
+          `).join('')}</div>`
+        : '';
+      const actionsHtml = !m.deleted
+        ? `<div class="msgActions">
+            <button class="msgActionBtn replyMsgBtn" data-id="${m.id}" title="Répondre">↩️</button>
+            <button class="msgActionBtn reactMsgBtn" data-id="${m.id}" title="Réagir">😊</button>
+          </div>`
+        : '';
+      row.innerHTML = `${actionsHtml}<div class="bubble">${replyQuoteHtml}${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
+        ${body}${reactionsHtml}<div class="msgMeta">${deleteBtn}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
       el.appendChild(row);
     });
     el.scrollTop = el.scrollHeight;
@@ -2459,6 +2735,103 @@
     });
   });
 
+  // Clic sur "↩️" : prépare une réponse à ce message (bandeau au-dessus du composer).
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.replyMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    const list = messagesByConv[activeConversationId] || [];
+    const m = list.find((x) => x.id === messageId);
+    if (m) startReply(m);
+  });
+
+  // Clic sur "😊" : ouvre le petit sélecteur d'emoji de réaction rapide.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.reactMsgBtn');
+    if (!btn) return;
+    openReactionPicker(btn, btn.dataset.id);
+  });
+
+  // Clic sur une pastille de réaction déjà posée : rejoue exactement la même
+  // réaction, ce qui la retire si c'était la mienne (toggle géré côté serveur).
+  $('messages').addEventListener('click', (e) => {
+    const pill = e.target.closest('.reactionPill');
+    if (!pill) return;
+    sendReaction(pill.dataset.messageId, pill.dataset.emoji);
+  });
+
+  // Clic sur la citation d'un message répondu : fait défiler jusqu'au message
+  // d'origine (s'il est déjà chargé dans l'historique affiché) et le met en évidence.
+  $('messages').addEventListener('click', (e) => {
+    const quote = e.target.closest('.replyQuote');
+    if (!quote) return;
+    const targetId = quote.dataset.gotoId;
+    const targetRow = document.querySelector(`.msgRow[data-id="${targetId}"]`);
+    if (!targetRow) return;
+    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetRow.classList.add('highlightFlash');
+    setTimeout(() => targetRow.classList.remove('highlightFlash'), 1500);
+  });
+
+  // ---------- Réactions emoji ----------
+  function sendReaction(messageId, emoji) {
+    if (!messageId || !emoji) return;
+    socket.emit('message:react', { messageId, emoji }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+    });
+  }
+
+  // Petit menu flottant d'emoji (même logique que openTagMenu) : détruit et
+  // recréé à chaque ouverture, fermé au clic ailleurs.
+  function closeReactionPicker() {
+    const existing = document.querySelector('.reactionPicker');
+    if (existing) existing.remove();
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.reactionPicker') && !e.target.closest('.reactMsgBtn')) closeReactionPicker();
+  });
+
+  function openReactionPicker(btn, messageId) {
+    closeReactionPicker();
+    closeTagMenu();
+    const menu = document.createElement('div');
+    menu.className = 'reactionPicker';
+    menu.innerHTML = REACTION_EMOJIS.map((emo) => `<button data-emoji="${emo}">${emo}</button>`).join('');
+    menu.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => {
+        sendReaction(messageId, b.dataset.emoji);
+        closeReactionPicker();
+      });
+    });
+    document.body.appendChild(menu);
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = Math.max(8, rect.top - 44) + 'px';
+    menu.style.left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
+  }
+
+  // ---------- Réponse citée (reply) ----------
+  function startReply(m) {
+    replyingTo = m;
+    renderReplyBanner();
+    $('msgInput').focus();
+  }
+
+  function cancelReply() {
+    replyingTo = null;
+    renderReplyBanner();
+  }
+
+  function renderReplyBanner() {
+    const banner = $('replyBanner');
+    if (!replyingTo) { banner.style.display = 'none'; return; }
+    const senderName = replyingTo.sender ? replyingTo.sender.name : (replyingTo.senderId === me.id ? 'Vous' : '');
+    const text = replyingTo.deleted ? '🚫 Message supprimé' : messagePreviewText(replyingTo);
+    $('replyBannerContent').innerHTML = `<div class="replyBannerSender">${escapeHtml(senderName)}</div><div class="replyBannerText">${escapeHtml(text)}</div>`;
+    banner.style.display = 'flex';
+  }
+
+  $('replyBannerClose').addEventListener('click', cancelReply);
+
   // "attachment", s'il est fourni, a la forme { data (base64), mime, name, size, duration?, type }.
   // Le texte de #msgInput sert alors de légende optionnelle (ex: une photo avec un petit mot).
   function sendMessage(attachment) {
@@ -2466,10 +2839,12 @@
     const content = input.value.trim();
     if (!content && !attachment) return;
     if (!activeConversationId) return;
-    socket.emit('message:send', { conversationId: activeConversationId, content, attachment }, (res) => {
+    const replyToId = replyingTo ? replyingTo.id : undefined;
+    socket.emit('message:send', { conversationId: activeConversationId, content, attachment, replyToId }, (res) => {
       if (res && res.error) alert('Erreur envoi: ' + res.error);
     });
     input.value = '';
+    cancelReply();
     updateComposerButtons();
   }
   updateComposerButtons(); // état initial (pas de texte → micro visible, pas d'avion en papier)
@@ -2656,6 +3031,30 @@
       for (const peer of res.peers) {
         await createPeerConnection(peer.socketId, peer.name, false);
       }
+    });
+  }
+
+  // Reprise après reconnexion du socket pendant un appel en cours (voir
+  // socket.on('connect', ...) ci-dessus) : contrairement à joinCallRoom(),
+  // on ne rouvre pas l'overlay ni le chronomètre (déjà affichés), on se
+  // contente de rejoindre à nouveau la room côté serveur et de rétablir les
+  // connexions WebRTC avec les participants encore présents.
+  function rejoinCallAfterReconnect() {
+    if (!currentCall) return;
+    const { callId, conversationId, type } = currentCall;
+    Object.keys(peerConnections).forEach(removePeer); // mortes de toute façon après une vraie coupure réseau
+    updateCallInfoText('reconnexion en cours…');
+    socket.emit('call:join', { conversationId, callId, type }, async (res) => {
+      if (!currentCall) return; // l'appel a été fermé pendant la reconnexion
+      if (res && res.error) {
+        console.warn('Échec de la reprise d\'appel après reconnexion :', res.error);
+        hangup();
+        return;
+      }
+      for (const peer of res.peers) {
+        await createPeerConnection(peer.socketId, peer.name, false);
+      }
+      updateCallInfoText('connecté');
     });
   }
 
@@ -2986,6 +3385,72 @@
     });
   }
 
+  // ---------- Installation de l'application (PWA) ----------
+  // Sur Android/PC (Chrome, Edge, Samsung Internet...) : le navigateur nous
+  // laisse déclencher nous-mêmes l'invite d'installation via ce bouton, à
+  // condition d'avoir intercepté l'évènement "beforeinstallprompt" (il ne se
+  // déclenche qu'une fois, tôt, donc on le garde en mémoire jusqu'au clic).
+  let deferredInstallPrompt = null;
+
+  function isStandaloneDisplay() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  function isIosDevice() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  }
+
+  // N'a d'effet que si le panneau Paramètres est ouvert (sinon les éléments
+  // ciblés n'existent pas encore dans le DOM visible, mais ça ne gêne pas :
+  // openSettings() rappelle cette fonction à chaque ouverture).
+  function refreshInstallSection() {
+    const section = $('installSection');
+    if (!section) return;
+    const available = $('installAvailableBlock');
+    const ios = $('installIosBlock');
+    const done = $('installDoneBlock');
+    available.style.display = 'none';
+    ios.style.display = 'none';
+    done.style.display = 'none';
+
+    if (isStandaloneDisplay()) {
+      section.style.display = '';
+      done.style.display = '';
+    } else if (deferredInstallPrompt) {
+      section.style.display = '';
+      available.style.display = '';
+    } else if (isIosDevice()) {
+      section.style.display = '';
+      ios.style.display = '';
+    } else {
+      // Navigateur sans invite native (ex: Firefox desktop) et pas iOS :
+      // rien d'utile à afficher, on cache toute la section plutôt que de
+      // laisser un bloc vide.
+      section.style.display = 'none';
+    }
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); // on affiche notre propre bouton plutôt que la mini-infobar par défaut du navigateur
+    deferredInstallPrompt = e;
+    refreshInstallSection();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    refreshInstallSection();
+  });
+
+  const installAppBtnEl = $('installAppBtn');
+  if (installAppBtnEl) {
+    installAppBtnEl.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch (err) { /* ignore */ }
+      deferredInstallPrompt = null;
+      refreshInstallSection();
+    });
+  }
+
   // ---------- Notifications push ----------
   // Convertit la clé publique VAPID (texte base64 "URL-safe") au format binaire
   // attendu par pushManager.subscribe. C'est le format d'échange standard de
@@ -3081,9 +3546,14 @@
     $('ringtoneToggle').checked = !ringtoneMuted;
     $('themeToggle').checked = document.body.classList.contains('theme-light');
     refreshAccentSwatchSelection();
+    refreshTextSizeSelection();
+    refreshInstallSection();
     $('settingsOverlay').classList.add('show');
     refreshNotifToggleState();
     loadBlockedUsers();
+    $('hideLastSeenToggle').checked = Boolean(me.hideLastSeen);
+    showSettingsMsg('settingsStorageMsg', '');
+    refreshStorageUsageText();
   }
 
   function closeSettings() {
@@ -3146,6 +3616,115 @@
     localStorage.setItem('seourou_theme', light ? 'light' : 'dark');
   });
 
+  // ---------- Confidentialité : masquer ma dernière connexion ----------
+  $('hideLastSeenToggle').addEventListener('change', async () => {
+    const toggle = $('hideLastSeenToggle');
+    const desired = toggle.checked;
+    try {
+      const data = await api('/api/users/me/privacy', { method: 'PATCH', body: JSON.stringify({ hideLastSeen: desired }) });
+      me.hideLastSeen = data.user.hideLastSeen;
+    } catch (err) {
+      toggle.checked = !desired; // annule visuellement si la requête a échoué
+      alert('Erreur : ' + err.message);
+    }
+  });
+
+  // ---------- Stockage et données (Paramètres) ----------
+  // Estime l'espace occupé par l'application sur cet appareil (cache de
+  // l'app shell + données diverses du navigateur), à titre indicatif — comme
+  // le fait WhatsApp dans son propre écran "Stockage et données".
+  async function refreshStorageUsageText() {
+    const el = $('storageUsageText');
+    if (!el) return;
+    try {
+      if (navigator.storage && navigator.storage.estimate) {
+        const { usage } = await navigator.storage.estimate();
+        el.textContent = 'Espace utilisé sur cet appareil : ' + formatBytes(usage || 0);
+      } else {
+        el.textContent = '';
+      }
+    } catch (err) {
+      el.textContent = '';
+    }
+  }
+
+  // Vide le cache de l'app shell (Cache Storage API utilisé par le service
+  // worker) et l'historique des messages déjà chargés en mémoire. Ne touche
+  // JAMAIS aux discussions elles-mêmes (elles restent sur le serveur) ni aux
+  // préférences (thème, taille du texte, favoris…), qui ne sont pas un cache.
+  async function clearAppCache() {
+    if (!confirm('Vider le cache va recharger l\'application et re-télécharger les fichiers nécessaires. Vos discussions ne seront pas supprimées. Continuer ?')) return;
+    const btn = $('clearCacheBtn');
+    btn.disabled = true;
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      messagesByConv = {};
+      showSettingsMsg('settingsStorageMsg', 'Cache vidé. Rechargement…', false);
+      setTimeout(() => location.reload(), 600);
+    } catch (err) {
+      btn.disabled = false;
+      showSettingsMsg('settingsStorageMsg', 'Erreur lors du vidage du cache : ' + err.message, true);
+    }
+  }
+  $('clearCacheBtn').addEventListener('click', clearAppCache);
+
+  // Génère une sauvegarde JSON téléchargeable de toutes les discussions
+  // (texte + métadonnées ; les pièces jointes ne sont pas incluses en clair
+  // dans le fichier, pour rester léger — seule leur présence est signalée).
+  async function exportConversationsBackup() {
+    const btn = $('exportBackupBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Préparation…';
+    showSettingsMsg('settingsStorageMsg', '');
+    try {
+      await Promise.all(conversations.map(async (c) => {
+        if (!messagesByConv[c.id]) {
+          try {
+            const data = await api('/api/conversations/' + c.id + '/messages');
+            messagesByConv[c.id] = data.messages;
+          } catch (err) { messagesByConv[c.id] = []; }
+        }
+      }));
+
+      const backup = {
+        exportedAt: new Date().toISOString(),
+        compte: { nom: me.name, telephone: me.phone },
+        discussions: conversations.map((c) => ({
+          nom: convLabel(c),
+          groupe: c.isGroup,
+          participants: c.participants.map((p) => ({ nom: p.name, telephone: p.phone })),
+          messages: (messagesByConv[c.id] || []).map((m) => ({
+            date: m.createdAt,
+            de: m.sender ? m.sender.name : '',
+            contenu: m.deleted ? '[message supprimé]' : messagePreviewText(m),
+            piece_jointe: Boolean(m.attachment),
+          })),
+        })),
+      };
+
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'seourouApps-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showSettingsMsg('settingsStorageMsg', 'Sauvegarde téléchargée (' + backup.discussions.length + ' discussion(s)).', false);
+    } catch (err) {
+      showSettingsMsg('settingsStorageMsg', 'Erreur lors de l\'export : ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  }
+  $('exportBackupBtn').addEventListener('click', exportConversationsBackup);
+
   // ---------- Couleur d'accent (Paramètres → Apparence) ----------
   function refreshAccentSwatchSelection() {
     const current = ACCENT_COLORS.find((c) => document.body.classList.contains('accent-' + c)) || 'bleu';
@@ -3162,6 +3741,19 @@
       document.body.classList.add('accent-' + accent);
       localStorage.setItem('seourou_accent', accent);
       refreshAccentSwatchSelection();
+    });
+  });
+
+  // ---------- Taille du texte des discussions (Paramètres → Apparence) ----------
+  function refreshTextSizeSelection() {
+    document.querySelectorAll('.textSizeTab').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.size === textSize);
+    });
+  }
+  document.querySelectorAll('.textSizeTab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      applyTextSize(btn.dataset.size);
+      refreshTextSizeSelection();
     });
   });
 
