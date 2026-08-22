@@ -260,14 +260,22 @@
   #chatHeader .callBtns .callPill button{background:transparent;color:var(--text);}
   #chatHeader .callBtns .callPill button:hover{background:var(--border);}
   #chatHeader .callBtns .callPill svg{width:19px;height:19px;}
-  #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
+  /* Le fond ci-dessous est en background-color pour permettre à
+     applyChatTheme() (voir "Thème de discussion", Paramètres → Apparence)
+     de le remplacer par un dégradé ou une image personnalisée en JS, sans
+     toucher au padding/scroll définis ici. */
+  #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;background-color:var(--bg);}
   .msgRow{display:flex;}
   .msgRow.mine{justify-content:flex-end;}
   /* -webkit-touch-callout:none évite qu'un appui long déclenche EN PLUS le
      menu natif du navigateur (sélection de texte/"copier" iOS) par-dessus
      notre propre menu d'actions (voir plus bas, openMessageActionMenu). */
   .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:calc(15px * var(--chat-font-scale));line-height:1.4;-webkit-touch-callout:none;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;}
-  .msgRow.mine .bubble{background:var(--accent);color:white;border-bottom-right-radius:4px;}
+  /* --chat-bubble-color (Paramètres → Apparence → Thème de discussion) permet
+     de changer la couleur des bulles envoyées indépendamment de la couleur
+     d'accent générale de l'appli ; par défaut (variable non définie), elle
+     reprend l'accent comme avant. */
+  .msgRow.mine .bubble{background:var(--chat-bubble-color, var(--accent));color:white;border-bottom-right-radius:4px;}
   .msgRow:not(.mine) .bubble{background:var(--panel2);border-bottom-left-radius:4px;}
   .bubble .sender{font-size:11px;color:var(--muted);margin-bottom:2px;}
   .msgRow.mine .bubble .sender{color:rgba(255,255,255,.75);}
@@ -587,6 +595,31 @@
   .accentSwatch{width:32px;height:32px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;position:relative;}
   .accentSwatch.selected{border-color:var(--text);}
   .accentSwatch.selected::after{content:'✓';position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:white;font-size:14px;text-shadow:0 1px 2px rgba(0,0,0,.4);}
+
+  /* "Réduire les animations" (Paramètres → Apparence) : approche globale
+     plutôt que de traquer chaque transition/@keyframes une par une — accélère
+     à l'extrême tout ce qui s'anime dans l'appli (dont highlightFlash,
+     switchTrack, etc.) sans avoir à toucher à leurs règles individuelles. */
+  body.reduce-motion, body.reduce-motion *{animation-duration:.001s !important;animation-iteration-count:1 !important;transition-duration:.001s !important;scroll-behavior:auto !important;}
+
+  /* ---------- Thème de discussion (bulle + fond d'écran), Paramètres →
+     Apparence → "Thème de discussion par défaut" ---------- */
+  #chatThemeOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:126;}
+  #chatThemeOverlay.show{display:flex;}
+  #chatThemeCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:440px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #chatThemeHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #chatThemeHeader h2{margin:0;font-size:16px;}
+  #chatThemeHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #chatThemeBody{padding:16px;overflow-y:auto;}
+  .chatThemeSectionLabel{display:block;font-size:12px;color:var(--muted);margin:16px 0 8px;}
+  .chatThemeSectionLabel:first-child{margin-top:0;}
+  #chatThemePresets{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;}
+  .chatThemePreset{border:2px solid var(--border);border-radius:10px;height:60px;display:flex;align-items:flex-end;padding:6px;box-sizing:border-box;cursor:pointer;background-size:cover;background-position:center;}
+  .chatThemePreset.active{border-color:var(--accent);}
+  .chatThemePreset .presetBubble{width:60%;height:9px;border-radius:5px;}
+  .chatThemeSwatchRow{display:flex;flex-wrap:wrap;gap:9px;}
+  .chatThemeSwatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0;background-size:cover;background-position:center;}
+  .chatThemeSwatch.active{border-color:var(--text);box-shadow:0 0 0 1px var(--bg) inset;}
 
   /* ---------- Statuts : composition (texte/photo) ---------- */
   #statusComposerOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;z-index:120;padding:20px;}
@@ -1121,6 +1154,8 @@
         <section class="settingsSection">
           <h3><span class="settingsIcon">🎨</span>Apparence</h3>
           <label class="switchRow"><input type="checkbox" id="themeToggle"><span class="switchTrack"></span> Thème clair</label>
+          <label class="switchRow"><input type="checkbox" id="reduceMotionToggle"><span class="switchTrack"></span> Réduire les animations</label>
+          <button id="openChatThemeBtn" style="width:100%;margin:14px 0 4px;background:var(--panel2);color:var(--text);border:1px solid var(--border);text-align:left;">🖌️ Thème de discussion par défaut</button>
           <label style="display:block;font-size:12px;color:var(--muted);margin:14px 0 8px;">Couleur d'accent</label>
           <div class="accentSwatches">
             <button class="accentSwatch" data-accent="bleu" style="background:#4f7cff" title="Bleu"></button>
@@ -1379,6 +1414,28 @@
     </div>
   </div>
 
+  <!-- ---------- Thème de discussion (bulle + fond d'écran), depuis
+       Paramètres → Apparence ---------- -->
+  <div id="chatThemeOverlay">
+    <div id="chatThemeCard">
+      <div id="chatThemeHeader">
+        <h2>Thème de la discussion</h2>
+        <button id="closeChatThemeBtn" title="Fermer">✕</button>
+      </div>
+      <div id="chatThemeBody">
+        <label class="chatThemeSectionLabel">Thèmes</label>
+        <div id="chatThemePresets"></div>
+        <label class="chatThemeSectionLabel">Bulle de discussion</label>
+        <div id="chatThemeBubbleSwatches" class="chatThemeSwatchRow"></div>
+        <label class="chatThemeSectionLabel">Fond d'écran</label>
+        <div id="chatThemeWallpaperSwatches" class="chatThemeSwatchRow"></div>
+        <button id="chatThemeUploadPhotoBtn" style="width:100%;margin-top:12px;">📷 Choisir une photo comme fond</button>
+        <input type="file" id="chatThemePhotoInput" accept="image/*" style="display:none;">
+        <div class="settingsMsg" id="chatThemeMsg"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ---------- Discussions verrouillées : demande du mot de passe ---------- -->
   <div id="lockedUnlockOverlay">
     <div id="lockedUnlockCard">
@@ -1591,6 +1648,7 @@
   // pour les appliquer (le thème doit déjà être bon sur l'écran de connexion).
   let ringtoneMuted = localStorage.getItem('seourou_ringtone_muted') === '1';
   if (localStorage.getItem('seourou_theme') === 'light') document.body.classList.add('theme-light');
+  if (localStorage.getItem('seourou_reduce_motion') === '1') document.body.classList.add('reduce-motion');
   const ACCENT_COLORS = ['bleu', 'vert', 'violet', 'rose', 'orange', 'rouge', 'turquoise'];
   const savedAccent = localStorage.getItem('seourou_accent');
   document.body.classList.add('accent-' + (ACCENT_COLORS.includes(savedAccent) ? savedAccent : 'bleu'));
@@ -1607,6 +1665,76 @@
     localStorage.setItem('seourou_text_size', textSize);
   }
   applyTextSize(textSize);
+
+  // ---------- Thème de discussion (Paramètres → Apparence) ----------
+  // Couleur des bulles envoyées + fond d'écran des discussions, indépendants
+  // de la couleur d'accent générale. Purement une préférence d'appareil (même
+  // logique que le thème clair/sombre ou la taille du texte ci-dessus) : pas
+  // stockée côté serveur, donc pas partagée entre appareils.
+  const CHAT_BUBBLE_COLORS = ['#25d366', '#4f7cff', '#8b5cf6', '#ec4899', '#f97316', '#ef4444', '#14b8a6'];
+  // Dégradés CSS plutôt que de vraies photos : rendu "fond d'écran" varié
+  // sans alourdir l'appli avec des images à télécharger. Une vraie photo
+  // reste possible via le bouton "Choisir une photo" (voir plus bas).
+  const CHAT_WALLPAPERS = [
+    { id: 'nuit', css: 'linear-gradient(160deg,#0f2027,#203a43,#2c5364)' },
+    { id: 'violet', css: 'linear-gradient(160deg,#41295a,#2f0743)' },
+    { id: 'corail', css: 'linear-gradient(160deg,#ff9a76,#ff6a6a)' },
+    { id: 'ocean', css: 'linear-gradient(160deg,#005c97,#363795)' },
+    { id: 'rose', css: 'linear-gradient(160deg,#f6a6c1,#fbc2eb)' },
+    { id: 'pastel', css: 'linear-gradient(160deg,#a1c4fd,#c2e9fb)' },
+    { id: 'sable', css: 'linear-gradient(160deg,#d1913c,#ffd194)' },
+  ];
+  const CHAT_THEME_PRESETS = [
+    { id: 'defaut', bubble: '#25d366', wallpaper: null },
+    { id: 'nuit', bubble: '#4f7cff', wallpaper: 'nuit' },
+    { id: 'violet', bubble: '#8b5cf6', wallpaper: 'violet' },
+    { id: 'corail', bubble: '#f97316', wallpaper: 'corail' },
+    { id: 'ocean', bubble: '#14b8a6', wallpaper: 'ocean' },
+    { id: 'rose', bubble: '#ec4899', wallpaper: 'rose' },
+    { id: 'pastel', bubble: '#8b5cf6', wallpaper: 'pastel' },
+    { id: 'sable', bubble: '#ef4444', wallpaper: 'sable' },
+  ];
+
+  function loadChatTheme() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('seourou_chat_theme') || 'null');
+      if (saved && typeof saved === 'object') return saved;
+    } catch (e) { /* valeur corrompue, on repart de zéro */ }
+    return { bubble: null, wallpaper: null }; // wallpaper: null | {type:'preset',id} | {type:'image',dataUrl}
+  }
+  let chatTheme = loadChatTheme();
+  function saveChatTheme() {
+    try { localStorage.setItem('seourou_chat_theme', JSON.stringify(chatTheme)); }
+    catch (e) {
+      alert('Impossible d\'enregistrer ce fond d\'écran (trop volumineux pour le stockage local de cet appareil). Essayez une image plus légère.');
+    }
+  }
+  function wallpaperCss(wallpaper) {
+    if (!wallpaper) return '';
+    if (wallpaper.type === 'preset') {
+      const w = CHAT_WALLPAPERS.find((x) => x.id === wallpaper.id);
+      return w ? w.css : '';
+    }
+    if (wallpaper.type === 'image') return `url("${wallpaper.dataUrl}")`;
+    return '';
+  }
+  function applyChatTheme() {
+    if (chatTheme.bubble) document.body.style.setProperty('--chat-bubble-color', chatTheme.bubble);
+    else document.body.style.removeProperty('--chat-bubble-color');
+    const el = document.getElementById('messages');
+    const css = wallpaperCss(chatTheme.wallpaper);
+    el.style.background = css || '';
+    if (chatTheme.wallpaper && chatTheme.wallpaper.type === 'image') {
+      el.style.backgroundSize = 'cover';
+      el.style.backgroundPosition = 'center';
+      el.style.backgroundRepeat = 'no-repeat';
+    } else {
+      el.style.backgroundSize = '';
+      el.style.backgroundPosition = '';
+      el.style.backgroundRepeat = '';
+    }
+  }
+  applyChatTheme();
 
   // ---------- Recherche et filtres de la liste des discussions ----------
   let convSearchTerm = '';
@@ -5527,6 +5655,7 @@
     $('confirmPasswordInput').value = '';
     $('ringtoneToggle').checked = !ringtoneMuted;
     $('themeToggle').checked = document.body.classList.contains('theme-light');
+    $('reduceMotionToggle').checked = document.body.classList.contains('reduce-motion');
     refreshAccentSwatchSelection();
     refreshTextSizeSelection();
     refreshInstallSection();
@@ -5748,6 +5877,105 @@
     const light = $('themeToggle').checked;
     document.body.classList.toggle('theme-light', light);
     localStorage.setItem('seourou_theme', light ? 'light' : 'dark');
+  });
+
+  $('reduceMotionToggle').addEventListener('change', () => {
+    const reduce = $('reduceMotionToggle').checked;
+    document.body.classList.toggle('reduce-motion', reduce);
+    localStorage.setItem('seourou_reduce_motion', reduce ? '1' : '0');
+  });
+
+  // ---------- Thème de discussion (bulle + fond d'écran) ----------
+  function renderChatThemePresets() {
+    const el = $('chatThemePresets');
+    el.innerHTML = CHAT_THEME_PRESETS.map((p) => {
+      const w = p.wallpaper ? CHAT_WALLPAPERS.find((x) => x.id === p.wallpaper) : null;
+      const bg = w ? w.css : 'var(--panel2)';
+      const isActive = chatTheme.bubble === p.bubble
+        && ((!p.wallpaper && !chatTheme.wallpaper) || (chatTheme.wallpaper && chatTheme.wallpaper.type === 'preset' && chatTheme.wallpaper.id === p.wallpaper));
+      return `<div class="chatThemePreset${isActive ? ' active' : ''}" data-preset="${p.id}" style="background:${bg};" title="${p.id}">
+        <div class="presetBubble" style="background:${p.bubble};"></div>
+      </div>`;
+    }).join('');
+    el.querySelectorAll('.chatThemePreset').forEach((div) => {
+      div.addEventListener('click', () => {
+        const preset = CHAT_THEME_PRESETS.find((p) => p.id === div.dataset.preset);
+        if (!preset) return;
+        chatTheme = { bubble: preset.bubble, wallpaper: preset.wallpaper ? { type: 'preset', id: preset.wallpaper } : null };
+        saveChatTheme();
+        applyChatTheme();
+        renderChatThemeScreens();
+      });
+    });
+  }
+  function renderChatThemeBubbleSwatches() {
+    const el = $('chatThemeBubbleSwatches');
+    el.innerHTML = CHAT_BUBBLE_COLORS.map((c) => `<button class="chatThemeSwatch${chatTheme.bubble === c ? ' active' : ''}" data-color="${c}" style="background:${c};" title="Bulle ${c}"></button>`).join('');
+    el.querySelectorAll('.chatThemeSwatch').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        chatTheme.bubble = btn.dataset.color;
+        saveChatTheme();
+        applyChatTheme();
+        renderChatThemeScreens();
+      });
+    });
+  }
+  function renderChatThemeWallpaperSwatches() {
+    const el = $('chatThemeWallpaperSwatches');
+    const noneActive = !chatTheme.wallpaper;
+    const noneBtn = `<button class="chatThemeSwatch${noneActive ? ' active' : ''}" data-wallpaper="none" style="background:var(--panel2);" title="Aucun (par défaut)">✕</button>`;
+    const presetBtns = CHAT_WALLPAPERS.map((w) => {
+      const isActive = chatTheme.wallpaper && chatTheme.wallpaper.type === 'preset' && chatTheme.wallpaper.id === w.id;
+      return `<button class="chatThemeSwatch${isActive ? ' active' : ''}" data-wallpaper="${w.id}" style="background:${w.css};" title="${w.id}"></button>`;
+    }).join('');
+    el.innerHTML = noneBtn + presetBtns;
+    el.querySelectorAll('.chatThemeSwatch').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const id = btn.dataset.wallpaper;
+        chatTheme.wallpaper = id === 'none' ? null : { type: 'preset', id };
+        saveChatTheme();
+        applyChatTheme();
+        renderChatThemeScreens();
+      });
+    });
+  }
+  function renderChatThemeScreens() {
+    renderChatThemePresets();
+    renderChatThemeBubbleSwatches();
+    renderChatThemeWallpaperSwatches();
+  }
+  function openChatTheme() {
+    showSettingsMsg('chatThemeMsg', '');
+    renderChatThemeScreens();
+    $('chatThemeOverlay').classList.add('show');
+  }
+  function closeChatTheme() { $('chatThemeOverlay').classList.remove('show'); }
+  $('openChatThemeBtn').addEventListener('click', openChatTheme);
+  $('closeChatThemeBtn').addEventListener('click', closeChatTheme);
+  $('chatThemeOverlay').addEventListener('click', (e) => { if (e.target === $('chatThemeOverlay')) closeChatTheme(); });
+  $('chatThemeUploadPhotoBtn').addEventListener('click', () => $('chatThemePhotoInput').click());
+  $('chatThemePhotoInput').addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    // Limite plus basse que les 5 Mo habituels (avatar, pièces jointes) : une
+    // image de fond encodée en base64 pèse ~33% de plus en texte, et doit
+    // tenir dans le quota du stockage local du navigateur (généralement
+    // 5-10 Mo au total, préférences déjà stockées comprises).
+    if (file.size > 2 * 1024 * 1024) {
+      showSettingsMsg('chatThemeMsg', 'Photo trop volumineuse (2 Mo maximum).', true);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      chatTheme.wallpaper = { type: 'image', dataUrl: reader.result };
+      saveChatTheme();
+      applyChatTheme();
+      renderChatThemeScreens();
+      showSettingsMsg('chatThemeMsg', 'Fond d\'écran mis à jour.');
+    };
+    reader.onerror = () => showSettingsMsg('chatThemeMsg', 'Erreur de lecture du fichier.', true);
+    reader.readAsDataURL(file);
   });
 
   // ---------- Confidentialité : masquer ma dernière connexion ----------
