@@ -517,13 +517,27 @@
   .settingsSection:last-child{margin-bottom:0;}
   .settingsSection h3{margin:0 0 12px;font-size:15px;color:var(--text);font-weight:700;display:flex;align-items:center;gap:10px;}
   .settingsSection h3 .settingsIcon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--panel2);font-size:13px;flex-shrink:0;}
-  .settingsAvatarRow{display:flex;align-items:center;gap:14px;}
-  .settingsAvatarRow .avatar{width:56px;height:56px;font-size:20px;cursor:pointer;flex-shrink:0;}
-  .settingsAvatarField{flex:1;}
-  .settingsAvatarField label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
-  .settingsInlineRow{display:flex;gap:8px;}
-  .settingsInlineRow input{flex:1;min-width:0;}
+  /* Bloc "Profil" des Paramètres : centré façon écran de profil WhatsApp
+     (photo grande et centrée, bulle "Disponible" au-dessus, nom en gras
+     en dessous avec puce verte "en ligne" et chevron). Le bouton
+     "Enregistrer" reste caché tant que le nom n'a pas été modifié (voir
+     l'écouteur "input" sur #settingsNameInput plus bas), pour que le champ
+     se comporte visuellement comme du texte simple au repos. */
+  .settingsProfileCentered{display:flex;flex-direction:column;align-items:center;text-align:center;}
+  .settingsAvailableBubble{position:relative;background:var(--panel2);color:var(--text);font-size:12.5px;padding:6px 14px;border-radius:14px;margin-bottom:12px;}
+  .settingsAvailableBubble::after{content:'';position:absolute;left:50%;bottom:-5px;transform:translateX(-50%);width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:5px solid var(--panel2);}
+  .settingsProfileCentered .avatar{width:110px;height:110px;font-size:34px;cursor:pointer;margin-bottom:14px;flex-shrink:0;}
+  .settingsNameRow{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;}
+  .settingsOnlineDot{width:10px;height:10px;border-radius:50%;background:#25d366;flex-shrink:0;}
+  .settingsChevron{color:var(--muted);font-size:12px;flex-shrink:0;}
+  #saveNameBtn{margin-top:12px;display:none;}
+  #saveNameBtn.show{display:inline-flex;}
   #settingsBody input[type="text"],#settingsBody input[type="password"]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15px;margin-bottom:8px;}
+  /* Plus spécifique que la règle générique ci-dessus, pour que le champ nom
+     du bloc centré ressemble à du texte (sans cadre ni fond) au lieu d'un
+     champ de formulaire classique. */
+  #settingsBody #settingsNameInput{width:auto;max-width:220px;border:none;background:transparent;text-align:center;font-size:21px;font-weight:700;margin:0;padding:2px 4px;}
+  #settingsBody #settingsNameInput:focus{outline:none;border-bottom:1px solid var(--accent);}
   #settingsBody button{background:var(--accent);border:none;color:white;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:13px;white-space:nowrap;}
   #settingsBody button:hover{background:var(--accent2);}
   /* Plus spécifique que la règle générique ci-dessus (nécessaire pour
@@ -1031,17 +1045,17 @@
 
         <section class="settingsSection">
           <h3><span class="settingsIcon">👤</span>Profil</h3>
-          <div class="settingsAvatarRow">
+          <div class="settingsProfileCentered">
+            <div class="settingsAvailableBubble">Disponible</div>
             <div class="avatar avatarPhoto" id="settingsAvatar" title="Changer ma photo"></div>
-            <div class="settingsAvatarField">
-              <label>Nom</label>
-              <div class="settingsInlineRow">
-                <input id="settingsNameInput" type="text" maxlength="80">
-                <button id="saveNameBtn">Enregistrer</button>
-              </div>
+            <div class="settingsNameRow">
+              <input id="settingsNameInput" type="text" maxlength="80">
+              <span class="settingsOnlineDot" title="En ligne"></span>
+              <span class="settingsChevron">▾</span>
             </div>
+            <button id="saveNameBtn">Enregistrer</button>
           </div>
-          <div class="settingsStatic">Téléphone : <span id="settingsPhoneText"></span> <span id="phoneVerifiedBadge" style="display:none;color:var(--success);">✓ Vérifié</span></div>
+          <div class="settingsStatic" style="text-align:center;">Téléphone : <span id="settingsPhoneText"></span> <span id="phoneVerifiedBadge" style="display:none;color:var(--success);">✓ Vérifié</span></div>
           <div class="settingsMsg" id="settingsProfileMsg"></div>
         </section>
 
@@ -5437,6 +5451,7 @@
     if (!me) return;
     renderOtherProducts();
     $('settingsNameInput').value = me.name;
+    $('saveNameBtn').classList.remove('show');
     $('settingsPhoneText').textContent = me.phone;
     showSettingsMsg('settingsProfileMsg', '');
     showSettingsMsg('settingsPasswordMsg', '');
@@ -5609,6 +5624,15 @@
   });
   $('settingsAvatar').addEventListener('click', () => { if (me) $('avatarInput').click(); });
 
+  // Le champ nom du profil (Paramètres) ressemble à du texte simple tant
+  // qu'on n'y touche pas (voir CSS #settingsBody #settingsNameInput) ; le
+  // bouton "Enregistrer" n'apparaît que si la valeur diffère du nom actuel,
+  // pour rester proche de l'écran de profil WhatsApp de référence.
+  $('settingsNameInput').addEventListener('input', () => {
+    const dirty = me && $('settingsNameInput').value.trim() !== me.name;
+    $('saveNameBtn').classList.toggle('show', Boolean(dirty));
+  });
+
   $('saveNameBtn').addEventListener('click', async () => {
     const name = $('settingsNameInput').value.trim();
     if (!name) return showSettingsMsg('settingsProfileMsg', 'Le nom ne peut pas être vide.', true);
@@ -5617,6 +5641,7 @@
       me.name = data.user.name;
       $('whoamiText').textContent = me.name + ' (' + me.phone + ')';
       renderMyAvatar();
+      $('saveNameBtn').classList.remove('show');
       showSettingsMsg('settingsProfileMsg', 'Nom mis à jour.');
     } catch (err) {
       showSettingsMsg('settingsProfileMsg', err.message, true);
