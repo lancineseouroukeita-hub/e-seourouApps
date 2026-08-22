@@ -334,6 +334,14 @@
   .emojiPickerPanel{position:fixed;width:290px;max-height:230px;overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:8px;z-index:200;box-shadow:0 12px 32px rgba(0,0,0,.45);display:grid;grid-template-columns:repeat(7, 1fr);gap:2px;}
   .emojiPickerPanel button{background:none;border:none;font-size:20px;cursor:pointer;padding:4px 0;line-height:1;border-radius:8px;}
   .emojiPickerPanel button:hover{background:var(--panel2);}
+  /* Menu du bouton "+" (pièce jointe) façon WhatsApp : une icône colorée par
+     type de contenu, ouvert au-dessus du bouton comme les autres menus flottants. */
+  .attachMenuBackdrop{position:fixed;inset:0;z-index:199;background:transparent;}
+  .attachMenu{position:fixed;min-width:230px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:8px;z-index:200;box-shadow:0 12px 32px rgba(0,0,0,.45);display:flex;flex-direction:column;}
+  .attachMenuItem{display:flex;align-items:center;gap:14px;padding:9px 8px;border:none;background:none;cursor:pointer;border-radius:10px;color:var(--text);font-size:14.5px;text-align:left;width:100%;}
+  .attachMenuItem:hover{background:var(--panel2);}
+  .attachMenuIcon{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:white;}
+  .attachMenuIcon svg{width:19px;height:19px;}
   /* Menu d'actions sur un message façon iOS/WhatsApp : appui long sur mobile
      (pas de survol possible), clic droit sur PC. Un fond transparent
      (msgContextMenuBackdrop) capte le clic/tap "à côté" pour fermer le menu,
@@ -4305,9 +4313,62 @@
   updateComposerButtons(); // état initial (pas de texte → micro visible, pas d'avion en papier)
 
   // ---------- Pièce jointe (fichier / photo) ----------
+  // Menu du bouton "+", comme WhatsApp : une icône colorée par type de
+  // contenu plutôt qu'un sélecteur de fichiers direct. Contact/Sondage/
+  // Événement/Nouveau sticker n'ont pas encore d'équivalent côté serveur
+  // (ce sont des types de message à part, pas de simples pièces jointes) :
+  // ils affichent donc "Bientôt disponible" plutôt que de rester absents du
+  // menu, pour garder la même liste que la référence WhatsApp.
+  function pickAttachmentFile(accept) {
+    const input = $('fileInput');
+    input.accept = accept;
+    input.click();
+  }
+  const ATTACH_MENU_ITEMS = [
+    { label: 'Document', color: '#6c5ce7', icon: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line>', action: () => pickAttachmentFile('') },
+    { label: 'Photos et vidéos', color: '#3867d6', icon: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline>', action: () => pickAttachmentFile('image/*,video/*') },
+    { label: 'Caméra', color: '#eb3b5a', icon: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle>', action: () => $('cameraInput').click() },
+    { label: 'Audio', color: '#e67e22', icon: '<path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path>', action: () => pickAttachmentFile('audio/*') },
+    { label: 'Contact', color: '#0984e3', icon: '<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>', action: () => alert('Envoi de contact : bientôt disponible.') },
+    { label: 'Sondage', color: '#f6b93b', icon: '<line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line>', action: () => alert('Sondages : bientôt disponible.') },
+    { label: 'Événement', color: '#eb2f06', icon: '<rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line>', action: () => alert('Événements : bientôt disponible.') },
+    { label: 'Nouveau sticker', color: '#10ac84', icon: '<circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line>', action: () => alert('Stickers : bientôt disponible.') },
+  ];
+  function closeAttachMenu() {
+    document.querySelectorAll('.attachMenu, .attachMenuBackdrop').forEach((el) => el.remove());
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.attachMenu') && !e.target.closest('#attachBtn')) closeAttachMenu();
+  });
+  function openAttachMenu() {
+    if (document.querySelector('.attachMenu')) { closeAttachMenu(); return; }
+    const menu = document.createElement('div');
+    menu.className = 'attachMenu';
+    menu.innerHTML = ATTACH_MENU_ITEMS.map((it, i) => `
+      <button class="attachMenuItem" data-i="${i}">
+        <span class="attachMenuIcon" style="background:${it.color}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${it.icon}</svg></span>
+        <span>${escapeHtml(it.label)}</span>
+      </button>
+    `).join('');
+    menu.querySelectorAll('.attachMenuItem').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const it = ATTACH_MENU_ITEMS[Number(btn.dataset.i)];
+        closeAttachMenu();
+        if (it) it.action();
+      });
+    });
+    document.body.appendChild(menu);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'attachMenuBackdrop';
+    backdrop.addEventListener('click', closeAttachMenu);
+    document.body.insertBefore(backdrop, menu);
+    const anchor = $('attachBtn').getBoundingClientRect();
+    menu.style.left = Math.max(8, Math.min(anchor.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+    menu.style.top = Math.max(8, anchor.top - menu.offsetHeight - 8) + 'px';
+  }
   $('attachBtn').addEventListener('click', () => {
     if (!activeConversationId) return alert('Choisissez une conversation avant d\'envoyer un fichier.');
-    $('fileInput').click();
+    openAttachMenu();
   });
 
   // Bouton appareil photo dédié dans la barre de saisie (comme WhatsApp) :
