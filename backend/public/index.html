@@ -245,14 +245,15 @@
   /* Bouton "retour à la liste" : un rond avec un chevron, comme le bouton
      retour natif de WhatsApp/iOS, pour qu'il soit reconnaissable comme un vrai
      bouton d'app (et pas confondu avec le geste de retour du navigateur, qui
-     lui quitterait complètement l'application). Visible seulement sur mobile
-     (écran étroit), voir la media query plus bas. */
+     lui quitterait complètement l'application). Affiché sur toutes les
+     tailles d'écran : sur PC il referme simplement la conversation active
+     (retour à l'écran vide), même si la liste reste déjà visible à côté. */
   /* Spécificité "#chatHeader #backToListBtn" (et pas juste "#backToListBtn")
      nécessaire pour l'emporter sur la règle générique "#chatHeader button"
      ci-dessous (qui a un sélecteur de type en plus, donc gagnerait sinon
      malgré l'ordre d'écriture) : sans ça, le bouton perdait sa forme ronde et
      sa taille de police au profit du style générique des autres boutons. */
-  #chatHeader #backToListBtn{display:none;align-items:center;justify-content:center;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:34px;height:34px;padding:0;cursor:pointer;font-size:22px;line-height:1;flex-shrink:0;}
+  #chatHeader #backToListBtn{display:flex;align-items:center;justify-content:center;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:34px;height:34px;padding:0;cursor:pointer;font-size:22px;line-height:1;flex-shrink:0;}
   #chatHeader button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 10px;cursor:pointer;font-size:13px;}
   #chatHeader button:hover{background:#282e3a;}
   /* Boutons d'appel en pilule avec icônes seules (comme WhatsApp), plus
@@ -1743,7 +1744,12 @@
   // la liste plutôt qu'à côté (voir la media query dans <style>) ; ce bouton
   // permet d'y revenir sans perdre la conversation (juste masquée).
   $('backToListBtn').addEventListener('click', () => {
-    $('mainScreen').classList.remove('chatOpen');
+    $('mainScreen').classList.remove('chatOpen'); // n'a d'effet que sur téléphone (voir media query)
+    // Sur PC, la liste reste déjà visible à côté : ici on referme simplement
+    // la conversation active pour revenir à l'écran vide, comme sur WhatsApp Web.
+    activeConversationId = null;
+    $('emptyState').style.display = 'flex';
+    $('activeChat').style.display = 'none';
   });
 
   // ---------- Barre d'onglets du bas (mobile), comme WhatsApp ----------
