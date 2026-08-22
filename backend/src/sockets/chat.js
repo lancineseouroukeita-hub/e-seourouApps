@@ -460,14 +460,31 @@ function registerChatHandlers(io, socket) {
   // en base (suppression "douce") mais on efface le contenu/la pièce jointe, et
   // on prévient tout le monde dans la conversation pour que l'affichage se
   // remplace par "Message supprimé" en direct, des deux côtés.
-  socket.on('message:delete', async ({ messageId }, callback) => {
+  // "Supprimer" (menu d'appui long, voir index.html openDeleteMessageDialog) :
+  // deux options, comme WhatsApp. forEveryone=false ("pour moi seulement")
+  // est proposé sur N'IMPORTE QUEL message (reçu ou envoyé) et ne masque le
+  // message que pour la personne qui le demande (MessageHiddenForUser), sans
+  // toucher au message lui-même. forEveryone=true ("pour tout le monde")
+  // reste réservé à l'auteur du message — sinon n'importe qui pourrait
+  // effacer le contenu de n'importe qui chez tout le monde.
+  socket.on('message:delete', async ({ messageId, forEveryone }, callback) => {
     try {
       if (!messageId) return callback && callback({ error: 'messageId requis.' });
 
       const message = await prisma.message.findUnique({ where: { id: messageId } });
       if (!message) return callback && callback({ error: 'Message introuvable.' });
+
+      if (!forEveryone) {
+        await prisma.messageHiddenForUser.upsert({
+          where: { messageId_userId: { messageId, userId } },
+          update: {},
+          create: { messageId, userId },
+        });
+        return callback && callback({ ok: true });
+      }
+
       if (message.senderId !== userId) {
-        return callback && callback({ error: 'Vous ne pouvez supprimer que vos propres messages.' });
+        return callback && callback({ error: 'Vous ne pouvez supprimer que vos propres messages pour tout le monde.' });
       }
 
       await prisma.message.update({

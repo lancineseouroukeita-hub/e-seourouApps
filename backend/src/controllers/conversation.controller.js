@@ -49,9 +49,13 @@ function serializeConversation(conv, currentUserId) {
   // vois ici — l'autre participant garde les siens (voir aussi getMessages,
   // qui applique le même filtre pour l'historique complet de la conversation).
   const clearedAtMs = mine && mine.clearedAt ? new Date(mine.clearedAt).getTime() : null;
-  const visibleMessages = clearedAtMs
-    ? (conv.messages || []).filter((m) => new Date(m.createdAt).getTime() > clearedAtMs)
-    : (conv.messages || []);
+  const visibleMessages = (conv.messages || []).filter((m) => {
+    if (clearedAtMs && new Date(m.createdAt).getTime() <= clearedAtMs) return false;
+    // "Supprimer pour moi seulement" sur ce message précis (voir hiddenFor,
+    // rempli ci-dessous filtré sur l'utilisateur courant par listConversations).
+    if (m.hiddenFor && m.hiddenFor.length > 0) return false;
+    return true;
+  });
   return {
     id: conv.id,
     isGroup: conv.isGroup,
@@ -88,11 +92,15 @@ async function listConversations(req, res) {
     include: {
       participants: { include: { user: true } },
       // On récupère une petite marge (pas juste le dernier) : si j'ai "effacé
-      // pour moi" cette conversation juste avant, le tout dernier message
-      // global peut être antérieur à mon clearedAt et donc invisible pour moi
+      // pour moi" cette conversation (ou juste ce message précis) juste
+      // avant, le tout dernier message global peut être invisible pour moi
       // — serializeConversation doit pouvoir chercher un peu plus loin pour
       // trouver le premier message qui M'est encore visible.
-      messages: { orderBy: { createdAt: 'desc' }, take: 30 },
+      messages: {
+        orderBy: { createdAt: 'desc' },
+        take: 30,
+        include: { hiddenFor: { where: { userId: req.user.id } } },
+      },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -174,6 +182,9 @@ async function getMessages(req, res) {
       // messages antérieurs à cette date, mais ils restent intacts pour les
       // autres participants (voir clearConversation).
       ...(participant.clearedAt ? { createdAt: { gt: participant.clearedAt } } : {}),
+      // "Supprimer pour moi seulement" sur un message précis (voir
+      // MessageHiddenForUser / clearConversation) : n'affecte que moi.
+      hiddenFor: { none: { userId: req.user.id } },
     },
     orderBy: { createdAt: 'asc' },
     include: {

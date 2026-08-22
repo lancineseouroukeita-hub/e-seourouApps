@@ -610,15 +610,15 @@
   #forwardFooter .primaryBtn:disabled{opacity:.5;cursor:not-allowed;}
 
   /* ---------- Discussions verrouillées : demande du mot de passe ---------- */
-  #lockedUnlockOverlay, #clearChatOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
-  #lockedUnlockOverlay.show, #clearChatOverlay.show{display:flex;}
-  #lockedUnlockCard, #clearChatCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:360px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
-  #lockedUnlockHeader, #clearChatHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
-  #lockedUnlockHeader h2, #clearChatHeader h2{margin:0;font-size:16px;}
-  #lockedUnlockHeader button, #clearChatHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
-  #clearChatBody{padding:16px;}
-  #clearChatBody .primaryBtn{width:100%;background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;}
-  #clearChatBody .dangerFullBtn{margin-top:8px;}
+  #lockedUnlockOverlay, #clearChatOverlay, #deleteMsgOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
+  #lockedUnlockOverlay.show, #clearChatOverlay.show, #deleteMsgOverlay.show{display:flex;}
+  #lockedUnlockCard, #clearChatCard, #deleteMsgCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:360px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #lockedUnlockHeader, #clearChatHeader, #deleteMsgHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #lockedUnlockHeader h2, #clearChatHeader h2, #deleteMsgHeader h2{margin:0;font-size:16px;}
+  #lockedUnlockHeader button, #clearChatHeader button, #deleteMsgHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #clearChatBody, #deleteMsgBody{padding:16px;}
+  #clearChatBody .primaryBtn, #deleteMsgBody .primaryBtn{width:100%;background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;}
+  #clearChatBody .dangerFullBtn, #deleteMsgBody .dangerFullBtn{margin-top:8px;}
   #lockedUnlockBody{padding:16px;}
   #lockedUnlockBody input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15px;}
   #lockedUnlockBody .primaryBtn{background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;}
@@ -1264,6 +1264,25 @@
         <p id="clearChatText" style="font-size:13px;color:var(--muted);margin:0 0 14px;"></p>
         <button id="clearChatOnlyMeBtn" class="primaryBtn">Supprimer uniquement pour moi</button>
         <button id="clearChatEveryoneBtn" class="dangerFullBtn">Supprimer pour tout le monde</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Supprimer un message : pour moi seulement ou pour tout le monde ---------- -->
+  <!-- "Supprimer pour tout le monde" (deleteMsgEveryoneBtn) n'est affiché que
+       si le message est le nôtre (voir openDeleteMessageDialog) : seul son
+       auteur peut l'effacer chez tout le monde, comme sur WhatsApp — n'importe
+       qui peut en revanche toujours le supprimer juste de son côté. -->
+  <div id="deleteMsgOverlay">
+    <div id="deleteMsgCard">
+      <div id="deleteMsgHeader">
+        <h2>Supprimer ce message</h2>
+        <button id="closeDeleteMsgBtn" title="Fermer">✕</button>
+      </div>
+      <div id="deleteMsgBody">
+        <p id="deleteMsgText" style="font-size:13px;color:var(--muted);margin:0 0 14px;">Cette action est irréversible.</p>
+        <button id="deleteMsgOnlyMeBtn" class="primaryBtn">Supprimer pour moi seulement</button>
+        <button id="deleteMsgEveryoneBtn" class="dangerFullBtn">Supprimer pour tout le monde</button>
       </div>
     </div>
   </div>
@@ -3063,6 +3082,51 @@
   $('clearChatOnlyMeBtn').addEventListener('click', () => confirmClearChat(false));
   $('clearChatEveryoneBtn').addEventListener('click', () => confirmClearChat(true));
 
+  // ---------- Supprimer un message : pour moi seulement / pour tout le monde ----------
+  let deleteMsgTarget = null;
+  function openDeleteMessageDialog(m) {
+    closeMessageActionMenu();
+    deleteMsgTarget = m;
+    const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
+    // "Pour tout le monde" reste réservé à l'auteur du message (comme
+    // WhatsApp) : sur un message reçu, seule l'option "pour moi" est proposée.
+    $('deleteMsgEveryoneBtn').style.display = mine ? '' : 'none';
+    $('deleteMsgOverlay').classList.add('show');
+  }
+  function closeDeleteMsgDialog() {
+    $('deleteMsgOverlay').classList.remove('show');
+    deleteMsgTarget = null;
+  }
+  $('closeDeleteMsgBtn').addEventListener('click', closeDeleteMsgDialog);
+  $('deleteMsgOverlay').addEventListener('click', (e) => {
+    if (e.target === $('deleteMsgOverlay')) closeDeleteMsgDialog();
+  });
+  function confirmDeleteMessage(forEveryone) {
+    const m = deleteMsgTarget;
+    if (!m) return;
+    closeDeleteMsgDialog();
+    socket.emit('message:delete', { messageId: m.id, forEveryone }, (res) => {
+      if (res && res.error) { alert('Erreur : ' + res.error); return; }
+      if (!forEveryone) {
+        // "Pour moi seulement" : rien n'est diffusé aux autres participants
+        // (voir sockets/chat.js) — on retire donc le message localement tout
+        // de suite ; le serveur ne le renverra plus au prochain chargement
+        // (getMessages filtre déjà sur MessageHiddenForUser).
+        const list = messagesByConv[m.conversationId];
+        if (list) {
+          const idx = list.findIndex((x) => x.id === m.id);
+          if (idx !== -1) list.splice(idx, 1);
+        }
+        if (activeConversationId === m.conversationId) renderMessages();
+        loadConversations(); // rafraîchit l'aperçu si c'était le dernier message visible
+      }
+      // forEveryone=true : la mise à jour (y compris pour notre propre
+      // client) arrive via l'évènement socket "message:deleted" déjà géré.
+    });
+  }
+  $('deleteMsgOnlyMeBtn').addEventListener('click', () => confirmDeleteMessage(false));
+  $('deleteMsgEveryoneBtn').addEventListener('click', () => confirmDeleteMessage(true));
+
   // Clic droit (PC) sur une discussion : ouvre le menu au lieu du menu
   // contextuel par défaut du navigateur.
   $('convList').addEventListener('contextmenu', (e) => {
@@ -3576,10 +3640,8 @@
     if (!btn) return;
     const messageId = btn.dataset.id;
     if (!messageId) return;
-    if (!confirm('Supprimer ce message ? Cette action est irréversible.')) return;
-    socket.emit('message:delete', { messageId }, (res) => {
-      if (res && res.error) alert('Erreur : ' + res.error);
-    });
+    const m = (messagesByConv[activeConversationId] || []).find((x) => x.id === messageId);
+    if (m) openDeleteMessageDialog(m);
   });
 
   // Clic sur le "✕" affiché sur un message déjà supprimé (bulle "🚫 Message
@@ -3749,13 +3811,16 @@
         <span>${it.label}</span>
       </button>
     `).join('');
-    if (mine) {
-      html += `<div class="msgContextMenuDivider"></div>
-        <button class="msgContextMenuItem danger" data-i="delete">
-          <span class="msgContextMenuIcon">🗑️</span>
-          <span>Supprimer</span>
-        </button>`;
-    }
+    // "Supprimer" est maintenant proposé sur TOUS les messages, reçus comme
+    // envoyés (avant, seuls les nôtres l'affichaient) : cliquer dessus ouvre
+    // le choix "pour moi seulement / pour tout le monde" (voir
+    // openDeleteMessageDialog), qui n'affiche "pour tout le monde" que si
+    // c'est bien notre propre message.
+    html += `<div class="msgContextMenuDivider"></div>
+      <button class="msgContextMenuItem danger" data-i="delete">
+        <span class="msgContextMenuIcon">🗑️</span>
+        <span>Supprimer</span>
+      </button>`;
     if (!expanded) {
       html += `<div class="msgContextMenuDivider"></div>
         <button class="msgContextMenuItem" data-i="more">
@@ -3769,11 +3834,7 @@
         const key = btn.dataset.i;
         if (key === 'more') { openMessageActionMenu(bubbleEl, messageId, x, y, true); return; }
         closeMessageActionMenu();
-        if (key === 'delete') {
-          if (!confirm('Supprimer ce message ? Cette action est irréversible.')) return;
-          socket.emit('message:delete', { messageId }, (res) => { if (res && res.error) alert('Erreur : ' + res.error); });
-          return;
-        }
+        if (key === 'delete') { openDeleteMessageDialog(m); return; }
         const it = items[Number(key)];
         if (it) it.action();
       });

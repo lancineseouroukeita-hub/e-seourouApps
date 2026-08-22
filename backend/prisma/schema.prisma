@@ -60,6 +60,9 @@ model User {
   communityMemberships CommunityMember[]
   // Réactions emoji laissées sur des messages (👍 ❤️ 😂 ...), comme WhatsApp.
   messageReactions MessageReaction[]
+  // Messages que j'ai choisi de "supprimer pour moi seulement" (menu d'appui
+  // long) : masqués uniquement de mon côté, voir Message.hiddenFor.
+  hiddenMessages MessageHiddenForUser[]
 }
 
 // Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
@@ -184,9 +187,27 @@ model Message {
   forwarded Boolean   @default(false)
 
   reactions MessageReaction[]
+  // "Supprimer pour moi seulement" (menu d'appui long) sur un message REÇU :
+  // contrairement à "pour tout le monde" (réservé à l'auteur, voir
+  // sockets/chat.js), n'importe quel participant peut masquer un message
+  // juste de son côté, sans toucher à la ligne elle-même ni à ce que voient
+  // les autres. Une ligne par (message, utilisateur qui l'a masqué).
+  hiddenFor MessageHiddenForUser[]
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model MessageHiddenForUser {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
 }
 
 // Réaction emoji sur un message (👍 ❤️ 😂 😮 😢 🙏, comme WhatsApp) : une seule
