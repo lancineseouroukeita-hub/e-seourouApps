@@ -651,6 +651,18 @@
   #forwardFooter .primaryBtn{width:auto;margin-top:0;padding:9px 18px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:14px;cursor:pointer;}
   #forwardFooter .primaryBtn:disabled{opacity:.5;cursor:not-allowed;}
 
+  /* ---------- Nouvelle discussion : recherche d'un contact par nom/numéro ---------- */
+  #newChatOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
+  #newChatOverlay.show{display:flex;}
+  #newChatCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #newChatHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #newChatHeader h2{margin:0;font-size:16px;}
+  #newChatHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #newChatBody{padding:16px;overflow-y:auto;}
+  #newChatSearchInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:8px;font-family:inherit;}
+  #newChatList .listItem{cursor:pointer;}
+  #newChatEmpty{padding:16px;text-align:center;color:var(--muted);font-size:13px;}
+
   /* ---------- Discussions verrouillées : demande du mot de passe ---------- */
   #lockedUnlockOverlay, #clearChatOverlay, #deleteMsgOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
   #lockedUnlockOverlay.show, #clearChatOverlay.show, #deleteMsgOverlay.show{display:flex;}
@@ -1283,6 +1295,20 @@
       <div id="forwardFooter">
         <span id="forwardSelectedCount">0 sélectionnée(s)</span>
         <button id="forwardSendBtn" class="primaryBtn" disabled>Envoyer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Nouvelle discussion : recherche d'un contact par nom/numéro ---------- -->
+  <div id="newChatOverlay">
+    <div id="newChatCard">
+      <div id="newChatHeader">
+        <h2>Nouvelle discussion</h2>
+        <button id="closeNewChatBtn" title="Fermer">✕</button>
+      </div>
+      <div id="newChatBody">
+        <input id="newChatSearchInput" type="text" placeholder="Rechercher par nom ou numéro">
+        <div id="newChatList"></div>
       </div>
     </div>
   </div>
@@ -3602,12 +3628,53 @@
   // ferait un menu de discussions classique.
   $('sidebarMenuBtn').addEventListener('click', () => $('settingsBtn').click());
 
-  // "+" : la liste "Autres utilisateurs" (qui exposait tout le monde) est
-  // masquée. En attendant un vrai flux de création de discussion (recherche
-  // par numéro de téléphone), on informe simplement la personne.
-  $('newChatBtn').addEventListener('click', () => {
-    alert('La recherche d\'un nouveau contact par numéro de téléphone arrive bientôt.\n\nEn attendant, une communauté ou un groupe peut être créé depuis l\'onglet Communautés.');
-  });
+  // "+" : ouvre l'écran "Nouvelle discussion" (recherche parmi les comptes
+  // déjà créés sur l'appli, par nom ou numéro de téléphone) — remplace
+  // l'ancien message "arrive bientôt". La liste "Autres utilisateurs" pleine
+  // largeur (#userList, réglages) reste masquée par ailleurs : ici on affiche
+  // la même liste, mais dans une fenêtre de recherche dédiée.
+  function renderNewChatList(filterText) {
+    const el = $('newChatList');
+    const q = (filterText || '').trim().toLowerCase();
+    const filtered = !q ? users : users.filter((u) =>
+      (u.name || '').toLowerCase().includes(q) || (u.phone || '').toLowerCase().includes(q)
+    );
+    el.innerHTML = '';
+    if (!filtered.length) {
+      el.innerHTML = `<div id="newChatEmpty">${users.length
+        ? 'Aucun contact ne correspond à cette recherche.'
+        : 'Personne d\'autre n\'a encore créé de compte sur l\'application.<br>Partagez le lien de l\'appli pour que d\'autres puissent s\'inscrire.'}</div>`;
+      return;
+    }
+    filtered.forEach((u) => {
+      const row = document.createElement('div');
+      row.className = 'listItem';
+      row.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl, '', u.online)}
+        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${u.online ? 'en ligne' : escapeHtml(u.phone)}</div></div>`;
+      row.addEventListener('click', () => { closeNewChat(); startConversationWith(u.id); });
+      el.appendChild(row);
+    });
+  }
+
+  async function openNewChat() {
+    $('newChatSearchInput').value = '';
+    $('newChatList').innerHTML = '<div id="newChatEmpty">Chargement…</div>';
+    $('newChatOverlay').classList.add('show');
+    // On recharge la liste à chaque ouverture pour inclure les comptes créés
+    // depuis la dernière connexion (comme pour renderMemberPicker).
+    try { await loadUsers(); } catch (e) { /* tant pis, on affiche la liste déjà en mémoire */ }
+    renderNewChatList('');
+    setTimeout(() => $('newChatSearchInput').focus(), 50);
+  }
+
+  function closeNewChat() {
+    $('newChatOverlay').classList.remove('show');
+  }
+
+  $('newChatBtn').addEventListener('click', openNewChat);
+  $('closeNewChatBtn').addEventListener('click', closeNewChat);
+  $('newChatOverlay').addEventListener('click', (e) => { if (e.target === $('newChatOverlay')) closeNewChat(); });
+  $('newChatSearchInput').addEventListener('input', (e) => renderNewChatList(e.target.value));
 
   $('sidebarCameraBtn').addEventListener('click', () => {
     if (!activeConversationId) return alert('Ouvrez une discussion avant d\'envoyer une photo.');
