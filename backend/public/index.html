@@ -9,16 +9,32 @@
 <link rel="manifest" href="/manifest.json">
 <link rel="icon" href="/icon-192.png">
 <link rel="apple-touch-icon" href="/icon-192.png">
+
 <meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="seourouApps">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
+<!-- Servi directement par notre propre serveur Socket.io (même origine), plutôt
+     que depuis un CDN externe (cdnjs) : certains réseaux (pare-feu d'entreprise,
+     certains opérateurs/pays) bloquent les CDN tiers sans bloquer le site lui-même,
+     ce qui empêchait toute l'app de fonctionner (l'échec de connexion en temps réel
+     interrompait aussi le chargement des utilisateurs/discussions). Garantit en
+     plus que la version du client correspond toujours exactement à celle du serveur. -->
+<script src="/socket.io/socket.io.js"></script>
 <style>
   :root{
     --bg:#0f1115; --panel:#171a21; --panel2:#1f232c; --border:#2a2f3a;
     --text:#e8eaed; --muted:#9aa2b1; --accent:#4f7cff; --accent2:#3a63d6;
     --danger:#e5484d; --success:#2ecc71; --radius:10px;
+    /* Taille de police des discussions (Paramètres → Apparence → Taille du
+       texte, comme WhatsApp) : un seul multiplicateur, appliqué via calc() à
+       chaque endroit concerné (bulles de message, noms/aperçus de la liste,
+       champ de saisie...). 1 = taille normale ; changé par une classe sur
+       <body> (voir body.text-small/text-large plus bas). */
+    --chat-font-scale:1;
   }
+  body.text-small{--chat-font-scale:0.88;}
+  body.text-large{--chat-font-scale:1.2;}
   /* Thème clair (Paramètres → Apparence), activé via une classe sur <body> et
      mémorisé dans ce navigateur — mêmes couleurs d'accent/danger/succès, seules
      les surfaces (fond, panneaux, texte) changent pour rester lisible. */
@@ -54,6 +70,17 @@
   #topbar input{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 8px;font-size:13px;width:220px;}
   #topbar button{background:var(--accent);border:none;color:white;border-radius:6px;padding:6px 12px;cursor:pointer;font-size:13px;}
   #topbar button:hover{background:var(--accent2);}
+  /* Champs de test/débogage (URL de l'API alternative, bouton de test, texte
+     technique du statut de connexion) : utiles en développement, mais n'ont
+     rien à faire dans une vraie application "propre" livrée à des utilisateurs.
+     Masqués par défaut sur toutes les tailles d'écran ; réapparaissent
+     seulement avec "?debug" dans l'URL (voir tout en bas du script). Le petit
+     point de statut (#statusDot) reste toujours visible : discret, il suffit à
+     rassurer sur la connexion sans jargon technique. */
+  #apiBaseInput, #testBackendBtn, #statusText{display:none;}
+  body.debug-mode #apiBaseInput{display:inline-block;}
+  body.debug-mode #testBackendBtn{display:inline-block;}
+  body.debug-mode #statusText{display:inline;}
   #statusDot{width:9px;height:9px;border-radius:50%;background:var(--danger);display:inline-block;}
   #statusDot.ok{background:var(--success);}
   #statusText{color:var(--muted);}
@@ -63,14 +90,16 @@
   /* Auth screen */
   #authScreen{flex:1;display:flex;align-items:center;justify-content:center;}
   .authCard{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:28px;width:340px;}
-  .authCard h1{font-size:18px;margin:0 0 4px;}
+  .authCard h1{font-size:20px;margin:0 0 4px;}
   .authCard p.sub{color:var(--muted);font-size:13px;margin:0 0 18px;}
   .tabs{display:flex;gap:6px;margin-bottom:16px;}
   .tabs button{flex:1;padding:8px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);cursor:pointer;font-size:13px;}
   .tabs button.active{background:var(--accent);color:white;border-color:var(--accent);}
   .authCard label{display:block;font-size:12px;color:var(--muted);margin:10px 0 4px;}
-  .authCard input{width:100%;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
-  .authCard .primaryBtn{width:100%;margin-top:18px;padding:10px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:14px;cursor:pointer;}
+  .authCard input{width:100%;padding:10px 11px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15.5px;}
+  .authCard .primaryBtn{width:100%;margin-top:18px;padding:11px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:15.5px;cursor:pointer;}
+  .authCard .linkBtn{display:block;width:100%;background:none;border:none;color:var(--accent);font-size:13px;cursor:pointer;margin-top:12px;padding:4px;text-align:center;}
+  .authCard .linkBtn:hover{text-decoration:underline;}
   .authCard .primaryBtn:hover{background:var(--accent2);}
   .errorMsg{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:16px;}
 
@@ -82,7 +111,7 @@
   /* En-tête façon "Discussions" (titre + appareil photo + nouvelle discussion),
      barre de recherche et filtres, au-dessus de la liste des conversations. */
   #sidebarTopRow{display:flex;align-items:center;gap:6px;padding:12px 10px 8px;flex-shrink:0;}
-  #sidebarTopRow h1{font-size:19px;font-weight:800;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.01em;}
+  #sidebarTopRow h1{font-size:21px;font-weight:800;margin:0;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;letter-spacing:-.01em;}
   .roundIconBtn,.roundIconBtnPrimary{width:32px;height:32px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:14px;line-height:1;padding:0;}
   .roundIconBtn{background:var(--panel2);color:var(--text);}
   .roundIconBtn:hover{background:var(--border);}
@@ -108,8 +137,18 @@
   .tagMenu{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:10px;padding:8px;z-index:200;min-width:170px;box-shadow:0 8px 24px rgba(0,0,0,.4);}
   .tagMenu label{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 4px;cursor:pointer;}
   .tagMenu .tagMenuEmpty{color:var(--muted);font-size:12px;padding:4px;max-width:180px;}
-  .convTagBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.55;padding:0;line-height:1;color:inherit;}
-  .convTagBtn:hover{opacity:1;}
+  .convTagBtn{background:none;border:none;cursor:pointer;font-size:12px;padding:0;line-height:1;color:inherit;}
+
+  /* Ligne "Archivées" façon WhatsApp : une entrée à part au-dessus de la
+     liste, pas un chip de filtre — cliquer dessus bascule vers la sous-vue
+     dédiée (archivedHeaderRow), qui remplace alors filterChips/archivedRow. */
+  .archivedRow{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;color:var(--muted);border-bottom:1px solid var(--border);}
+  .archivedRow:hover{background:var(--panel2);}
+  .archivedIcon{font-size:15px;flex-shrink:0;}
+  .archivedRowLabel{flex:1;font-size:13.5px;}
+  .archivedRowCount{font-size:12px;flex-shrink:0;}
+  .archivedHeaderRow{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--border);font-weight:600;font-size:14.5px;}
+  .archivedHeaderRow button{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:50%;width:30px;height:30px;padding:0;cursor:pointer;font-size:20px;line-height:1;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
 
   .sideSection{padding:12px 14px 6px;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);}
   #convList,#userList{overflow-y:auto;}
@@ -119,16 +158,30 @@
   .unreadDot{width:9px;height:9px;border-radius:50%;background:var(--accent);flex-shrink:0;}
   .favStar{background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;color:var(--muted);flex-shrink:0;}
   .favStar.active{color:#f5b944;}
+  /* Les 6 boutons d'action (favori, étiquette, sourdine, archive, verrouillage,
+     suppression) sont regroupés ici : masqués par défaut, révélés au survol
+     de la ligne (souris) ou par le menu ouvert par appui long/clic droit
+     (openConvActionMenu) — jamais affichés en permanence, sinon ils
+     agrandissent la ligne pour tous les faire rentrer empilés verticalement
+     (c'était le problème avant ce changement). Masqués en permanence sur
+     tactile (pas de survol) : le menu est alors la seule voie d'accès. */
+  .convActions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;opacity:0;transition:opacity .12s ease;}
+  .listItem:hover .convActions{opacity:1;}
+  @media (hover:none){
+    .convActions{display:none;}
+  }
   .listItem{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;border-left:3px solid transparent;}
   .listItem:hover{background:var(--panel2);}
   .listItem.active{background:var(--panel2);border-left-color:var(--accent);}
-  .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;}
+  .avatar{width:32px;height:32px;border-radius:50%;background:var(--accent);color:white;display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;position:relative;}
   .avatar.avatarPhoto{background-size:cover;background-position:center;color:transparent;}
   .avatar.avatarSmall{width:26px;height:26px;font-size:11px;cursor:pointer;}
+  /* Petit point vert "en ligne" façon WhatsApp, superposé au coin de l'avatar. */
+  .onlineDot{position:absolute;right:-2px;bottom:-2px;width:10px;height:10px;border-radius:50%;background:var(--success);border:2px solid var(--panel);}
   .liText{min-width:0;}
-  .liName{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-  .liSub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
-  .liPhone{font-weight:400;color:var(--muted);font-size:11.5px;}
+  .liName{font-size:calc(15.5px * var(--chat-font-scale));overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .liSub{font-size:calc(13px * var(--chat-font-scale));color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
+  .liPhone{font-weight:400;color:var(--muted);font-size:calc(13px * var(--chat-font-scale));}
   #userList{border-top:1px solid var(--border);}
 
   /* Écrans de premier niveau accessibles depuis la barre d'onglets du bas
@@ -162,7 +215,7 @@
      (chatOpen) — sur PC elle reste visible même pendant une conversation,
      puisque la liste des discussions et la conversation sont côte à côte. */
   #bottomTabBar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:60;background:var(--panel);border-top:1px solid var(--border);padding:6px max(6px, env(safe-area-inset-right)) max(4px, env(safe-area-inset-bottom)) max(6px, env(safe-area-inset-left));}
-  .tabBtn{flex:1;background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:10px;cursor:pointer;padding:4px 0 2px;position:relative;}
+  .tabBtn{flex:1;background:none;border:none;color:var(--muted);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font-size:11px;cursor:pointer;padding:4px 0 2px;position:relative;}
   /* Icônes façon "Réglages iOS" : chaque onglet a son propre badge coloré en
      permanence (couleur distincte, pas seulement vert/gris), pour un rendu
      plus professionnel et pour distinguer les sections d'un coup d'œil. */
@@ -182,7 +235,13 @@
 
   #chatArea{flex:1;display:flex;flex-direction:column;min-width:0;}
   #chatHeader{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;}
-  #chatHeader .title{font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #chatHeader .titleWrap{display:flex;flex-direction:column;overflow:hidden;min-width:0;}
+  #chatHeader .title{font-size:16.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* "en ligne" / "vu à …" sous le nom, comme WhatsApp. Vide (et sans marge) pour
+     un groupe, ou tant que le statut n'a pas encore été déterminé. */
+  #chatHeader .subtitle{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #chatHeader .subtitle:empty{display:none;}
+  #chatHeader .subtitle.online{color:var(--success);}
   /* Bouton "retour à la liste" : un rond avec un chevron, comme le bouton
      retour natif de WhatsApp/iOS, pour qu'il soit reconnaissable comme un vrai
      bouton d'app (et pas confondu avec le geste de retour du navigateur, qui
@@ -213,7 +272,10 @@
   #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
   .msgRow{display:flex;}
   .msgRow.mine{justify-content:flex-end;}
-  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:13.5px;line-height:1.4;}
+  /* -webkit-touch-callout:none évite qu'un appui long déclenche EN PLUS le
+     menu natif du navigateur (sélection de texte/"copier" iOS) par-dessus
+     notre propre menu d'actions (voir plus bas, openMessageActionMenu). */
+  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:calc(15px * var(--chat-font-scale));line-height:1.4;-webkit-touch-callout:none;}
   .msgRow.mine .bubble{background:var(--accent);color:white;border-bottom-right-radius:4px;}
   .msgRow:not(.mine) .bubble{background:var(--panel2);border-bottom-left-radius:4px;}
   .bubble .sender{font-size:11px;color:var(--muted);margin-bottom:2px;}
@@ -228,12 +290,117 @@
   .deleteMsgBtn:hover{opacity:1;}
   .eraseMsgBtn{background:none;border:none;cursor:pointer;font-size:11px;opacity:.55;padding:0;line-height:1;color:inherit;}
   .eraseMsgBtn:hover{opacity:1;color:#ff5c5c;}
-  .msgDeleted{font-style:italic;opacity:.65;font-size:13px;display:flex;align-items:center;gap:6px;}
+  /* Boutons "répondre" / "réagir" / etc. : masqués par défaut, révélés au
+     survol de la bulle (souris uniquement). Sur tactile (pas de survol), ils
+     restent masqués en permanence — voir la media query tactile plus bas —
+     car le menu d'action ouvert par appui long (openMessageActionMenu) offre
+     déjà les mêmes actions ; les garder aussi visibles en plus serait
+     redondant et encombrerait chaque bulle. */
+  .msgRow{position:relative;}
+  .msgActions{display:flex;gap:2px;align-self:center;opacity:0;transition:opacity .12s ease;}
+  .msgRow:hover .msgActions{opacity:1;}
+  /* Les actions sont toujours en premier dans le HTML (avant la bulle) : pour
+     un message reçu (aligné à gauche), on les repousse après la bulle avec
+     "order" afin qu'elles apparaissent à sa droite, comme sur WhatsApp. Pour un
+     message envoyé (aligné à droite, justify-content:flex-end), l'ordre HTML
+     d'origine les place déjà juste à gauche de la bulle. */
+  .msgRow:not(.mine) .msgActions{order:1;}
+  .msgActionBtn{background:var(--panel2);border:1px solid var(--border);border-radius:50%;width:26px;height:26px;padding:0;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;color:inherit;flex-shrink:0;}
+  .msgActionBtn:hover{background:var(--border);}
+  @media (hover:none){
+    /* Sur tactile, ces icônes disparaissent complètement (display:none, pas
+       juste opacity:0) : l'appui long ouvre le même jeu d'actions dans un
+       menu, comme sur WhatsApp/iMessage — pas besoin des deux à la fois. */
+    .msgActions{display:none;}
+  }
+  /* Citation du message auquel on répond, affichée en haut de la bulle
+     (comme WhatsApp) : un petit bandeau plus sombre/plus clair selon le sens. */
+  .replyQuote{border-left:3px solid var(--accent);border-radius:6px;padding:4px 8px;margin-bottom:5px;font-size:calc(12.5px * var(--chat-font-scale));background:rgba(0,0,0,.12);cursor:pointer;}
+  .msgRow.mine .replyQuote{background:rgba(255,255,255,.18);border-left-color:rgba(255,255,255,.85);}
+  .replyQuote .replyQuoteSender{font-weight:600;opacity:.9;}
+  .replyQuote .replyQuoteText{opacity:.8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .msgRow.highlightFlash .bubble{animation:highlightFlash 1.4s ease;}
+  @keyframes highlightFlash{0%{box-shadow:0 0 0 2px var(--accent);}100%{box-shadow:0 0 0 0 transparent;}}
+  /* Pastilles de réactions emoji sous la bulle, comme WhatsApp. */
+  .reactionPills{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;}
+  .reactionPill{background:var(--panel2);border:1px solid var(--border);border-radius:11px;padding:1px 7px;font-size:12px;cursor:pointer;display:flex;align-items:center;gap:3px;color:var(--text);}
+  .reactionPill.mine{border-color:var(--accent);background:rgba(11,132,255,.15);}
+  .reactionPill .reactionCount{font-size:10.5px;opacity:.75;}
+  /* Petit sélecteur d'emoji flottant (même style que .tagMenu), ouvert par le
+     bouton "réagir" d'un message. */
+  .reactionPicker{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px;z-index:200;display:flex;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.4);}
+  .reactionPicker button{background:none;border:none;font-size:20px;cursor:pointer;padding:2px 4px;line-height:1;border-radius:8px;}
+  .reactionPicker button:hover{background:var(--panel2);transform:scale(1.15);}
+  /* Menu d'actions sur un message façon iOS/WhatsApp : appui long sur mobile
+     (pas de survol possible), clic droit sur PC. Un fond transparent
+     (msgContextMenuBackdrop) capte le clic/tap "à côté" pour fermer le menu,
+     sans quoi il faudrait un bouton "fermer" dédié. */
+  .msgContextMenuBackdrop{position:fixed;inset:0;z-index:199;background:transparent;}
+  .msgContextMenu{position:fixed;min-width:220px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:6px;z-index:200;box-shadow:0 12px 32px rgba(0,0,0,.45);display:flex;flex-direction:column;}
+  .msgContextMenuItem{display:flex;align-items:center;gap:12px;background:none;border:none;color:inherit;text-align:left;padding:10px 12px;font-size:14.5px;border-radius:8px;cursor:pointer;width:100%;}
+  .msgContextMenuItem:hover{background:var(--panel2);}
+  .msgContextMenuItem.danger{color:var(--danger);}
+  .msgContextMenuIcon{font-size:16px;flex-shrink:0;width:20px;text-align:center;}
+  .msgContextMenuDivider{height:1px;background:var(--border);margin:4px 2px;}
+  /* Petite carte "Infos" (heure d'envoi, modification, statut de lecture) :
+     même habillage que le menu d'actions, contenu texte statique. */
+  .msgInfoCard{padding:12px 14px;font-size:13px;line-height:1.6;color:var(--muted);}
+  .msgInfoCard strong{color:var(--text);}
+  /* Bandeau "réponse à …" au-dessus de la barre de saisie, avec bouton d'annulation. */
+  #replyBanner{display:flex;align-items:center;gap:8px;padding:8px 18px;border-top:1px solid var(--border);background:var(--panel2);}
+  #replyBanner .replyBannerBar{width:3px;align-self:stretch;background:var(--accent);border-radius:2px;flex-shrink:0;}
+  #replyBannerContent{flex:1;min-width:0;font-size:13px;}
+  #replyBannerContent .replyBannerSender{font-weight:600;color:var(--accent);}
+  #replyBannerContent .replyBannerText{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #replyBannerClose{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:4px;flex-shrink:0;}
+  #replyBannerClose:hover{color:var(--text);}
+  /* Bandeau "Modifier le message" au-dessus du composer : même mise en page
+     que #replyBanner, mais une barre orange (au lieu de la couleur d'accent)
+     pour bien distinguer visuellement "je réponds" de "je modifie". */
+  #editBanner{display:flex;align-items:center;gap:8px;padding:8px 18px;border-top:1px solid var(--border);background:var(--panel2);}
+  #editBanner .replyBannerBar{width:3px;align-self:stretch;background:#f5a623;border-radius:2px;flex-shrink:0;}
+  #editBanner .replyBannerSender{font-weight:600;color:#f5a623;}
+  #editBannerClose{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:4px;flex-shrink:0;margin-left:auto;}
+  #editBannerClose:hover{color:var(--text);}
+  /* Mention "modifié" (comme WhatsApp) à côté de l'heure du message. */
+  .editedLabel{font-size:10px;opacity:.6;font-style:italic;}
+  /* Mention "Transféré" au-dessus du contenu d'un message transféré. */
+  .forwardedLabel{font-size:11px;opacity:.7;font-style:italic;margin-bottom:2px;}
+  /* Bouton "épingler" actif (message déjà épinglé) : couleur d'accent, comme
+     les autres états "actifs" de l'application (favStar.active, etc.). */
+  .msgActionBtn.active{background:var(--accent);color:white;border-color:var(--accent);}
+  /* Léger liseré à gauche pour repérer un message épinglé dans le fil, en plus
+     de sa présence dans #pinnedBanner. */
+  .msgRow.pinnedRow .bubble{box-shadow:-3px 0 0 0 #f5a623;}
+  /* Bandeau des messages épinglés, juste au-dessus de la liste des messages
+     (comme WhatsApp) : une ligne par message épinglé, cliquable pour y aller. */
+  #pinnedBanner{display:flex;flex-direction:column;border-bottom:1px solid var(--border);background:var(--panel2);max-height:110px;overflow-y:auto;flex-shrink:0;}
+  .pinnedItem{display:flex;align-items:center;gap:8px;padding:6px 18px;cursor:pointer;font-size:12.5px;border-bottom:1px solid var(--border);}
+  .pinnedItem:last-child{border-bottom:none;}
+  .pinnedItem:hover{background:var(--panel);}
+  .pinnedIcon{flex-shrink:0;}
+  .pinnedText{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);}
+  .pinnedUnpinBtn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:2px;flex-shrink:0;}
+  .pinnedUnpinBtn:hover{color:#ff5c5c;}
+  /* Barre de recherche dans la discussion ouverte (distincte de la recherche
+     de discussions dans la sidebar), affichée par-dessus l'en-tête. */
+  #chatSearchBar{display:flex;align-items:center;gap:8px;padding:8px 18px;border-bottom:1px solid var(--border);background:var(--panel2);}
+  #chatSearchBar .searchIcon{font-size:13px;color:var(--muted);flex-shrink:0;}
+  #chatSearchBar input{flex:1;min-width:0;background:var(--panel);border:1px solid var(--border);border-radius:16px;padding:6px 12px;color:var(--text);font-size:13.5px;}
+  #chatSearchCount{font-size:11.5px;color:var(--muted);white-space:nowrap;flex-shrink:0;}
+  #chatSearchBar button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px;padding:4px;flex-shrink:0;}
+  #chatSearchBar button:hover{color:var(--text);}
+  /* Messages correspondant à la recherche en cours : léger fond jaune, plus
+     marqué pour le résultat actif (celui vers lequel on vient de défiler). */
+  .msgRow.searchMatch .bubble{outline:2px solid rgba(245,166,35,.55);}
+  .msgRow.searchMatchActive .bubble{outline:2px solid #f5a623;}
+  .msgDeleted{font-style:italic;opacity:.65;font-size:calc(14px * var(--chat-font-scale));display:flex;align-items:center;gap:6px;}
   .blockUserBtn{background:none;border:1px solid var(--border);border-radius:8px;cursor:pointer;font-size:11px;padding:5px 9px;color:inherit;opacity:.8;white-space:nowrap;}
   .blockUserBtn:hover{opacity:1;}
   .blockUserBtn.isBlocked{border-color:#ff5c5c;color:#ff5c5c;}
-  .convDeleteBtn{background:none;border:none;cursor:pointer;font-size:12px;opacity:.5;padding:0;line-height:1;color:inherit;}
-  .convDeleteBtn:hover{opacity:1;color:#ff5c5c;}
+  .convDeleteBtn{background:none;border:none;cursor:pointer;font-size:12px;padding:0;line-height:1;color:inherit;}
+  .convDeleteBtn:hover{color:#ff5c5c;}
+  .convMuteBtn,.convArchiveBtn,.convLockBtn{background:none;border:none;cursor:pointer;font-size:12px;padding:0;line-height:1;color:inherit;}
   .blockedUserRow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
   .blockedUserRow:last-child{border-bottom:none;}
   .blockedUserRow .liText{flex:1;}
@@ -250,12 +417,12 @@
   .composerIconBtn.recording{background:var(--danger);color:white;animation:recordPulse 1s infinite;}
   @keyframes recordPulse{0%{opacity:1;}50%{opacity:.55;}100%{opacity:1;}}
   #msgInputWrap{position:relative;flex:1;min-width:0;display:flex;align-items:center;}
-  #msgInputWrap input[type="text"]{width:100%;box-sizing:border-box;padding:10px 34px 10px 14px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+  #msgInputWrap input[type="text"]{width:100%;box-sizing:border-box;padding:10px 34px 10px 14px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:calc(15px * var(--chat-font-scale));}
   #msgInputWrap .emojiIcon{position:absolute;right:12px;font-size:15px;color:var(--muted);pointer-events:none;}
   #recordingTime{display:none;position:absolute;right:14px;color:var(--danger);font-size:12.5px;font-variant-numeric:tabular-nums;background:var(--panel2);padding:0 2px;}
   #sendBtn{display:none;background:var(--accent);border:none;color:white;border-radius:50%;width:38px;height:38px;padding:0;cursor:pointer;font-size:15px;align-items:center;justify-content:center;flex-shrink:0;}
   #sendBtn:hover{background:var(--accent2);}
-  #emptyState{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:14px;}
+  #emptyState{flex:1;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:15px;}
 
   /* Pièces jointes dans les bulles de message */
   .msgCaption{margin-top:4px;}
@@ -306,7 +473,7 @@
   #settingsBody{padding:14px;overflow-y:auto;}
   .settingsSection{padding:16px;border-radius:14px;background:var(--panel);margin-bottom:12px;}
   .settingsSection:last-child{margin-bottom:0;}
-  .settingsSection h3{margin:0 0 12px;font-size:14px;color:var(--text);font-weight:700;display:flex;align-items:center;gap:10px;}
+  .settingsSection h3{margin:0 0 12px;font-size:15px;color:var(--text);font-weight:700;display:flex;align-items:center;gap:10px;}
   .settingsSection h3 .settingsIcon{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;background:var(--panel2);font-size:13px;flex-shrink:0;}
   .settingsAvatarRow{display:flex;align-items:center;gap:14px;}
   .settingsAvatarRow .avatar{width:56px;height:56px;font-size:20px;cursor:pointer;flex-shrink:0;}
@@ -314,20 +481,50 @@
   .settingsAvatarField label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px;}
   .settingsInlineRow{display:flex;gap:8px;}
   .settingsInlineRow input{flex:1;min-width:0;}
-  #settingsBody input[type="text"],#settingsBody input[type="password"]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:8px;}
+  #settingsBody input[type="text"],#settingsBody input[type="password"]{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15px;margin-bottom:8px;}
   #settingsBody button{background:var(--accent);border:none;color:white;border-radius:6px;padding:9px 14px;cursor:pointer;font-size:13px;white-space:nowrap;}
   #settingsBody button:hover{background:var(--accent2);}
+  /* Plus spécifique que la règle générique ci-dessus (nécessaire pour
+     l'emporter malgré elle) : garde l'apparence "danger" (contour rouge, fond
+     transparent) du bouton de suppression de compte à l'intérieur de #settingsBody. */
+  #settingsBody button.dangerFullBtn{background:none;border:1px solid var(--danger);color:var(--danger);}
+  #settingsBody button.dangerFullBtn:hover{background:rgba(255,92,92,.12);}
   .settingsStatic{margin-top:12px;font-size:13px;color:var(--muted);}
   .settingsMsg{margin-top:8px;font-size:12.5px;min-height:16px;}
   .settingsMsg.error{color:var(--danger);}
   .settingsMsg.success{color:var(--success);}
-  .switchRow{display:flex;align-items:center;gap:10px;font-size:13.5px;cursor:pointer;margin-bottom:12px;}
+  .adminUserList{max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-top:10px;}
+  .adminUserRow{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--border);}
+  .adminUserRow:last-child{border-bottom:none;}
+  .adminUserInfo{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;}
+  .adminUserName{font-size:13.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .adminUserPhone{font-size:12px;color:var(--muted);}
+  .adminBadge{display:inline-block;font-size:10.5px;font-weight:600;color:var(--accent);border:1px solid var(--accent);border-radius:4px;padding:1px 5px;margin-left:6px;vertical-align:middle;}
+  .adminDeleteUserBtn{flex-shrink:0;background:none;border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:6px 10px;font-size:12.5px;cursor:pointer;}
+  .adminDeleteUserBtn:hover{background:var(--danger);color:white;}
+  .adminEmptyText{padding:14px;text-align:center;font-size:12.5px;color:var(--muted);}
+  .otherProductsRow{display:flex;gap:18px;overflow-x:auto;padding-top:2px;}
+  .otherProductItem{display:flex;flex-direction:column;align-items:center;gap:6px;text-decoration:none;color:inherit;flex-shrink:0;width:64px;}
+  .otherProductIcon{width:52px;height:52px;border-radius:50%;background:var(--panel2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;}
+  .otherProductLabel{font-size:11.5px;text-align:center;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:64px;}
+  .switchRow{display:flex;align-items:center;gap:10px;font-size:14.5px;cursor:pointer;margin-bottom:12px;}
   .switchRow:last-child{margin-bottom:0;}
   .switchRow input{position:absolute;opacity:0;width:0;height:0;}
   .switchTrack{position:relative;width:38px;height:22px;border-radius:11px;background:var(--panel2);border:1px solid var(--border);flex-shrink:0;transition:background .15s;}
   .switchTrack::after{content:'';position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s;}
   .switchRow input:checked + .switchTrack{background:var(--accent);border-color:var(--accent);}
   .switchRow input:checked + .switchTrack::after{transform:translateX(16px);background:white;}
+
+  /* Taille du texte des discussions (Paramètres → Apparence), même style de
+     "pilules" que les onglets Texte/Photo du composeur de statut. */
+  .textSizeTabs{display:flex;gap:8px;}
+  /* Spécificité "#settingsBody .textSizeTab" (et pas juste ".textSizeTab")
+     nécessaire pour l'emporter sur la règle générique "#settingsBody button"
+     ci-dessus, plus spécifique à cause de son sélecteur d'id : sans ça, les
+     trois boutons (Petite/Moyenne/Grande) apparaissaient tous en bleu plein,
+     impossible de distinguer celui réellement sélectionné. */
+  #settingsBody .textSizeTab{flex:1;padding:7px 0;border:1px solid var(--border);background:var(--panel2);color:var(--muted);border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;}
+  #settingsBody .textSizeTab.active{background:var(--accent);border-color:var(--accent);color:white;}
 
   /* Nuancier de couleurs d'accent (Paramètres → Apparence). */
   .accentSwatches{display:flex;flex-wrap:wrap;gap:12px;margin-top:2px;}
@@ -396,6 +593,33 @@
   #communityComposerHeader button, #communityDetailHeader button, #communityAddMemberHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
   #communityComposerBody, #communityDetailBody, #communityAddMemberBody{padding:16px;overflow-y:auto;}
   #communityNameInput, #communityDescInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;font-family:inherit;}
+
+  /* ---------- Transfert de message : modale de sélection des discussions ---------- */
+  #forwardOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
+  #forwardOverlay.show{display:flex;}
+  #forwardCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #forwardHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #forwardHeader h2{margin:0;font-size:16px;}
+  #forwardHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #forwardBody{padding:16px;overflow-y:auto;max-height:50vh;}
+  .forwardRow{cursor:pointer;}
+  .forwardRow input.forwardCheckbox{margin-right:2px;flex-shrink:0;width:16px;height:16px;}
+  #forwardFooter{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 18px;border-top:1px solid var(--border);}
+  #forwardSelectedCount{font-size:12.5px;color:var(--muted);}
+  #forwardFooter .primaryBtn{width:auto;margin-top:0;padding:9px 18px;border-radius:6px;border:none;background:var(--accent);color:white;font-size:14px;cursor:pointer;}
+  #forwardFooter .primaryBtn:disabled{opacity:.5;cursor:not-allowed;}
+
+  /* ---------- Discussions verrouillées : demande du mot de passe ---------- */
+  #lockedUnlockOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
+  #lockedUnlockOverlay.show{display:flex;}
+  #lockedUnlockCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:360px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #lockedUnlockHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #lockedUnlockHeader h2{margin:0;font-size:16px;}
+  #lockedUnlockHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #lockedUnlockBody{padding:16px;}
+  #lockedUnlockBody input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15px;}
+  #lockedUnlockBody .primaryBtn{background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;}
+  #lockedUnlockBody .primaryBtn:hover{background:var(--accent2);}
   #communityDescInput{min-height:60px;resize:vertical;}
   .pickerLabel{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
   .memberPicker{max-height:220px;overflow-y:auto;border:1px solid var(--border);border-radius:8px;margin-bottom:10px;}
@@ -422,8 +646,6 @@
      messagerie habituelles : soit la liste, soit la conversation ouverte,
      avec un bouton retour pour revenir à la liste. */
   @media (max-width: 700px) {
-    /* Les champs de test/débogage (URL de l'API) ne servent qu'en dev, pas au quotidien. */
-    #apiBaseInput, #testBackendBtn, #statusText{display:none;}
     #topbar{gap:8px;padding:max(28px, env(safe-area-inset-top)) max(10px, env(safe-area-inset-right)) 8px max(10px, env(safe-area-inset-left));}
     #whoami{gap:6px;}
     #whoamiText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:34vw;}
@@ -458,6 +680,16 @@
        largeur (sidebar + zone de conversation cachées par switchBottomTab),
        au lieu de rester coincés dans la largeur de la colonne de gauche. */
     #callsScreen, #statusScreen, #communitiesScreen{flex:1;}
+  }
+
+  /* ---------- Tablette / petite fenêtre PC (701-900px) ---------- */
+  /* La barre latérale à largeur fixe (280px) laisse trop peu de place à la
+     conversation sur un écran juste au-dessus du seuil mobile (ex: tablette
+     en portrait, ou fenêtre de bureau redimensionnée en petit) : on la
+     réduit un peu plutôt que de la garder à la même largeur qu'un grand écran. */
+  @media (min-width: 701px) and (max-width: 900px) {
+    #sidebar{width:230px;}
+    .liSub{max-width:150px;}
   }
 </style>
 </head>
@@ -494,6 +726,7 @@
         <label>Mot de passe</label>
         <input id="loginPassword" type="password" placeholder="••••••••">
         <button class="primaryBtn" id="loginBtn">Se connecter</button>
+        <button id="forgotPasswordLinkBtn" class="linkBtn">Mot de passe oublié ?</button>
       </div>
 
       <div id="registerForm" style="display:none;">
@@ -504,6 +737,25 @@
         <label>Mot de passe</label>
         <input id="regPassword" type="password" placeholder="6 caractères minimum">
         <button class="primaryBtn" id="registerBtn">Créer le compte</button>
+      </div>
+
+      <!-- Mot de passe oublié : étape 1 (demande du code), puis étape 2 (code
+           reçu par SMS + nouveau mot de passe). Voir auth.controller.js,
+           forgotPassword/resetPassword, et utils/otp.js côté serveur. -->
+      <div id="forgotPasswordForm" style="display:none;">
+        <div id="forgotStep1">
+          <label>Numéro de téléphone</label>
+          <input id="forgotPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
+          <button class="primaryBtn" id="forgotSendCodeBtn">Recevoir un code par SMS</button>
+        </div>
+        <div id="forgotStep2" style="display:none;">
+          <label>Code reçu par SMS</label>
+          <input id="forgotCode" type="text" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres">
+          <label>Nouveau mot de passe</label>
+          <input id="forgotNewPassword" type="password" placeholder="6 caractères minimum">
+          <button class="primaryBtn" id="forgotResetBtn">Réinitialiser le mot de passe</button>
+        </div>
+        <button id="backToLoginBtn" class="linkBtn">‹ Retour à la connexion</button>
       </div>
 
       <div class="errorMsg" id="authError"></div>
@@ -529,6 +781,32 @@
         <button class="filterChip" data-filter="favoris">Favoris</button>
         <button class="filterChip" data-filter="groupes">Groupes</button>
         <button class="filterChip addFilterChip" id="addFilterBtn" title="Créer un filtre personnalisé">+</button>
+      </div>
+      <!-- Ligne "Discussions verrouillées" façon WhatsApp : au-dessus
+           d'"Archivées", visible seulement s'il existe au moins une discussion
+           verrouillée. Cliquer dessus redemande le mot de passe du compte
+           (lockedUnlockOverlay) avant de révéler la sous-vue dédiée. -->
+      <div id="lockedRow" class="archivedRow" style="display:none;">
+        <span class="archivedIcon">🔒</span>
+        <span class="archivedRowLabel">Discussions verrouillées</span>
+        <span id="lockedRowCount" class="archivedRowCount"></span>
+      </div>
+      <div id="lockedHeaderRow" class="archivedHeaderRow" style="display:none;">
+        <button id="lockedBackBtn" title="Retour aux discussions">‹</button>
+        <span>Discussions verrouillées</span>
+      </div>
+      <!-- Ligne "Archivées" façon WhatsApp : une entrée à part (pas un chip de
+           filtre) juste au-dessus de la liste, visible seulement s'il existe au
+           moins une discussion archivée. Cliquer dessus ouvre une sous-vue
+           dédiée (archivedHeaderRow ci-dessous remplace alors filterChips). -->
+      <div id="archivedRow" class="archivedRow" style="display:none;">
+        <span class="archivedIcon">🗄️</span>
+        <span class="archivedRowLabel">Archivées</span>
+        <span id="archivedRowCount" class="archivedRowCount"></span>
+      </div>
+      <div id="archivedHeaderRow" class="archivedHeaderRow" style="display:none;">
+        <button id="archivedBackBtn" title="Retour aux discussions">‹</button>
+        <span>Discussions archivées</span>
       </div>
       <div id="convList"></div>
       <!-- Masqué pour l'instant : cette liste exposait tous les utilisateurs
@@ -571,14 +849,42 @@
         <div id="chatHeader">
           <button id="backToListBtn" title="Retour à la liste des discussions">‹</button>
           <div class="avatar" id="chatAvatar">?</div>
-          <div class="title" id="chatTitle">—</div>
+          <div class="titleWrap">
+            <div class="title" id="chatTitle">—</div>
+            <div class="subtitle" id="chatSubtitle"></div>
+          </div>
           <div class="callBtns">
+            <button id="chatSearchBtn" title="Rechercher dans la discussion"><span class="callIcon">🔍</span></button>
             <button id="videoCallBtn" title="Appel vidéo"><span class="callIcon">🎥</span></button>
             <button id="audioCallBtn" title="Appel audio"><span class="callIcon">📞</span></button>
           </div>
         </div>
+        <!-- Recherche de texte à l'intérieur de la discussion ouverte (comme
+             WhatsApp) : masquée par défaut, affichée par-dessus l'en-tête via
+             chatSearchBtn ci-dessus. -->
+        <div id="chatSearchBar" style="display:none;">
+          <span class="searchIcon">🔍</span>
+          <input id="chatSearchInput" type="text" placeholder="Rechercher dans cette discussion" autocomplete="off">
+          <span id="chatSearchCount"></span>
+          <button id="chatSearchPrevBtn" title="Résultat précédent">↑</button>
+          <button id="chatSearchNextBtn" title="Résultat suivant">↓</button>
+          <button id="chatSearchCloseBtn" title="Fermer la recherche">✕</button>
+        </div>
+        <!-- Messages épinglés (comme WhatsApp) : bandeau juste au-dessus de la
+             liste des messages, masqué s'il n'y en a aucun. -->
+        <div id="pinnedBanner" style="display:none;"></div>
         <div id="messages"></div>
         <div id="typingIndicator"></div>
+        <div id="replyBanner" style="display:none;">
+          <div class="replyBannerBar"></div>
+          <div id="replyBannerContent"></div>
+          <button id="replyBannerClose" title="Annuler la réponse">✕</button>
+        </div>
+        <div id="editBanner" style="display:none;">
+          <div class="replyBannerBar"></div>
+          <div id="editBannerContent"><div class="replyBannerSender">Modifier le message</div></div>
+          <button id="editBannerClose" title="Annuler la modification">✕</button>
+        </div>
         <div id="composer">
           <input type="file" id="fileInput" style="display:none">
           <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
@@ -657,8 +963,46 @@
               </div>
             </div>
           </div>
-          <div class="settingsStatic">Téléphone : <span id="settingsPhoneText"></span></div>
+          <div class="settingsStatic">Téléphone : <span id="settingsPhoneText"></span> <span id="phoneVerifiedBadge" style="display:none;color:var(--success);">✓ Vérifié</span></div>
           <div class="settingsMsg" id="settingsProfileMsg"></div>
+        </section>
+
+        <!-- Vérification du numéro par code OTP envoyé par SMS (voir
+             utils/otp.js / utils/sms.js côté serveur — dégradation gracieuse
+             si aucun fournisseur SMS n'est configuré : le code est alors
+             affiché dans les logs serveur au lieu d'être réellement envoyé). -->
+        <section class="settingsSection" id="phoneVerifySection">
+          <h3><span class="settingsIcon">📱</span>Vérification du numéro</h3>
+          <div id="phoneVerifyAlreadyBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--success);">✓ Votre numéro est vérifié.</label>
+          </div>
+          <div id="phoneVerifyPendingBlock">
+            <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Confirmez que ce numéro vous appartient bien en recevant un code par SMS.</label>
+            <button id="sendOtpBtn" style="width:100%;">Envoyer le code par SMS</button>
+            <div id="otpCodeBlock" style="display:none;margin-top:10px;">
+              <input id="otpCodeInput" type="text" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres">
+              <button id="verifyOtpBtn" style="width:100%;margin-top:8px;">Confirmer le code</button>
+            </div>
+          </div>
+          <div class="settingsMsg" id="settingsOtpMsg"></div>
+        </section>
+
+        <!-- Installation de l'application (PWA) : bouton natif sur Android/PC
+             (Chrome/Edge), instructions manuelles sur iPhone (Safari ne permet
+             pas de déclencher l'installation par script). Masquée entièrement
+             si l'app est déjà installée (voir refreshInstallSection ci-dessous). -->
+        <section class="settingsSection" id="installSection" style="display:none;">
+          <h3><span class="settingsIcon">📲</span>Installation</h3>
+          <div id="installAvailableBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Installez seourouApps sur cet appareil pour l'ouvrir comme une vraie application, avec son icône, en plein écran et hors du navigateur.</label>
+            <button id="installAppBtn" style="width:100%;">📲 Installer l'application</button>
+          </div>
+          <div id="installIosBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--muted);">Sur iPhone/iPad : appuyez sur <strong>Partager</strong> <span style="opacity:.8;">(le carré avec une flèche, en bas de Safari)</span>, puis sur <strong>« Sur l'écran d'accueil »</strong>.</label>
+          </div>
+          <div id="installDoneBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--success);">✓ Application déjà installée sur cet appareil.</label>
+          </div>
         </section>
 
         <section class="settingsSection">
@@ -681,12 +1025,32 @@
             <button class="accentSwatch" data-accent="rouge" style="background:#ef4444" title="Rouge"></button>
             <button class="accentSwatch" data-accent="turquoise" style="background:#14b8a6" title="Turquoise"></button>
           </div>
+          <label style="display:block;font-size:12px;color:var(--muted);margin:16px 0 8px;">Taille du texte des discussions</label>
+          <div class="textSizeTabs">
+            <button class="textSizeTab" data-size="small">Petite</button>
+            <button class="textSizeTab" data-size="medium">Moyenne</button>
+            <button class="textSizeTab" data-size="large">Grande</button>
+          </div>
         </section>
 
         <section class="settingsSection">
           <h3><span class="settingsIcon">🔒</span>Confidentialité</h3>
+          <label class="switchRow"><input type="checkbox" id="hideLastSeenToggle"><span class="switchTrack"></span> Masquer ma dernière connexion</label>
+          <label style="display:block;font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Personne ne verra plus si vous êtes en ligne ni l'heure de votre dernière connexion (vous continuez à voir celle des autres).</label>
           <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:8px;">Utilisateurs bloqués — ils ne peuvent plus vous envoyer de message ni vous appeler.</label>
           <div id="blockedUsersList"></div>
+        </section>
+
+        <!-- Export/sauvegarde des discussions + gestion du stockage local
+             (cache de l'application, comme WhatsApp → Stockage et données). -->
+        <section class="settingsSection">
+          <h3><span class="settingsIcon">💾</span>Stockage et données</h3>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Téléchargez une sauvegarde de vos discussions (texte, au format JSON) que vous pouvez conserver sur cet appareil.</label>
+          <button id="exportBackupBtn" style="width:100%;margin-bottom:14px;">⬇️ Exporter mes discussions</button>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;">Vide les fichiers mis en cache par l'application (pas vos discussions, qui restent sur le serveur) — utile si l'app affiche une version périmée après une mise à jour.</label>
+          <div id="storageUsageText" style="font-size:11.5px;color:var(--muted);margin-bottom:10px;"></div>
+          <button id="clearCacheBtn" style="width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);">🧹 Vider le cache</button>
+          <div class="settingsMsg" id="settingsStorageMsg"></div>
         </section>
 
         <section class="settingsSection">
@@ -696,6 +1060,40 @@
           <input id="confirmPasswordInput" type="password" placeholder="Confirmer le nouveau mot de passe" autocomplete="new-password">
           <button id="changePasswordBtn">Changer le mot de passe</button>
           <div class="settingsMsg" id="settingsPasswordMsg"></div>
+        </section>
+
+        <!-- "Autres produits" : même idée que "Autres produits Meta" dans
+             WhatsApp (rangée de raccourcis en bas de l'onglet "Vous"), mais
+             sans reprendre les logos/liens Meta — seourouApps n'y est pas
+             affilié. Pas de vrais liens pour l'instant : voir OTHER_PRODUCTS
+             dans le script, à remplir dès qu'ils existent (section masquée
+             automatiquement si la liste est vide). -->
+        <section class="settingsSection" id="otherProductsSection">
+          <h3><span class="settingsIcon">🔗</span>Autres produits</h3>
+          <div id="otherProductsRow" class="otherProductsRow"></div>
+        </section>
+
+        <!-- Administration : réservé aux comptes administrateurs (voir
+             ADMIN_PHONES côté serveur), masqué pour tout le monde d'autre.
+             Permet de supprimer le compte de n'importe quel utilisateur. -->
+        <section class="settingsSection" id="adminSection" style="display:none;">
+          <h3><span class="settingsIcon">🛠️</span>Administration</h3>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Vous pouvez supprimer définitivement le compte de n'importe quel autre utilisateur. Cette action est irréversible : ses messages et ses discussions sont supprimés avec son compte.</label>
+          <input id="adminUserSearchInput" type="text" placeholder="Rechercher par nom ou numéro...">
+          <div id="adminUserList" class="adminUserList"></div>
+          <label style="display:block;font-size:12px;color:var(--muted);margin:14px 0 6px;">Votre mot de passe (pour confirmer une suppression) :</label>
+          <input id="adminActionPasswordInput" type="password" placeholder="Votre mot de passe" autocomplete="current-password">
+          <div class="settingsMsg" id="settingsAdminMsg"></div>
+        </section>
+
+        <!-- Suppression de compte (irréversible) : confirmée par le mot de
+             passe, comme n'importe quelle action destructrice sensible. -->
+        <section class="settingsSection">
+          <h3><span class="settingsIcon">⚠️</span>Supprimer mon compte</h3>
+          <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Cette action est définitive : votre compte, vos messages et vos discussions seront supprimés. Cette opération ne peut pas être annulée.</label>
+          <input id="deleteAccountPasswordInput" type="password" placeholder="Mot de passe actuel" autocomplete="current-password">
+          <button id="deleteAccountBtn" class="dangerFullBtn">Supprimer définitivement mon compte</button>
+          <div class="settingsMsg" id="settingsDeleteAccountMsg"></div>
         </section>
 
       </div>
@@ -806,6 +1204,39 @@
     </div>
   </div>
 
+  <!-- ---------- Transfert d'un message vers d'autres discussions ---------- -->
+  <div id="forwardOverlay">
+    <div id="forwardCard">
+      <div id="forwardHeader">
+        <h2>Transférer le message</h2>
+        <button id="closeForwardBtn" title="Fermer">✕</button>
+      </div>
+      <div id="forwardBody">
+        <div id="forwardList"></div>
+      </div>
+      <div id="forwardFooter">
+        <span id="forwardSelectedCount">0 sélectionnée(s)</span>
+        <button id="forwardSendBtn" class="primaryBtn" disabled>Envoyer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Discussions verrouillées : demande du mot de passe ---------- -->
+  <div id="lockedUnlockOverlay">
+    <div id="lockedUnlockCard">
+      <div id="lockedUnlockHeader">
+        <h2>🔒 Discussions verrouillées</h2>
+        <button id="closeLockedUnlockBtn" title="Fermer">✕</button>
+      </div>
+      <div id="lockedUnlockBody">
+        <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:10px;">Confirmez votre mot de passe pour accéder à ces discussions.</label>
+        <input id="lockedUnlockPasswordInput" type="password" placeholder="Mot de passe" autocomplete="current-password">
+        <button id="lockedUnlockConfirmBtn" class="primaryBtn" style="width:100%;margin-top:10px;">Déverrouiller</button>
+        <div class="settingsMsg" id="lockedUnlockMsg"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- ---------- Communautés : ajout d'un membre existant ---------- -->
   <div id="communityAddMemberOverlay">
     <div id="communityAddMemberCard">
@@ -833,6 +1264,11 @@
   // tester contre un backend différent pendant le développement).
   document.getElementById('apiBaseInput').value = location.origin;
   let apiBase = document.getElementById('apiBaseInput').value.replace(/\/$/, '');
+  // "?debug" dans l'URL réaffiche les champs techniques (URL de l'API
+  // alternative, bouton de test, statut de connexion en texte) — invisibles
+  // par défaut pour ne pas polluer l'interface d'une vraie utilisatrice/d'un
+  // vrai utilisateur (voir la règle CSS "body.debug-mode" plus haut).
+  if (new URLSearchParams(location.search).has('debug')) document.body.classList.add('debug-mode');
   let token = null;
   let me = null;
   let socket = null;
@@ -845,6 +1281,22 @@
   // "?c=<conversationId>" à l'URL d'ouverture : on retrouve la conversation visée ici.
   let pendingConversationIdFromNotification = new URLSearchParams(location.search).get('c') || null;
   let typingTimeout = null;
+  // Message auquel on est en train de répondre (bandeau au-dessus du composer),
+  // ou null si aucune réponse en cours. Réinitialisé après envoi/annulation.
+  let replyingTo = null;
+  // Message en cours de modification (bandeau au-dessus du composer, comme
+  // replyingTo mais pour message:edit au lieu de message:send), ou null.
+  let editingMessage = null;
+  // Message dont le transfert est en cours (modale de sélection des discussions
+  // cibles), ou null si la modale n'est pas ouverte.
+  let forwardingMessageId = null;
+  // Recherche de texte à l'intérieur de la discussion ouverte (barre dédiée
+  // dans l'en-tête, distincte de la recherche de discussions dans la sidebar).
+  let inChatSearchTerm = '';
+  let inChatSearchMatches = []; // ids de messages correspondant au terme, dans l'ordre d'affichage
+  let inChatSearchIndex = -1; // position actuelle dans inChatSearchMatches
+  // Emoji proposés pour les réactions rapides (comme le sélecteur court de WhatsApp).
+  const REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏'];
 
   // ---------- Préférences locales (Paramètres) ----------
   // Propres à cet appareil/navigateur, pas au compte : pas besoin d'être connecté
@@ -855,9 +1307,26 @@
   const savedAccent = localStorage.getItem('seourou_accent');
   document.body.classList.add('accent-' + (ACCENT_COLORS.includes(savedAccent) ? savedAccent : 'bleu'));
 
+  // Taille du texte des discussions (Paramètres → Apparence), comme le
+  // réglage "Taille de police" de WhatsApp : "medium" = taille normale, donc
+  // pas de classe particulière à ajouter dans ce cas (voir --chat-font-scale).
+  const TEXT_SIZES = ['small', 'medium', 'large'];
+  let textSize = TEXT_SIZES.includes(localStorage.getItem('seourou_text_size')) ? localStorage.getItem('seourou_text_size') : 'medium';
+  function applyTextSize(size) {
+    textSize = TEXT_SIZES.includes(size) ? size : 'medium';
+    document.body.classList.remove('text-small', 'text-large');
+    if (textSize !== 'medium') document.body.classList.add('text-' + textSize);
+    localStorage.setItem('seourou_text_size', textSize);
+  }
+  applyTextSize(textSize);
+
   // ---------- Recherche et filtres de la liste des discussions ----------
   let convSearchTerm = '';
-  let convFilter = 'toutes'; // toutes | nonlues | favoris | groupes | custom:<id>
+  let convFilter = 'toutes'; // toutes | nonlues | favoris | groupes | archivees | locked | custom:<id>
+  // Vrai une fois le mot de passe re-confirmé pour ouvrir "Discussions
+  // verrouillées" (comme un déverrouillage biométrique WhatsApp) : remis à
+  // faux à chaque rechargement de page, jamais persisté.
+  let lockedChatsUnlocked = false;
   let favoriteConvIds = new Set(JSON.parse(localStorage.getItem('seourou_favorites') || '[]'));
   function saveFavorites() { localStorage.setItem('seourou_favorites', JSON.stringify([...favoriteConvIds])); }
 
@@ -1083,6 +1552,67 @@
     showAuthError('');
   });
 
+  // ---------- Mot de passe oublié ----------
+  function showForgotPasswordForm() {
+    $('loginForm').style.display = 'none';
+    $('registerForm').style.display = 'none';
+    $('forgotPasswordForm').style.display = 'block';
+    $('forgotStep1').style.display = 'block';
+    $('forgotStep2').style.display = 'none';
+    $('forgotPhone').value = $('loginPhone').value;
+    showAuthError('');
+  }
+
+  function backToLoginForm() {
+    $('forgotPasswordForm').style.display = 'none';
+    $('loginForm').style.display = 'block';
+    $('tabLogin').classList.add('active'); $('tabRegister').classList.remove('active');
+    showAuthError('');
+  }
+
+  $('forgotPasswordLinkBtn').addEventListener('click', showForgotPasswordForm);
+  $('backToLoginBtn').addEventListener('click', backToLoginForm);
+
+  $('forgotSendCodeBtn').addEventListener('click', async () => {
+    showAuthError('');
+    apiBase = $('apiBaseInput').value.replace(/\/$/, '');
+    const phone = $('forgotPhone').value.trim();
+    if (!phone) return showAuthError('Numéro de téléphone requis.');
+    const btn = $('forgotSendCodeBtn');
+    btn.disabled = true;
+    try {
+      await api('/api/auth/forgot-password', { method: 'POST', body: JSON.stringify({ phone }) });
+      $('forgotStep1').style.display = 'none';
+      $('forgotStep2').style.display = 'block';
+    } catch (err) {
+      showAuthError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('forgotResetBtn').addEventListener('click', async () => {
+    showAuthError('');
+    const phone = $('forgotPhone').value.trim();
+    const code = $('forgotCode').value.trim();
+    const newPassword = $('forgotNewPassword').value;
+    if (!code || !newPassword) return showAuthError('Code et nouveau mot de passe requis.');
+    const btn = $('forgotResetBtn');
+    btn.disabled = true;
+    try {
+      await api('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ phone, code, newPassword }) });
+      backToLoginForm();
+      $('loginPhone').value = phone;
+      $('loginPassword').value = '';
+      showAuthError('');
+      alert('Mot de passe réinitialisé. Vous pouvez maintenant vous connecter.');
+    } catch (err) {
+      showAuthError(err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
   $('loginBtn').addEventListener('click', async () => {
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
@@ -1117,7 +1647,10 @@
     renderMyAvatar();
     $('logoutBtn').style.display = 'inline-block';
     $('settingsBtn').style.display = 'inline-block';
-    connectSocket();
+    // Isolé dans son propre try/catch : même si la connexion temps réel échoue
+    // tout de suite (ex: réseau qui bloque les WebSockets), le reste de l'app
+    // (liste des utilisateurs, discussions déjà envoyées) doit rester utilisable.
+    try { connectSocket(); } catch (err) { console.error('connectSocket a échoué :', err); setStatus(false, 'Connexion temps réel indisponible'); }
     loadUsers();
     loadConversations();
     setupPushNotifications();
@@ -1128,6 +1661,11 @@
     if (socket) socket.disconnect();
     token = null; me = null; activeConversationId = null;
     conversations = []; users = []; messagesByConv = {};
+    // lockedChatsUnlocked est propre à la personne connectée : sans ça, un
+    // autre compte connecté ensuite sur ce même appareil verrait directement
+    // ses "Discussions verrouillées" sans jamais redemander de mot de passe.
+    lockedChatsUnlocked = false;
+    convFilter = 'toutes';
     $('mainScreen').classList.remove('show', 'chatOpen');
     $('authScreen').style.display = 'flex';
     $('whoamiText').textContent = '';
@@ -1137,6 +1675,13 @@
     $('settingsOverlay').classList.remove('show');
     $('convList').innerHTML = ''; $('userList').innerHTML = '';
     $('emptyState').style.display = 'flex'; $('activeChat').style.display = 'none';
+    // Revient toujours à l'onglet "Connexion" (plutôt que de garder "Inscription"
+    // affiché si c'était le dernier onglet utilisé) : après une déconnexion, on
+    // suppose qu'on veut se reconnecter à un compte existant, pas en recréer un.
+    $('tabLogin').classList.add('active'); $('tabRegister').classList.remove('active');
+    $('loginForm').style.display = 'block'; $('registerForm').style.display = 'none';
+    $('forgotPasswordForm').style.display = 'none';
+    showAuthError('');
   });
 
   // Sur téléphone (écran étroit), la conversation ouverte s'affiche par-dessus
@@ -1808,9 +2353,34 @@
   function connectSocket() {
     socket = io(apiBase, { auth: { token } });
 
-    socket.on('connect', () => setStatus(true, 'Connecté en temps réel (' + apiBase + ')'));
+    socket.on('connect', () => {
+      setStatus(true, 'Connecté en temps réel (' + apiBase + ')');
+      // Le socket vient de se (re)connecter alors qu'un appel était en cours
+      // de notre côté (coupure réseau brève, changement wifi/4G, application
+      // remise au premier plan...) : le serveur nous a peut-être déjà retirés
+      // de la room d'appel entre-temps. On rejoint donc à nouveau tout de
+      // suite (avant l'expiration de son délai de grâce, voir signaling.js
+      // côté serveur) et on renégocie une connexion WebRTC fraîche avec
+      // chaque participant encore présent — l'ancienne, liée à la connexion
+      // réseau précédente, ne peut de toute façon plus être réparée.
+      if (currentCall) rejoinCallAfterReconnect();
+    });
     socket.on('connect_error', (err) => setStatus(false, 'Erreur socket: ' + err.message));
-    socket.on('disconnect', () => setStatus(false, 'Déconnecté du serveur temps réel'));
+    socket.on('disconnect', () => {
+      setStatus(false, 'Déconnecté du serveur temps réel');
+      if (currentCall) updateCallInfoText('connexion réseau perdue, reconnexion en cours…');
+    });
+
+    // On vient d'être ajouté à une nouvelle discussion (1-à-1, groupe, ou
+    // groupe d'annonces d'une communauté) : elle doit apparaître tout de suite
+    // dans la liste, sans attendre un rechargement de l'application — comme
+    // WhatsApp quand quelqu'un vous ajoute à un groupe.
+    socket.on('conversation:new', ({ conversation }) => {
+      if (!conversation || conversations.find((c) => c.id === conversation.id)) return;
+      conversations.unshift(conversation);
+      renderConvList();
+      socket.emit('conversation:join', { conversationId: conversation.id });
+    });
 
     socket.on('message:new', (msg) => {
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
@@ -1830,6 +2400,11 @@
       const list = messagesByConv[conversationId];
       const m = list && list.find((x) => x.id === messageId);
       if (m) { m.deleted = true; m.content = ''; m.attachment = null; }
+      // Toute bulle qui citait ce message en réponse gardait jusqu'ici l'ancien
+      // texte (chargé au moment de l'envoi de la réponse) : on la met à jour en
+      // direct pour qu'elle affiche "Message supprimé", comme le fait déjà le
+      // message original lui-même ci-dessus.
+      updateStaleReplyQuotes(list, messageId, { deleted: true, content: '🚫 Message supprimé' });
       const conv = conversations.find((c) => c.id === conversationId);
       if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
         conv.lastMessage.content = '🚫 Message supprimé';
@@ -1847,6 +2422,11 @@
         const idx = list.findIndex((x) => x.id === messageId);
         if (idx !== -1) list.splice(idx, 1);
       }
+      // Contrairement à message:deleted (le message reste, juste vidé), ici le
+      // message disparaît complètement : toute réponse qui le citait doit donc
+      // perdre sa citation (comme le fait la base de données via replyToId
+      // SetNull), plutôt que de continuer à afficher un aperçu figé.
+      updateStaleReplyQuotes(list, messageId, null);
       const conv = conversations.find((c) => c.id === conversationId);
       if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
         const remaining = list && list.length ? list[list.length - 1] : null;
@@ -1872,6 +2452,59 @@
     socket.on('typing', ({ conversationId, userId, isTyping }) => {
       if (conversationId !== activeConversationId || userId === me.id) return;
       $('typingIndicator').textContent = isTyping ? 'en train d\'écrire…' : '';
+    });
+
+    // Un utilisateur vient de se connecter/déconnecter (au moins un appareil) :
+    // on met à jour son statut partout où il apparaît (liste d'utilisateurs,
+    // participants des conversations déjà chargées, en-tête de la discussion
+    // ouverte) sans recharger quoi que ce soit depuis le serveur.
+    socket.on('presence:update', ({ userId, online, lastSeenAt }) => {
+      // lastSeenAt peut valoir explicitement null (ex: l'utilisateur vient
+      // d'activer "masquer ma dernière connexion") : il faut alors bien
+      // effacer l'ancienne valeur, pas la conserver — d'où le "!== undefined"
+      // plutôt qu'un simple test de vérité.
+      const u = users.find((x) => x.id === userId);
+      if (u) { u.online = online; if (lastSeenAt !== undefined) u.lastSeenAt = lastSeenAt; }
+      conversations.forEach((c) => {
+        const p = c.participants.find((x) => x.id === userId);
+        if (p) { p.online = online; if (lastSeenAt !== undefined) p.lastSeenAt = lastSeenAt; }
+      });
+      renderUserList();
+      if (document.getElementById('settingsScreen')?.style.display !== 'none') renderBlockedUsersList();
+      const conv = conversations.find((c) => c.id === activeConversationId);
+      if (conv && !conv.isGroup && conv.participants.some((p) => p.id === userId)) updateChatSubtitle(conv);
+    });
+
+    // Réactions emoji mises à jour sur un message (ajout/retrait/changement par
+    // n'importe quel participant, sur n'importe quel appareil).
+    socket.on('message:reaction', ({ conversationId, messageId, reactions }) => {
+      const list = messagesByConv[conversationId];
+      const m = list && list.find((x) => x.id === messageId);
+      if (m) m.reactions = reactions;
+      if (conversationId === activeConversationId) renderMessages();
+    });
+
+    // Un message a été modifié (message:edit) : mise à jour en direct du
+    // contenu affiché, sur tous les appareils de tous les participants —
+    // y compris le nôtre si on l'a modifié depuis un autre appareil.
+    socket.on('message:edited', ({ conversationId, messageId, content, editedAt }) => {
+      const list = messagesByConv[conversationId];
+      const m = list && list.find((x) => x.id === messageId);
+      if (m) { m.content = content; m.edited = true; m.editedAt = editedAt; }
+      const conv = conversations.find((c) => c.id === conversationId);
+      if (conv && conv.lastMessage && conv.lastMessage.id === messageId) {
+        conv.lastMessage.content = content;
+        renderConvList();
+      }
+      if (conversationId === activeConversationId) renderMessages();
+    });
+
+    // Un message a été épinglé/désépinglé (par n'importe quel participant).
+    socket.on('message:pinned', ({ conversationId, messageId, pinned, pinnedAt }) => {
+      const list = messagesByConv[conversationId];
+      const m = list && list.find((x) => x.id === messageId);
+      if (m) { m.pinned = pinned; m.pinnedAt = pinnedAt; }
+      if (conversationId === activeConversationId) renderMessages();
     });
 
     // Calls
@@ -1966,12 +2599,13 @@
 
   // Rend le HTML d'un avatar : la vraie photo si l'utilisateur en a une,
   // sinon les initiales sur fond de couleur (comportement d'origine).
-  function avatarDivHtml(name, avatarUrl, extraClass) {
+  function avatarDivHtml(name, avatarUrl, extraClass, online) {
     const cls = 'avatar' + (avatarUrl ? ' avatarPhoto' : '') + (extraClass ? ' ' + extraClass : '');
+    const dot = online ? '<span class="onlineDot"></span>' : '';
     if (avatarUrl) {
-      return `<div class="${cls}" style="background-image:url('${escapeCssUrl(avatarUrl)}')"></div>`;
+      return `<div class="${cls}" style="background-image:url('${escapeCssUrl(avatarUrl)}')">${dot}</div>`;
     }
-    return `<div class="${cls}">${escapeHtml(initials(name))}</div>`;
+    return `<div class="${cls}">${escapeHtml(initials(name))}${dot}</div>`;
   }
 
   // Les data URLs base64 ne contiennent pas de guillemets, mais on échappe par
@@ -1986,8 +2620,8 @@
     users.forEach((u) => {
       const div = document.createElement('div');
       div.className = 'listItem';
-      div.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl)}
-        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${escapeHtml(u.phone)}</div></div>
+      div.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl, '', u.online)}
+        <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${u.online ? 'en ligne' : escapeHtml(u.phone)}</div></div>
         <button class="blockUserBtn${u.blocked ? ' isBlocked' : ''}" data-user-id="${u.id}" title="${u.blocked ? 'Débloquer cet utilisateur' : 'Bloquer cet utilisateur'}">${u.blocked ? 'Débloquer' : 'Bloquer'}</button>`;
       div.querySelector('.liText').addEventListener('click', () => startConversationWith(u.id));
       div.querySelector('.avatar').addEventListener('click', () => startConversationWith(u.id));
@@ -2123,8 +2757,8 @@
     }
     document.body.appendChild(menu);
     const rect = btn.getBoundingClientRect();
-    menu.style.top = Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8) + 'px';
-    menu.style.left = Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8) + 'px';
+    menu.style.top = Math.max(8, Math.min(rect.bottom + 4, window.innerHeight - menu.offsetHeight - 8)) + 'px';
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
   }
 
   function renderConvList() {
@@ -2133,20 +2767,49 @@
     el.innerHTML = '';
     const term = convSearchTerm;
     let list = conversations.filter((c) => !term || convLabel(c).toLowerCase().includes(term));
-    if (convFilter === 'nonlues') list = list.filter(isConvUnread);
-    else if (convFilter === 'favoris') list = list.filter((c) => favoriteConvIds.has(c.id));
-    else if (convFilter === 'groupes') list = list.filter((c) => c.isGroup);
-    else if (convFilter.startsWith('custom:')) {
-      const f = customFilters.find((x) => 'custom:' + x.id === convFilter);
-      list = f ? list.filter((c) => f.convIds.includes(c.id)) : [];
+    // Comme WhatsApp : une discussion verrouillée ou archivée disparaît de
+    // tous les autres filtres, seule sa propre sous-vue dédiée l'affiche.
+    // Le verrouillage prime sur l'archivage (une discussion verrouillée reste
+    // cachée même si elle est aussi archivée).
+    if (convFilter === 'locked') {
+      list = list.filter((c) => c.locked);
+    } else if (convFilter === 'archivees') {
+      list = list.filter((c) => c.archived && !c.locked);
+    } else {
+      list = list.filter((c) => !c.archived && !c.locked);
+      if (convFilter === 'nonlues') list = list.filter(isConvUnread);
+      else if (convFilter === 'favoris') list = list.filter((c) => favoriteConvIds.has(c.id));
+      else if (convFilter === 'groupes') list = list.filter((c) => c.isGroup);
+      else if (convFilter.startsWith('custom:')) {
+        const f = customFilters.find((x) => 'custom:' + x.id === convFilter);
+        list = f ? list.filter((c) => f.convIds.includes(c.id)) : [];
+      }
     }
 
-    // Compteurs affichés sur les filtres, comme dans WhatsApp.
-    const unreadCount = conversations.filter(isConvUnread).length;
+    // Compteurs affichés sur les filtres, comme dans WhatsApp (les discussions
+    // verrouillées/archivées ne comptent pas dans "Toutes"/"Non lues"/"Groupes").
+    const nonHidden = conversations.filter((c) => !c.archived && !c.locked);
+    const unreadCount = nonHidden.filter(isConvUnread).length;
     $('filterChips').querySelector('[data-filter="nonlues"]').textContent = unreadCount > 0 ? `Non lues ${unreadCount}` : 'Non lues';
-    $('filterChips').querySelector('[data-filter="toutes"]').textContent = conversations.length > 0 ? `Toutes ${conversations.length}` : 'Toutes';
-    const groupCount = conversations.filter((c) => c.isGroup).length;
+    $('filterChips').querySelector('[data-filter="toutes"]').textContent = nonHidden.length > 0 ? `Toutes ${nonHidden.length}` : 'Toutes';
+    const groupCount = nonHidden.filter((c) => c.isGroup).length;
     $('filterChips').querySelector('[data-filter="groupes"]').textContent = groupCount > 0 ? `Groupes ${groupCount}` : 'Groupes';
+    // "Archivées"/"Discussions verrouillées" façon WhatsApp : des lignes à part
+    // au-dessus de la liste (archivedRow/lockedRow), pas des chips de filtre.
+    // En sous-vue, la ligne correspondante est remplacée par un petit en-tête
+    // avec bouton de retour, et les chips de filtre normaux sont masqués.
+    const archivedCount = conversations.filter((c) => c.archived && !c.locked).length;
+    const lockedCount = conversations.filter((c) => c.locked).length;
+    const inArchivedView = convFilter === 'archivees';
+    const inLockedView = convFilter === 'locked';
+    const inSubview = inArchivedView || inLockedView;
+    $('filterChips').style.display = inSubview ? 'none' : 'flex';
+    $('archivedHeaderRow').style.display = inArchivedView ? 'flex' : 'none';
+    $('archivedRow').style.display = (!inSubview && archivedCount > 0) ? 'flex' : 'none';
+    $('archivedRowCount').textContent = archivedCount > 0 ? String(archivedCount) : '';
+    $('lockedHeaderRow').style.display = inLockedView ? 'flex' : 'none';
+    $('lockedRow').style.display = (!inSubview && lockedCount > 0) ? 'flex' : 'none';
+    $('lockedRowCount').textContent = lockedCount > 0 ? String(lockedCount) : '';
 
     // Petit badge vert sur l'onglet "Discussions" de la barre du bas (mobile),
     // comme le badge de notifications sur l'app WhatsApp.
@@ -2157,7 +2820,8 @@
     }
 
     if (list.length === 0) {
-      el.innerHTML = `<div style="padding:16px 14px;color:var(--muted);font-size:13px;">Aucune discussion${term ? ' pour cette recherche' : ''}.</div>`;
+      const emptyText = inLockedView ? 'Aucune discussion verrouillée.' : inArchivedView ? 'Aucune discussion archivée.' : `Aucune discussion${term ? ' pour cette recherche' : ''}.`;
+      el.innerHTML = `<div style="padding:16px 14px;color:var(--muted);font-size:13px;">${emptyText}</div>`;
       return;
     }
 
@@ -2177,13 +2841,18 @@
       const nameHtml = (!c.isGroup && other && other.phone)
         ? `${escapeHtml(label)} <span class="liPhone">(${escapeHtml(other.phone)})</span>`
         : escapeHtml(label);
-      div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null)}
-        <div class="liText"><div class="liName">${nameHtml}</div>
+      div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null, '', !c.isGroup && other ? other.online : false)}
+        <div class="liText"><div class="liName">${nameHtml}${c.muted ? ' 🔇' : ''}</div>
         <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>
         <div class="liMeta">
-          <button class="favStar${isFav ? ' active' : ''}" data-conv-id="${c.id}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${isFav ? '★' : '☆'}</button>
-          <button class="convTagBtn" data-conv-id="${c.id}" title="Ajouter à un filtre personnalisé">🏷️</button>
-          <button class="convDeleteBtn" data-conv-id="${c.id}" title="Supprimer cette discussion">🗑️</button>
+          <div class="convActions">
+            <button class="favStar${isFav ? ' active' : ''}" data-conv-id="${c.id}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${isFav ? '★' : '☆'}</button>
+            <button class="convTagBtn" data-conv-id="${c.id}" title="Ajouter à un filtre personnalisé">🏷️</button>
+            <button class="convMuteBtn" data-conv-id="${c.id}" title="${c.muted ? 'Réactiver les notifications' : 'Mettre en sourdine'}">${c.muted ? '🔔' : '🔕'}</button>
+            <button class="convArchiveBtn" data-conv-id="${c.id}" title="${c.archived ? 'Désarchiver' : 'Archiver'}">${c.archived ? '📤' : '📥'}</button>
+            <button class="convLockBtn" data-conv-id="${c.id}" title="${c.locked ? 'Déverrouiller cette discussion' : 'Verrouiller cette discussion'}">${c.locked ? '🔓' : '🔒'}</button>
+            <button class="convDeleteBtn" data-conv-id="${c.id}" title="Supprimer cette discussion">🗑️</button>
+          </div>
           ${unread ? '<span class="unreadDot"></span>' : ''}
         </div>`;
       div.querySelector('.favStar').addEventListener('click', (e) => {
@@ -2196,6 +2865,21 @@
         e.stopPropagation();
         openTagMenu(e.currentTarget, c.id);
       });
+      div.querySelector('.convMuteBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await toggleConversationSetting(c, 'muted');
+      });
+      div.querySelector('.convArchiveBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        await toggleConversationSetting(c, 'archived');
+      });
+      div.querySelector('.convLockBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        // Verrouiller ne demande rien (on est déjà connecté) ; on est par
+        // contre forcément déjà dans la sous-vue déverrouillée pour pouvoir
+        // cliquer "déverrouiller" sur une discussion qui l'était déjà.
+        await toggleConversationSetting(c, 'locked');
+      });
       div.querySelector('.convDeleteBtn').addEventListener('click', async (e) => {
         e.stopPropagation();
         await deleteConversation(c.id, label);
@@ -2204,6 +2888,130 @@
       el.appendChild(div);
     });
   }
+
+  // ---------- Menu d'actions sur une discussion (appui long / clic droit) ----------
+  // Même idée que openMessageActionMenu pour les messages : les 6 boutons
+  // (.convActions) sont masqués par défaut (révélés au survol sur PC, jamais
+  // sur tactile) pour garder une ligne compacte comme WhatsApp ; ce menu
+  // offre les mêmes actions en appui long (mobile) ou clic droit (PC).
+  // Réutilise volontairement les classes CSS .msgContextMenu* (même habillage
+  // visuel, pas besoin de les dupliquer) même si leur nom vient du menu des
+  // messages.
+  function openConvActionMenu(rowEl, c, x, y) {
+    closeMessageActionMenu();
+    closeTagMenu();
+    closeReactionPicker();
+    const label = convLabel(c);
+    const isFav = favoriteConvIds.has(c.id);
+
+    const items = [
+      {
+        icon: isFav ? '★' : '☆',
+        label: isFav ? 'Retirer des favoris' : 'Ajouter aux favoris',
+        action: () => { if (favoriteConvIds.has(c.id)) favoriteConvIds.delete(c.id); else favoriteConvIds.add(c.id); saveFavorites(); renderConvList(); },
+      },
+      { icon: '🏷️', label: 'Ajouter à un filtre personnalisé', action: () => openTagMenu(rowEl, c.id) },
+      { icon: c.muted ? '🔔' : '🔕', label: c.muted ? 'Réactiver les notifications' : 'Mettre en sourdine', action: () => toggleConversationSetting(c, 'muted') },
+      { icon: c.archived ? '📤' : '📥', label: c.archived ? 'Désarchiver' : 'Archiver', action: () => toggleConversationSetting(c, 'archived') },
+      { icon: c.locked ? '🔓' : '🔒', label: c.locked ? 'Déverrouiller cette discussion' : 'Verrouiller cette discussion', action: () => toggleConversationSetting(c, 'locked') },
+    ];
+
+    const menu = document.createElement('div');
+    menu.className = 'msgContextMenu';
+    let html = items.map((it, i) => `
+      <button class="msgContextMenuItem" data-i="${i}">
+        <span class="msgContextMenuIcon">${it.icon}</span>
+        <span>${it.label}</span>
+      </button>
+    `).join('');
+    html += `<div class="msgContextMenuDivider"></div>
+      <button class="msgContextMenuItem danger" data-i="delete">
+        <span class="msgContextMenuIcon">🗑️</span>
+        <span>Supprimer cette discussion</span>
+      </button>`;
+    menu.innerHTML = html;
+    menu.querySelectorAll('.msgContextMenuItem').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.i;
+        closeMessageActionMenu();
+        if (key === 'delete') { deleteConversation(c.id, label); return; }
+        const it = items[Number(key)];
+        if (it) it.action();
+      });
+    });
+    document.body.appendChild(menu);
+    positionFloatingMenu(menu, x, y);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'msgContextMenuBackdrop';
+    backdrop.addEventListener('click', closeMessageActionMenu);
+    document.body.insertBefore(backdrop, menu);
+    msgContextMenuOpen = true;
+  }
+
+  // Clic droit (PC) sur une discussion : ouvre le menu au lieu du menu
+  // contextuel par défaut du navigateur.
+  $('convList').addEventListener('contextmenu', (e) => {
+    const row = e.target.closest('.listItem');
+    if (!row) return;
+    const c = conversations.find((x) => x.id === row.dataset.convId);
+    if (!c) return;
+    e.preventDefault();
+    openConvActionMenu(row, c, e.clientX, e.clientY);
+  });
+
+  // Appui long (tactile) sur une discussion : même menu. Voir les
+  // constantes LONG_PRESS_MS / LONG_PRESS_MOVE_TOLERANCE définies plus haut
+  // (partagées avec le menu des messages).
+  let convLongPressTimer = null;
+  let convLongPressStart = null;
+  // Contrairement aux messages, une ligne de discussion a son propre
+  // gestionnaire de clic (openConversation, voir plus haut) : après un appui
+  // long réussi, le navigateur synthétise quand même un "click" à la fin du
+  // toucher, ce qui ouvrirait la conversation juste sous le menu qu'on vient
+  // d'afficher. On mémorise que l'appui long a bien déclenché le menu pour
+  // annuler ce clic fantôme dans le touchend qui suit.
+  let convLongPressFired = false;
+
+  $('convList').addEventListener('touchstart', (e) => {
+    const row = e.target.closest('.listItem');
+    if (!row) return;
+    const touch = e.touches[0];
+    convLongPressStart = { x: touch.clientX, y: touch.clientY };
+    convLongPressFired = false;
+    clearTimeout(convLongPressTimer);
+    convLongPressTimer = setTimeout(() => {
+      const c = conversations.find((x) => x.id === row.dataset.convId);
+      if (c) { openConvActionMenu(row, c, touch.clientX, touch.clientY); convLongPressFired = true; }
+      convLongPressStart = null;
+    }, LONG_PRESS_MS);
+  }, { passive: true });
+
+  $('convList').addEventListener('touchmove', (e) => {
+    if (!convLongPressStart) return;
+    const touch = e.touches[0];
+    const moved = Math.hypot(touch.clientX - convLongPressStart.x, touch.clientY - convLongPressStart.y);
+    if (moved > LONG_PRESS_MOVE_TOLERANCE) {
+      clearTimeout(convLongPressTimer);
+      convLongPressStart = null;
+    }
+  }, { passive: true });
+
+  // Volontairement PAS { passive: true } ici : on doit pouvoir annuler le
+  // clic fantôme ci-dessous avec preventDefault().
+  $('convList').addEventListener('touchend', (e) => {
+    clearTimeout(convLongPressTimer);
+    convLongPressStart = null;
+    if (convLongPressFired) {
+      e.preventDefault();
+      convLongPressFired = false;
+    }
+  });
+
+  $('convList').addEventListener('touchcancel', () => {
+    clearTimeout(convLongPressTimer);
+    convLongPressStart = null;
+    convLongPressFired = false;
+  });
 
   // Supprime une discussion de ma propre liste (l'autre personne garde son
   // historique de son côté, comme "supprimer la discussion" sur WhatsApp).
@@ -2227,6 +3035,20 @@
     }
   }
 
+  // Bascule la sourdine ou l'archivage d'une discussion (propre à moi, voir
+  // ConversationParticipant.muted/archived côté serveur). `key` vaut
+  // "muted" ou "archived".
+  async function toggleConversationSetting(c, key) {
+    const desired = !c[key];
+    try {
+      await api('/api/conversations/' + c.id + '/settings', { method: 'PATCH', body: JSON.stringify({ [key]: desired }) });
+      c[key] = desired;
+      renderConvList();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  }
+
   $('convSearchInput').addEventListener('input', () => {
     convSearchTerm = $('convSearchInput').value.trim().toLowerCase();
     renderConvList();
@@ -2242,6 +3064,68 @@
     btn.classList.add('active');
     convFilter = btn.dataset.filter;
     renderConvList();
+  });
+
+  // Ligne "Archivées" (façon WhatsApp) : ouvre la sous-vue dédiée aux
+  // discussions archivées. Le bouton "‹" de cette sous-vue revient à "Toutes".
+  $('archivedRow').addEventListener('click', () => {
+    convFilter = 'archivees';
+    renderConvList();
+  });
+  $('archivedBackBtn').addEventListener('click', () => {
+    $('filterChips').querySelectorAll('.filterChip').forEach((b) => b.classList.remove('active'));
+    $('filterChips').querySelector('[data-filter="toutes"]').classList.add('active');
+    convFilter = 'toutes';
+    renderConvList();
+  });
+
+  // Ligne "Discussions verrouillées" (façon WhatsApp) : redemande le mot de
+  // passe du compte avant d'ouvrir la sous-vue dédiée — sauf si déjà
+  // déverrouillé plus tôt dans cette même session (lockedChatsUnlocked).
+  $('lockedRow').addEventListener('click', () => {
+    if (lockedChatsUnlocked) {
+      convFilter = 'locked';
+      renderConvList();
+    } else {
+      openLockedUnlockModal();
+    }
+  });
+  $('lockedBackBtn').addEventListener('click', () => {
+    $('filterChips').querySelectorAll('.filterChip').forEach((b) => b.classList.remove('active'));
+    $('filterChips').querySelector('[data-filter="toutes"]').classList.add('active');
+    convFilter = 'toutes';
+    renderConvList();
+  });
+
+  function openLockedUnlockModal() {
+    $('lockedUnlockPasswordInput').value = '';
+    showSettingsMsg('lockedUnlockMsg', '');
+    $('lockedUnlockOverlay').classList.add('show');
+    $('lockedUnlockPasswordInput').focus();
+  }
+  function closeLockedUnlockModal() {
+    $('lockedUnlockOverlay').classList.remove('show');
+  }
+  $('closeLockedUnlockBtn').addEventListener('click', closeLockedUnlockModal);
+  $('lockedUnlockOverlay').addEventListener('click', (e) => {
+    if (e.target === $('lockedUnlockOverlay')) closeLockedUnlockModal();
+  });
+  async function confirmLockedUnlock() {
+    const password = $('lockedUnlockPasswordInput').value;
+    if (!password) return showSettingsMsg('lockedUnlockMsg', 'Mot de passe requis.', true);
+    try {
+      await api('/api/auth/verify-password', { method: 'POST', body: JSON.stringify({ password }) });
+      lockedChatsUnlocked = true;
+      closeLockedUnlockModal();
+      convFilter = 'locked';
+      renderConvList();
+    } catch (err) {
+      showSettingsMsg('lockedUnlockMsg', err.message, true);
+    }
+  }
+  $('lockedUnlockConfirmBtn').addEventListener('click', confirmLockedUnlock);
+  $('lockedUnlockPasswordInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') confirmLockedUnlock();
   });
 
   // "+" à côté de "Groupes" : crée un nouveau filtre personnalisé (nom libre),
@@ -2317,6 +3201,10 @@
     $('chatAvatar').style.backgroundImage = avatarUrl ? `url('${escapeCssUrl(avatarUrl)}')` : '';
     $('chatAvatar').textContent = avatarUrl ? '' : initials(label);
     $('typingIndicator').textContent = '';
+    updateChatSubtitle(conv);
+    cancelReply(); // une réponse en cours concernait forcément l'ancienne discussion
+    cancelEdit(); // une modification en cours concernait forcément l'ancienne discussion
+    closeChatSearch();
 
     if (!messagesByConv[convId]) {
       try {
@@ -2325,6 +3213,50 @@
       } catch (err) { messagesByConv[convId] = []; }
     }
     renderMessages();
+  }
+
+  // Affiche "en ligne" ou "vu à …" sous le nom, comme WhatsApp. Rien pour un
+  // groupe (il n'y a pas un seul statut à afficher pour plusieurs personnes).
+  function updateChatSubtitle(conv) {
+    const el = $('chatSubtitle');
+    if (!conv || conv.isGroup) { el.textContent = ''; el.classList.remove('online'); return; }
+    const other = conv.participants.find((p) => p.id !== me.id);
+    if (!other) { el.textContent = ''; el.classList.remove('online'); return; }
+    if (other.online) {
+      el.textContent = 'en ligne';
+      el.classList.add('online');
+    } else {
+      el.textContent = other.lastSeenAt ? ('vu ' + fmtLastSeen(other.lastSeenAt)) : '';
+      el.classList.remove('online');
+    }
+  }
+
+  // "vu aujourd'hui à 14:32", "vu hier à 09:05", ou "vu le 03/02 à 18:20" selon
+  // l'ancienneté, comme le fait WhatsApp pour la dernière connexion.
+  function fmtLastSeen(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const time = d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+    const sameDay = d.toDateString() === now.toDateString();
+    if (sameDay) return "aujourd'hui à " + time;
+    const yesterday = new Date(now); yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'hier à ' + time;
+    return 'le ' + d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' }) + ' à ' + time;
+  }
+
+  // Met à jour toute bulle de RÉPONSE qui citait `targetMessageId` (aperçu
+  // "replyTo" capturé une fois pour toutes au moment de l'envoi de la
+  // réponse), suite à une suppression/effacement du message original arrivé
+  // APRÈS coup. `replacement` vaut soit un objet à fusionner dans replyTo
+  // (ex: { deleted:true, content:'...' }), soit null pour effacer la
+  // citation entièrement (message erasé, plus rien à montrer).
+  function updateStaleReplyQuotes(list, targetMessageId, replacement) {
+    if (!list) return;
+    list.forEach((m) => {
+      if (m.replyTo && m.replyTo.id === targetMessageId) {
+        m.replyTo = replacement ? Object.assign({}, m.replyTo, replacement) : null;
+      }
+    });
   }
 
   function renderMessages() {
@@ -2336,6 +3268,7 @@
       const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
       const row = document.createElement('div');
       row.className = 'msgRow' + (mine ? ' mine' : '');
+      row.dataset.id = m.id;
       const body = m.deleted
         ? `<div class="msgDeleted">🚫 Message supprimé${mine ? `<button class="eraseMsgBtn" data-id="${m.id}" title="Effacer définitivement cette trace">✕</button>` : ''}</div>`
         : renderMessageBody(m);
@@ -2345,11 +3278,77 @@
       const ticks = (mine && !m.deleted)
         ? (() => { const read = isReadByOthers(m, conv); return `<span class="ticks${read ? ' read' : ''}">${read ? '✓✓' : '✓'}</span>`; })()
         : '';
-      row.innerHTML = `<div class="bubble">${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
-        ${body}<div class="msgMeta">${deleteBtn}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
+      // Aperçu du message cité, s'il s'agit d'une réponse (comme WhatsApp) :
+      // cliquer sur la citation fait défiler jusqu'au message d'origine.
+      const replyQuoteHtml = (!m.deleted && m.replyTo)
+        ? `<div class="replyQuote" data-goto-id="${m.replyTo.id}">
+            <div class="replyQuoteSender">${escapeHtml(m.replyTo.senderName)}</div>
+            <div class="replyQuoteText">${escapeHtml(m.replyTo.deleted ? '🚫 Message supprimé' : m.replyTo.content)}</div>
+          </div>`
+        : '';
+      // Pastilles de réactions déjà posées sur ce message (WhatsApp) : cliquer
+      // sur une pastille pose/retire la même réaction pour soi-même.
+      const reactionsHtml = (!m.deleted && m.reactions && m.reactions.length)
+        ? `<div class="reactionPills">${m.reactions.map((r) => `
+            <button class="reactionPill${r.userIds.includes(me.id) ? ' mine' : ''}" data-message-id="${m.id}" data-emoji="${r.emoji}">${r.emoji}<span class="reactionCount">${r.userIds.length}</span></button>
+          `).join('')}</div>`
+        : '';
+      const editBtn = (mine && !m.deleted && (m.type || 'text') === 'text')
+        ? `<button class="msgActionBtn editMsgBtn" data-id="${m.id}" title="Modifier">✏️</button>`
+        : '';
+      const actionsHtml = !m.deleted
+        ? `<div class="msgActions">
+            <button class="msgActionBtn replyMsgBtn" data-id="${m.id}" title="Répondre">↩️</button>
+            <button class="msgActionBtn reactMsgBtn" data-id="${m.id}" title="Réagir">😊</button>
+            ${editBtn}
+            <button class="msgActionBtn pinMsgBtn${m.pinned ? ' active' : ''}" data-id="${m.id}" title="${m.pinned ? 'Désépingler' : 'Épingler'}">📌</button>
+            <button class="msgActionBtn forwardMsgBtn" data-id="${m.id}" title="Transférer">↪️</button>
+          </div>`
+        : '';
+      // Mentions "modifié"/"Transféré" (comme WhatsApp), affichées dans le pied
+      // de la bulle, avant l'heure.
+      const editedLabel = (!m.deleted && m.edited) ? '<span class="editedLabel">modifié</span>' : '';
+      const forwardedLabel = (!m.deleted && m.forwarded) ? '<div class="forwardedLabel">↪️ Transféré</div>' : '';
+      row.className += m.pinned ? ' pinnedRow' : '';
+      row.innerHTML = `${actionsHtml}<div class="bubble">${forwardedLabel}${replyQuoteHtml}${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
+        ${body}${reactionsHtml}<div class="msgMeta">${deleteBtn}${editedLabel}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
       el.appendChild(row);
     });
     el.scrollTop = el.scrollHeight;
+    renderPinnedBanner();
+    if (inChatSearchTerm) performChatSearch();
+  }
+
+  // ---------- Messages épinglés (bandeau en haut de la discussion) ----------
+  function renderPinnedBanner() {
+    const banner = $('pinnedBanner');
+    const list = messagesByConv[activeConversationId] || [];
+    const pinned = list.filter((m) => m.pinned && !m.deleted);
+    if (pinned.length === 0) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+    banner.innerHTML = pinned.map((m) => `
+      <div class="pinnedItem" data-goto-id="${m.id}">
+        <span class="pinnedIcon">📌</span>
+        <span class="pinnedText">${escapeHtml(m.sender ? m.sender.name + ' : ' : '')}${escapeHtml(messagePreviewText(m))}</span>
+        <button class="pinnedUnpinBtn" data-id="${m.id}" title="Désépingler">✕</button>
+      </div>
+    `).join('');
+    banner.querySelectorAll('.pinnedItem').forEach((item) => {
+      item.addEventListener('click', (e) => {
+        if (e.target.closest('.pinnedUnpinBtn')) return;
+        const targetRow = document.querySelector(`.msgRow[data-id="${item.dataset.gotoId}"]`);
+        if (!targetRow) return;
+        targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        targetRow.classList.add('highlightFlash');
+        setTimeout(() => targetRow.classList.remove('highlightFlash'), 1500);
+      });
+    });
+    banner.querySelectorAll('.pinnedUnpinBtn').forEach((btn) => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        togglePin(btn.dataset.id, false);
+      });
+    });
+    banner.style.display = 'flex';
   }
 
   // Un message envoyé par moi est considéré "lu" quand TOUS les autres
@@ -2475,17 +3474,519 @@
     });
   });
 
+  // Clic sur "↩️" : prépare une réponse à ce message (bandeau au-dessus du composer).
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.replyMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    const list = messagesByConv[activeConversationId] || [];
+    const m = list.find((x) => x.id === messageId);
+    if (m) startReply(m);
+  });
+
+  // Clic sur "😊" : ouvre le petit sélecteur d'emoji de réaction rapide.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.reactMsgBtn');
+    if (!btn) return;
+    openReactionPicker(btn, btn.dataset.id);
+  });
+
+  // Clic sur une pastille de réaction déjà posée : rejoue exactement la même
+  // réaction, ce qui la retire si c'était la mienne (toggle géré côté serveur).
+  $('messages').addEventListener('click', (e) => {
+    const pill = e.target.closest('.reactionPill');
+    if (!pill) return;
+    sendReaction(pill.dataset.messageId, pill.dataset.emoji);
+  });
+
+  // Clic sur "✏️" : prépare la modification de ce message (bandeau au-dessus
+  // du composer, comme startReply mais pour message:edit).
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.editMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    const list = messagesByConv[activeConversationId] || [];
+    const m = list.find((x) => x.id === messageId);
+    if (m) startEdit(m);
+  });
+
+  // Clic sur "📌" : épingle/désépingle ce message.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.pinMsgBtn');
+    if (!btn) return;
+    const messageId = btn.dataset.id;
+    const list = messagesByConv[activeConversationId] || [];
+    const m = list.find((x) => x.id === messageId);
+    if (m) togglePin(messageId, !m.pinned);
+  });
+
+  // Clic sur "↪️" : ouvre la modale de transfert vers d'autres discussions.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.forwardMsgBtn');
+    if (!btn) return;
+    openForwardModal(btn.dataset.id);
+  });
+
+  // Clic sur la citation d'un message répondu : fait défiler jusqu'au message
+  // d'origine (s'il est déjà chargé dans l'historique affiché) et le met en évidence.
+  $('messages').addEventListener('click', (e) => {
+    const quote = e.target.closest('.replyQuote');
+    if (!quote) return;
+    const targetId = quote.dataset.gotoId;
+    const targetRow = document.querySelector(`.msgRow[data-id="${targetId}"]`);
+    if (!targetRow) return;
+    targetRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    targetRow.classList.add('highlightFlash');
+    setTimeout(() => targetRow.classList.remove('highlightFlash'), 1500);
+  });
+
+  // ---------- Menu d'actions sur un message (appui long / clic droit) ----------
+  // Vient en complément des petites icônes déjà révélées au survol
+  // (.msgActions) : sur téléphone, un appui long est le geste attendu (comme
+  // WhatsApp/iMessage) plutôt que de compter uniquement sur des icônes
+  // toujours affichées mais minuscules. Clic droit sur PC pour la même raison.
+  let msgContextMenuOpen = false;
+
+  function closeMessageActionMenu() {
+    document.querySelectorAll('.msgContextMenu, .msgContextMenuBackdrop').forEach((el) => el.remove());
+    msgContextMenuOpen = false;
+  }
+
+  async function copyMessageText(m) {
+    const text = m.content || '';
+    try {
+      await navigator.clipboard.writeText(text);
+    } catch (err) {
+      // Repli pour les contextes sans Clipboard API (ex: page servie en http
+      // non sécurisé) : un textarea temporaire hors écran + execCommand.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (err2) { /* rien de mieux à faire */ }
+      document.body.removeChild(ta);
+    }
+  }
+
+  function showMessageInfo(m, x, y) {
+    closeMessageActionMenu();
+    const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
+    const conv = conversations.find((c) => c.id === activeConversationId);
+    const lines = [`<strong>Envoyé</strong> · ${fmtTime(m.createdAt)}`];
+    if (m.edited) lines.push(`<strong>Modifié</strong> · ${m.editedAt ? fmtTime(m.editedAt) : ''}`);
+    if (m.forwarded) lines.push('<strong>Transféré</strong>');
+    if (mine) lines.push(`<strong>Statut</strong> · ${isReadByOthers(m, conv) ? 'Lu ✓✓' : 'Envoyé ✓'}`);
+    const card = document.createElement('div');
+    card.className = 'msgContextMenu msgInfoCard';
+    card.innerHTML = lines.join('<br>');
+    document.body.appendChild(card);
+    positionFloatingMenu(card, x, y);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'msgContextMenuBackdrop';
+    backdrop.addEventListener('click', closeMessageActionMenu);
+    document.body.insertBefore(backdrop, card);
+    msgContextMenuOpen = true;
+  }
+
+  function positionFloatingMenu(el, x, y) {
+    // Bornée aux deux côtés (pas seulement à droite/en bas) pour ne jamais
+    // dépasser l'écran, y compris pour un appui près du bord gauche/haut.
+    const w = el.offsetWidth, h = el.offsetHeight;
+    el.style.left = Math.max(8, Math.min(x, window.innerWidth - w - 8)) + 'px';
+    el.style.top = Math.max(8, Math.min(y, window.innerHeight - h - 8)) + 'px';
+  }
+
+  function openMessageActionMenu(bubbleEl, messageId, x, y, expanded) {
+    closeMessageActionMenu();
+    closeReactionPicker();
+    closeTagMenu();
+    const list = messagesByConv[activeConversationId] || [];
+    const m = list.find((msg) => msg.id === messageId);
+    if (!m || m.deleted) return;
+    const mine = m.sender ? m.sender.id === me.id : m.senderId === me.id;
+    const isTextType = (m.type || 'text') === 'text';
+
+    const items = [];
+    items.push({ icon: '↩️', label: 'Répondre', action: () => startReply(m) });
+    items.push({ icon: '↪️', label: 'Transférer', action: () => openForwardModal(messageId) });
+    if (m.content) items.push({ icon: '📋', label: 'Copier', action: () => copyMessageText(m) });
+    items.push({ icon: 'ℹ️', label: 'Infos', action: () => showMessageInfo(m, x, y) });
+    items.push({ icon: '📌', label: m.pinned ? 'Ne plus garder (désépingler)' : 'Garder (épingler)', action: () => togglePin(messageId, !m.pinned) });
+    if (expanded) {
+      items.push({ icon: '😊', label: 'Réagir', action: () => openReactionPicker(bubbleEl, messageId) });
+      if (mine && isTextType) items.push({ icon: '✏️', label: 'Modifier', action: () => startEdit(m) });
+    }
+
+    const menu = document.createElement('div');
+    menu.className = 'msgContextMenu';
+    let html = items.map((it, i) => `
+      <button class="msgContextMenuItem" data-i="${i}">
+        <span class="msgContextMenuIcon">${it.icon}</span>
+        <span>${it.label}</span>
+      </button>
+    `).join('');
+    if (mine) {
+      html += `<div class="msgContextMenuDivider"></div>
+        <button class="msgContextMenuItem danger" data-i="delete">
+          <span class="msgContextMenuIcon">🗑️</span>
+          <span>Supprimer</span>
+        </button>`;
+    }
+    if (!expanded) {
+      html += `<div class="msgContextMenuDivider"></div>
+        <button class="msgContextMenuItem" data-i="more">
+          <span class="msgContextMenuIcon">⋯</span>
+          <span>Plus...</span>
+        </button>`;
+    }
+    menu.innerHTML = html;
+    menu.querySelectorAll('.msgContextMenuItem').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.i;
+        if (key === 'more') { openMessageActionMenu(bubbleEl, messageId, x, y, true); return; }
+        closeMessageActionMenu();
+        if (key === 'delete') {
+          if (!confirm('Supprimer ce message ? Cette action est irréversible.')) return;
+          socket.emit('message:delete', { messageId }, (res) => { if (res && res.error) alert('Erreur : ' + res.error); });
+          return;
+        }
+        const it = items[Number(key)];
+        if (it) it.action();
+      });
+    });
+    document.body.appendChild(menu);
+    positionFloatingMenu(menu, x, y);
+    const backdrop = document.createElement('div');
+    backdrop.className = 'msgContextMenuBackdrop';
+    backdrop.addEventListener('click', closeMessageActionMenu);
+    document.body.insertBefore(backdrop, menu);
+    msgContextMenuOpen = true;
+  }
+
+  // Échap ferme le menu (ou la carte "Infos"), comme n'importe quel menu
+  // contextuel natif sur PC — plus fiable qu'un clic "à côté" quand le menu
+  // occupe une grande partie de l'écran (petit mobile) ou est repositionné
+  // près du bord.
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && msgContextMenuOpen) closeMessageActionMenu();
+  });
+
+  // Clic droit (PC) sur une bulle : ouvre le menu au lieu du menu contextuel
+  // par défaut du navigateur.
+  $('messages').addEventListener('contextmenu', (e) => {
+    const bubble = e.target.closest('.bubble');
+    const row = e.target.closest('.msgRow');
+    // "msgDeleted" est une classe posée sur le contenu à l'intérieur de la
+    // bulle (voir renderMessages), pas sur .msgRow lui-même — vérifier avec
+    // .querySelector plutôt que row.classList.
+    if (!bubble || !row || bubble.querySelector('.msgDeleted')) return;
+    e.preventDefault();
+    openMessageActionMenu(bubble, row.dataset.id, e.clientX, e.clientY, false);
+  });
+
+  // Appui long (tactile) sur une bulle : même menu, ouvert au point de contact.
+  // Un déplacement du doigt trop important (défilement) ou un relâchement
+  // avant le délai annule l'ouverture, pour ne pas gêner le défilement normal
+  // de la liste des messages.
+  let msgLongPressTimer = null;
+  let msgLongPressStart = null;
+  const LONG_PRESS_MS = 480;
+  const LONG_PRESS_MOVE_TOLERANCE = 10;
+
+  $('messages').addEventListener('touchstart', (e) => {
+    const bubble = e.target.closest('.bubble');
+    const row = e.target.closest('.msgRow');
+    // "msgDeleted" est une classe posée sur le contenu à l'intérieur de la
+    // bulle (voir renderMessages), pas sur .msgRow lui-même — vérifier avec
+    // .querySelector plutôt que row.classList.
+    if (!bubble || !row || bubble.querySelector('.msgDeleted')) return;
+    const touch = e.touches[0];
+    msgLongPressStart = { x: touch.clientX, y: touch.clientY };
+    clearTimeout(msgLongPressTimer);
+    msgLongPressTimer = setTimeout(() => {
+      openMessageActionMenu(bubble, row.dataset.id, touch.clientX, touch.clientY, false);
+      msgLongPressStart = null;
+    }, LONG_PRESS_MS);
+  }, { passive: true });
+
+  $('messages').addEventListener('touchmove', (e) => {
+    if (!msgLongPressStart) return;
+    const touch = e.touches[0];
+    const moved = Math.hypot(touch.clientX - msgLongPressStart.x, touch.clientY - msgLongPressStart.y);
+    if (moved > LONG_PRESS_MOVE_TOLERANCE) {
+      clearTimeout(msgLongPressTimer);
+      msgLongPressStart = null;
+    }
+  }, { passive: true });
+
+  ['touchend', 'touchcancel'].forEach((evt) => {
+    $('messages').addEventListener(evt, () => {
+      clearTimeout(msgLongPressTimer);
+      msgLongPressStart = null;
+    });
+  });
+
+  // ---------- Recherche de texte à l'intérieur de la discussion ----------
+  // Purement côté client : l'historique complet de la discussion ouverte est
+  // déjà chargé en mémoire (messagesByConv), pas besoin d'appeler le serveur.
+  function performChatSearch() {
+    const term = inChatSearchTerm.trim().toLowerCase();
+    const list = messagesByConv[activeConversationId] || [];
+    if (!term) {
+      inChatSearchMatches = [];
+      inChatSearchIndex = -1;
+    } else {
+      inChatSearchMatches = list
+        .filter((m) => !m.deleted && (m.type || 'text') === 'text' && m.content && m.content.toLowerCase().includes(term))
+        .map((m) => m.id);
+      // Le plus récent d'abord, comme une recherche classique dans une conversation.
+      inChatSearchIndex = inChatSearchMatches.length ? inChatSearchMatches.length - 1 : -1;
+    }
+    updateChatSearchUi();
+  }
+
+  function updateChatSearchUi() {
+    document.querySelectorAll('.msgRow.searchMatch').forEach((el) => el.classList.remove('searchMatch', 'searchMatchActive'));
+    inChatSearchMatches.forEach((id) => {
+      const row = document.querySelector(`.msgRow[data-id="${id}"]`);
+      if (row) row.classList.add('searchMatch');
+    });
+    if (inChatSearchIndex >= 0) {
+      const activeId = inChatSearchMatches[inChatSearchIndex];
+      const row = document.querySelector(`.msgRow[data-id="${activeId}"]`);
+      if (row) {
+        row.classList.add('searchMatchActive');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }
+    $('chatSearchCount').textContent = inChatSearchMatches.length
+      ? (inChatSearchIndex + 1) + '/' + inChatSearchMatches.length
+      : (inChatSearchTerm ? '0/0' : '');
+  }
+
+  function gotoChatSearchMatch(dir) {
+    if (!inChatSearchMatches.length) return;
+    inChatSearchIndex = (inChatSearchIndex + dir + inChatSearchMatches.length) % inChatSearchMatches.length;
+    updateChatSearchUi();
+  }
+
+  function openChatSearch() {
+    $('chatSearchBar').style.display = 'flex';
+    $('chatSearchInput').value = inChatSearchTerm;
+    $('chatSearchInput').focus();
+    performChatSearch();
+  }
+
+  function closeChatSearch() {
+    $('chatSearchBar').style.display = 'none';
+    inChatSearchTerm = '';
+    $('chatSearchInput').value = '';
+    inChatSearchMatches = [];
+    inChatSearchIndex = -1;
+    document.querySelectorAll('.msgRow.searchMatch').forEach((el) => el.classList.remove('searchMatch', 'searchMatchActive'));
+    $('chatSearchCount').textContent = '';
+  }
+
+  $('chatSearchBtn').addEventListener('click', () => {
+    if (!activeConversationId) return;
+    if ($('chatSearchBar').style.display === 'none' || !$('chatSearchBar').style.display) openChatSearch();
+    else closeChatSearch();
+  });
+  $('chatSearchCloseBtn').addEventListener('click', closeChatSearch);
+  $('chatSearchInput').addEventListener('input', () => {
+    inChatSearchTerm = $('chatSearchInput').value;
+    performChatSearch();
+  });
+  $('chatSearchNextBtn').addEventListener('click', () => gotoChatSearchMatch(1));
+  $('chatSearchPrevBtn').addEventListener('click', () => gotoChatSearchMatch(-1));
+  $('chatSearchInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') gotoChatSearchMatch(e.shiftKey ? -1 : 1);
+    if (e.key === 'Escape') closeChatSearch();
+  });
+
+  // ---------- Réactions emoji ----------
+  function sendReaction(messageId, emoji) {
+    if (!messageId || !emoji) return;
+    socket.emit('message:react', { messageId, emoji }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+    });
+  }
+
+  // Petit menu flottant d'emoji (même logique que openTagMenu) : détruit et
+  // recréé à chaque ouverture, fermé au clic ailleurs.
+  function closeReactionPicker() {
+    const existing = document.querySelector('.reactionPicker');
+    if (existing) existing.remove();
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.reactionPicker') && !e.target.closest('.reactMsgBtn')) closeReactionPicker();
+  });
+
+  function openReactionPicker(btn, messageId) {
+    closeReactionPicker();
+    closeTagMenu();
+    const menu = document.createElement('div');
+    menu.className = 'reactionPicker';
+    menu.innerHTML = REACTION_EMOJIS.map((emo) => `<button data-emoji="${emo}">${emo}</button>`).join('');
+    menu.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => {
+        sendReaction(messageId, b.dataset.emoji);
+        closeReactionPicker();
+      });
+    });
+    document.body.appendChild(menu);
+    const rect = btn.getBoundingClientRect();
+    menu.style.top = Math.max(8, rect.top - 44) + 'px';
+    // Math.max ET Math.min : borne les deux côtés, pas seulement le bord droit
+    // (sinon le picker pouvait légèrement dépasser à gauche sur un petit écran).
+    menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
+  }
+
+  // ---------- Réponse citée (reply) ----------
+  function startReply(m) {
+    cancelEdit(); // on ne peut pas répondre et modifier en même temps
+    replyingTo = m;
+    renderReplyBanner();
+    $('msgInput').focus();
+  }
+
+  function cancelReply() {
+    replyingTo = null;
+    renderReplyBanner();
+  }
+
+  function renderReplyBanner() {
+    const banner = $('replyBanner');
+    if (!replyingTo) { banner.style.display = 'none'; return; }
+    const senderName = replyingTo.sender ? replyingTo.sender.name : (replyingTo.senderId === me.id ? 'Vous' : '');
+    const text = replyingTo.deleted ? '🚫 Message supprimé' : messagePreviewText(replyingTo);
+    $('replyBannerContent').innerHTML = `<div class="replyBannerSender">${escapeHtml(senderName)}</div><div class="replyBannerText">${escapeHtml(text)}</div>`;
+    banner.style.display = 'flex';
+  }
+
+  $('replyBannerClose').addEventListener('click', cancelReply);
+
+  // ---------- Édition d'un message déjà envoyé ----------
+  function startEdit(m) {
+    cancelReply(); // on ne peut pas répondre et modifier en même temps
+    editingMessage = m;
+    $('msgInput').value = m.content || '';
+    renderEditBanner();
+    $('msgInput').focus();
+    updateComposerButtons();
+  }
+
+  function cancelEdit() {
+    if (editingMessage) $('msgInput').value = '';
+    editingMessage = null;
+    renderEditBanner();
+    updateComposerButtons();
+  }
+
+  function renderEditBanner() {
+    $('editBanner').style.display = editingMessage ? 'flex' : 'none';
+  }
+
+  $('editBannerClose').addEventListener('click', cancelEdit);
+
+  // ---------- Messages épinglés ----------
+  function togglePin(messageId, pinned) {
+    socket.emit('message:pin', { messageId, pinned }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+    });
+  }
+
+  // ---------- Transfert d'un message ----------
+  let forwardSelectedIds = new Set();
+
+  function openForwardModal(messageId) {
+    forwardingMessageId = messageId;
+    forwardSelectedIds = new Set();
+    renderForwardList();
+    $('forwardSelectedCount').textContent = '0 sélectionnée(s)';
+    $('forwardSendBtn').disabled = true;
+    $('forwardOverlay').classList.add('show');
+  }
+
+  function closeForwardModal() {
+    forwardingMessageId = null;
+    $('forwardOverlay').classList.remove('show');
+  }
+
+  function renderForwardList() {
+    const el = $('forwardList');
+    el.innerHTML = '';
+    if (conversations.length === 0) {
+      el.innerHTML = '<div class="comingSoon">Aucune discussion disponible.</div>';
+      return;
+    }
+    conversations.forEach((c) => {
+      const label = convLabel(c);
+      const other = c.participants.find((p) => p.id !== me.id) || c.participants[0];
+      const row = document.createElement('label');
+      row.className = 'listItem forwardRow';
+      row.innerHTML = `<input type="checkbox" class="forwardCheckbox" data-conv-id="${c.id}">
+        ${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null)}
+        <div class="liText"><div class="liName">${escapeHtml(label)}</div></div>`;
+      row.querySelector('.forwardCheckbox').addEventListener('change', (e) => {
+        if (e.target.checked) forwardSelectedIds.add(c.id); else forwardSelectedIds.delete(c.id);
+        $('forwardSelectedCount').textContent = forwardSelectedIds.size + ' sélectionnée(s)';
+        $('forwardSendBtn').disabled = forwardSelectedIds.size === 0;
+      });
+      el.appendChild(row);
+    });
+  }
+
+  $('closeForwardBtn').addEventListener('click', closeForwardModal);
+  $('forwardOverlay').addEventListener('click', (e) => {
+    if (e.target === $('forwardOverlay')) closeForwardModal();
+  });
+
+  $('forwardSendBtn').addEventListener('click', () => {
+    if (!forwardingMessageId || forwardSelectedIds.size === 0) return;
+    const messageId = forwardingMessageId;
+    const conversationIds = Array.from(forwardSelectedIds);
+    $('forwardSendBtn').disabled = true;
+    socket.emit('message:forward', { messageId, conversationIds }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+      else if (res && res.results) {
+        const failed = res.results.filter((r) => r.error);
+        if (failed.length) alert(failed.length + ' transfert(s) ont échoué : ' + failed.map((f) => f.error).join(', '));
+      }
+      closeForwardModal();
+    });
+  });
+
   // "attachment", s'il est fourni, a la forme { data (base64), mime, name, size, duration?, type }.
   // Le texte de #msgInput sert alors de légende optionnelle (ex: une photo avec un petit mot).
   function sendMessage(attachment) {
     const input = $('msgInput');
     const content = input.value.trim();
+
+    // Modification d'un message existant (bandeau "Modifier le message"
+    // affiché) : on passe par message:edit plutôt que message:send, et une
+    // pièce jointe éventuelle est ignorée (l'édition ne concerne que le texte).
+    if (editingMessage) {
+      if (!content) return;
+      const messageId = editingMessage.id;
+      socket.emit('message:edit', { messageId, content }, (res) => {
+        if (res && res.error) alert('Erreur modification : ' + res.error);
+      });
+      input.value = '';
+      cancelEdit();
+      return;
+    }
+
     if (!content && !attachment) return;
     if (!activeConversationId) return;
-    socket.emit('message:send', { conversationId: activeConversationId, content, attachment }, (res) => {
+    const replyToId = replyingTo ? replyingTo.id : undefined;
+    socket.emit('message:send', { conversationId: activeConversationId, content, attachment, replyToId }, (res) => {
       if (res && res.error) alert('Erreur envoi: ' + res.error);
     });
     input.value = '';
+    cancelReply();
     updateComposerButtons();
   }
   updateComposerButtons(); // état initial (pas de texte → micro visible, pas d'avion en papier)
@@ -2672,6 +4173,30 @@
       for (const peer of res.peers) {
         await createPeerConnection(peer.socketId, peer.name, false);
       }
+    });
+  }
+
+  // Reprise après reconnexion du socket pendant un appel en cours (voir
+  // socket.on('connect', ...) ci-dessus) : contrairement à joinCallRoom(),
+  // on ne rouvre pas l'overlay ni le chronomètre (déjà affichés), on se
+  // contente de rejoindre à nouveau la room côté serveur et de rétablir les
+  // connexions WebRTC avec les participants encore présents.
+  function rejoinCallAfterReconnect() {
+    if (!currentCall) return;
+    const { callId, conversationId, type } = currentCall;
+    Object.keys(peerConnections).forEach(removePeer); // mortes de toute façon après une vraie coupure réseau
+    updateCallInfoText('reconnexion en cours…');
+    socket.emit('call:join', { conversationId, callId, type }, async (res) => {
+      if (!currentCall) return; // l'appel a été fermé pendant la reconnexion
+      if (res && res.error) {
+        console.warn('Échec de la reprise d\'appel après reconnexion :', res.error);
+        hangup();
+        return;
+      }
+      for (const peer of res.peers) {
+        await createPeerConnection(peer.socketId, peer.name, false);
+      }
+      updateCallInfoText('connecté');
     });
   }
 
@@ -3002,6 +4527,72 @@
     });
   }
 
+  // ---------- Installation de l'application (PWA) ----------
+  // Sur Android/PC (Chrome, Edge, Samsung Internet...) : le navigateur nous
+  // laisse déclencher nous-mêmes l'invite d'installation via ce bouton, à
+  // condition d'avoir intercepté l'évènement "beforeinstallprompt" (il ne se
+  // déclenche qu'une fois, tôt, donc on le garde en mémoire jusqu'au clic).
+  let deferredInstallPrompt = null;
+
+  function isStandaloneDisplay() {
+    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  }
+  function isIosDevice() {
+    return /iphone|ipad|ipod/i.test(navigator.userAgent) && !window.MSStream;
+  }
+
+  // N'a d'effet que si le panneau Paramètres est ouvert (sinon les éléments
+  // ciblés n'existent pas encore dans le DOM visible, mais ça ne gêne pas :
+  // openSettings() rappelle cette fonction à chaque ouverture).
+  function refreshInstallSection() {
+    const section = $('installSection');
+    if (!section) return;
+    const available = $('installAvailableBlock');
+    const ios = $('installIosBlock');
+    const done = $('installDoneBlock');
+    available.style.display = 'none';
+    ios.style.display = 'none';
+    done.style.display = 'none';
+
+    if (isStandaloneDisplay()) {
+      section.style.display = '';
+      done.style.display = '';
+    } else if (deferredInstallPrompt) {
+      section.style.display = '';
+      available.style.display = '';
+    } else if (isIosDevice()) {
+      section.style.display = '';
+      ios.style.display = '';
+    } else {
+      // Navigateur sans invite native (ex: Firefox desktop) et pas iOS :
+      // rien d'utile à afficher, on cache toute la section plutôt que de
+      // laisser un bloc vide.
+      section.style.display = 'none';
+    }
+  }
+
+  window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault(); // on affiche notre propre bouton plutôt que la mini-infobar par défaut du navigateur
+    deferredInstallPrompt = e;
+    refreshInstallSection();
+  });
+
+  window.addEventListener('appinstalled', () => {
+    deferredInstallPrompt = null;
+    refreshInstallSection();
+  });
+
+  const installAppBtnEl = $('installAppBtn');
+  if (installAppBtnEl) {
+    installAppBtnEl.addEventListener('click', async () => {
+      if (!deferredInstallPrompt) return;
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch (err) { /* ignore */ }
+      deferredInstallPrompt = null;
+      refreshInstallSection();
+    });
+  }
+
   // ---------- Notifications push ----------
   // Convertit la clé publique VAPID (texte base64 "URL-safe") au format binaire
   // attendu par pushManager.subscribe. C'est le format d'échange standard de
@@ -3078,6 +4669,35 @@
     if (me) clearNotificationsAndBadge();
   });
 
+  // ---------- "Autres produits" (Paramètres) ----------
+  // Rangée de raccourcis façon "Autres produits Meta" dans WhatsApp, mais
+  // avec des icônes génériques (pas les logos Facebook/Instagram/WhatsApp :
+  // seourouApps n'est pas affilié à Meta, les reprendre laisserait croire à
+  // une affiliation qui n'existe pas — voir la discussion à ce sujet).
+  // Remplacez cette liste par les vrais produits/liens Geniosity dès qu'ils
+  // existent — { icon: emoji ou URL d'image, label: nom affiché, url: lien
+  // ouvert dans un nouvel onglet, ou null pour ne pas être cliquable }.
+  const OTHER_PRODUCTS = [
+    { icon: '🧩', label: 'Produit 1', url: null },
+    { icon: '🌐', label: 'Produit 2', url: null },
+    { icon: '⚙️', label: 'Produit 3', url: null },
+  ];
+
+  function renderOtherProducts() {
+    const section = $('otherProductsSection');
+    if (!OTHER_PRODUCTS.length) { section.style.display = 'none'; return; }
+    section.style.display = 'block';
+    // Sans "url" (le temps qu'un vrai lien existe), l'élément reste un <span>
+    // simplement affiché — pas de <a target="_blank"> qui ouvrirait un onglet
+    // vide pour rien.
+    $('otherProductsRow').innerHTML = OTHER_PRODUCTS.map((p) => {
+      const inner = `<span class="otherProductIcon">${p.icon}</span><span class="otherProductLabel">${escapeHtml(p.label)}</span>`;
+      return p.url
+        ? `<a class="otherProductItem" href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${inner}</a>`
+        : `<span class="otherProductItem">${inner}</span>`;
+    }).join('');
+  }
+
   // ---------- Paramètres ----------
   function showSettingsMsg(id, text, isError) {
     const el = $(id);
@@ -3087,6 +4707,7 @@
 
   async function openSettings() {
     if (!me) return;
+    renderOtherProducts();
     $('settingsNameInput').value = me.name;
     $('settingsPhoneText').textContent = me.phone;
     showSettingsMsg('settingsProfileMsg', '');
@@ -3097,10 +4718,157 @@
     $('ringtoneToggle').checked = !ringtoneMuted;
     $('themeToggle').checked = document.body.classList.contains('theme-light');
     refreshAccentSwatchSelection();
+    refreshTextSizeSelection();
+    refreshInstallSection();
     $('settingsOverlay').classList.add('show');
     refreshNotifToggleState();
     loadBlockedUsers();
+    $('hideLastSeenToggle').checked = Boolean(me.hideLastSeen);
+    showSettingsMsg('settingsStorageMsg', '');
+    refreshStorageUsageText();
+    refreshPhoneVerifySection();
+    showSettingsMsg('settingsOtpMsg', '');
+    $('otpCodeInput').value = '';
+    $('otpCodeBlock').style.display = 'none';
+    $('deleteAccountPasswordInput').value = '';
+    showSettingsMsg('settingsDeleteAccountMsg', '');
+    refreshAdminSection();
   }
+
+  // ---------- Administration (visible uniquement pour un compte administrateur) ----------
+  function refreshAdminSection() {
+    const isAdmin = Boolean(me && me.isAdmin);
+    $('adminSection').style.display = isAdmin ? 'block' : 'none';
+    if (!isAdmin) return;
+    $('adminUserSearchInput').value = '';
+    $('adminActionPasswordInput').value = '';
+    showSettingsMsg('settingsAdminMsg', '');
+    loadAdminUsers('');
+  }
+
+  let adminUsersCache = [];
+  async function loadAdminUsers(q) {
+    $('adminUserList').innerHTML = '<div class="adminEmptyText">Chargement...</div>';
+    try {
+      const data = await api('/api/admin/users' + (q ? '?q=' + encodeURIComponent(q) : ''));
+      adminUsersCache = data.users;
+      renderAdminUserList();
+    } catch (err) {
+      $('adminUserList').innerHTML = '<div class="adminEmptyText"></div>';
+      showSettingsMsg('settingsAdminMsg', err.message, true);
+    }
+  }
+
+  function renderAdminUserList() {
+    const list = $('adminUserList');
+    // On ne se propose jamais soi-même : la suppression de son propre compte
+    // se fait toujours via "Supprimer mon compte" plus bas (voir
+    // admin.controller.js deleteUser, qui refuse explicitement ce cas).
+    const rows = adminUsersCache.filter((u) => u.id !== me.id);
+    if (!rows.length) {
+      list.innerHTML = '<div class="adminEmptyText">Aucun utilisateur trouvé.</div>';
+      return;
+    }
+    list.innerHTML = rows.map((u) => `
+      <div class="adminUserRow" data-user-id="${u.id}">
+        <div class="adminUserInfo">
+          <span class="adminUserName">${escapeHtml(u.name)}${u.isAdmin ? '<span class="adminBadge">admin</span>' : ''}</span>
+          <span class="adminUserPhone">${escapeHtml(u.phone)}</span>
+        </div>
+        <button class="adminDeleteUserBtn" data-user-id="${u.id}">Supprimer</button>
+      </div>
+    `).join('');
+  }
+
+  let adminSearchDebounce = null;
+  $('adminUserSearchInput').addEventListener('input', () => {
+    clearTimeout(adminSearchDebounce);
+    const q = $('adminUserSearchInput').value.trim();
+    adminSearchDebounce = setTimeout(() => loadAdminUsers(q), 300);
+  });
+
+  $('adminUserList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.adminDeleteUserBtn');
+    if (!btn) return;
+    const userId = btn.dataset.userId;
+    const target = adminUsersCache.find((u) => u.id === userId);
+    const label = target ? (target.name + ' (' + target.phone + ')') : 'cet utilisateur';
+    const password = $('adminActionPasswordInput').value;
+    if (!password) return showSettingsMsg('settingsAdminMsg', 'Votre mot de passe est requis pour confirmer.', true);
+    if (!confirm('Supprimer définitivement le compte de ' + label + ' ? Cette action est irréversible.')) return;
+
+    btn.disabled = true;
+    try {
+      await api('/api/admin/users/' + userId, { method: 'DELETE', body: JSON.stringify({ password }) });
+      adminUsersCache = adminUsersCache.filter((u) => u.id !== userId);
+      renderAdminUserList();
+      showSettingsMsg('settingsAdminMsg', 'Compte de ' + label + ' supprimé.', false);
+    } catch (err) {
+      showSettingsMsg('settingsAdminMsg', err.message, true);
+      btn.disabled = false;
+    }
+  });
+
+  // ---------- Vérification du numéro par OTP (Paramètres) ----------
+  function refreshPhoneVerifySection() {
+    const verified = Boolean(me && me.phoneVerified);
+    $('phoneVerifiedBadge').style.display = verified ? 'inline' : 'none';
+    $('phoneVerifyAlreadyBlock').style.display = verified ? 'block' : 'none';
+    $('phoneVerifyPendingBlock').style.display = verified ? 'none' : 'block';
+  }
+
+  $('sendOtpBtn').addEventListener('click', async () => {
+    const btn = $('sendOtpBtn');
+    btn.disabled = true;
+    showSettingsMsg('settingsOtpMsg', '');
+    try {
+      const data = await api('/api/auth/otp/send', { method: 'POST' });
+      if (data.alreadyVerified) {
+        me.phoneVerified = true;
+        refreshPhoneVerifySection();
+      } else {
+        $('otpCodeBlock').style.display = 'block';
+        showSettingsMsg('settingsOtpMsg', data.simulated
+          ? 'Code envoyé (voir les journaux du serveur, aucun fournisseur SMS configuré).'
+          : 'Code envoyé par SMS.', false);
+      }
+    } catch (err) {
+      showSettingsMsg('settingsOtpMsg', err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  $('verifyOtpBtn').addEventListener('click', async () => {
+    const code = $('otpCodeInput').value.trim();
+    if (!code) return showSettingsMsg('settingsOtpMsg', 'Code requis.', true);
+    try {
+      const data = await api('/api/auth/otp/verify', { method: 'POST', body: JSON.stringify({ code }) });
+      me.phoneVerified = data.user.phoneVerified;
+      refreshPhoneVerifySection();
+      showSettingsMsg('settingsOtpMsg', 'Numéro vérifié avec succès.', false);
+    } catch (err) {
+      showSettingsMsg('settingsOtpMsg', err.message, true);
+    }
+  });
+
+  // ---------- Suppression de compte ----------
+  $('deleteAccountBtn').addEventListener('click', async () => {
+    const password = $('deleteAccountPasswordInput').value;
+    if (!password) return showSettingsMsg('settingsDeleteAccountMsg', 'Mot de passe requis.', true);
+    if (!confirm('Supprimer définitivement votre compte ? Cette action est irréversible.')) return;
+    const btn = $('deleteAccountBtn');
+    btn.disabled = true;
+    try {
+      await api('/api/auth/me', { method: 'DELETE', body: JSON.stringify({ password }) });
+      closeSettings();
+      $('logoutBtn').click();
+    } catch (err) {
+      showSettingsMsg('settingsDeleteAccountMsg', err.message, true);
+    } finally {
+      btn.disabled = false;
+    }
+  });
 
   function closeSettings() {
     $('settingsOverlay').classList.remove('show');
@@ -3162,6 +4930,115 @@
     localStorage.setItem('seourou_theme', light ? 'light' : 'dark');
   });
 
+  // ---------- Confidentialité : masquer ma dernière connexion ----------
+  $('hideLastSeenToggle').addEventListener('change', async () => {
+    const toggle = $('hideLastSeenToggle');
+    const desired = toggle.checked;
+    try {
+      const data = await api('/api/users/me/privacy', { method: 'PATCH', body: JSON.stringify({ hideLastSeen: desired }) });
+      me.hideLastSeen = data.user.hideLastSeen;
+    } catch (err) {
+      toggle.checked = !desired; // annule visuellement si la requête a échoué
+      alert('Erreur : ' + err.message);
+    }
+  });
+
+  // ---------- Stockage et données (Paramètres) ----------
+  // Estime l'espace occupé par l'application sur cet appareil (cache de
+  // l'app shell + données diverses du navigateur), à titre indicatif — comme
+  // le fait WhatsApp dans son propre écran "Stockage et données".
+  async function refreshStorageUsageText() {
+    const el = $('storageUsageText');
+    if (!el) return;
+    try {
+      if (navigator.storage && navigator.storage.estimate) {
+        const { usage } = await navigator.storage.estimate();
+        el.textContent = 'Espace utilisé sur cet appareil : ' + formatBytes(usage || 0);
+      } else {
+        el.textContent = '';
+      }
+    } catch (err) {
+      el.textContent = '';
+    }
+  }
+
+  // Vide le cache de l'app shell (Cache Storage API utilisé par le service
+  // worker) et l'historique des messages déjà chargés en mémoire. Ne touche
+  // JAMAIS aux discussions elles-mêmes (elles restent sur le serveur) ni aux
+  // préférences (thème, taille du texte, favoris…), qui ne sont pas un cache.
+  async function clearAppCache() {
+    if (!confirm('Vider le cache va recharger l\'application et re-télécharger les fichiers nécessaires. Vos discussions ne seront pas supprimées. Continuer ?')) return;
+    const btn = $('clearCacheBtn');
+    btn.disabled = true;
+    try {
+      if ('caches' in window) {
+        const keys = await caches.keys();
+        await Promise.all(keys.map((k) => caches.delete(k)));
+      }
+      messagesByConv = {};
+      showSettingsMsg('settingsStorageMsg', 'Cache vidé. Rechargement…', false);
+      setTimeout(() => location.reload(), 600);
+    } catch (err) {
+      btn.disabled = false;
+      showSettingsMsg('settingsStorageMsg', 'Erreur lors du vidage du cache : ' + err.message, true);
+    }
+  }
+  $('clearCacheBtn').addEventListener('click', clearAppCache);
+
+  // Génère une sauvegarde JSON téléchargeable de toutes les discussions
+  // (texte + métadonnées ; les pièces jointes ne sont pas incluses en clair
+  // dans le fichier, pour rester léger — seule leur présence est signalée).
+  async function exportConversationsBackup() {
+    const btn = $('exportBackupBtn');
+    const original = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Préparation…';
+    showSettingsMsg('settingsStorageMsg', '');
+    try {
+      await Promise.all(conversations.map(async (c) => {
+        if (!messagesByConv[c.id]) {
+          try {
+            const data = await api('/api/conversations/' + c.id + '/messages');
+            messagesByConv[c.id] = data.messages;
+          } catch (err) { messagesByConv[c.id] = []; }
+        }
+      }));
+
+      const backup = {
+        exportedAt: new Date().toISOString(),
+        compte: { nom: me.name, telephone: me.phone },
+        discussions: conversations.map((c) => ({
+          nom: convLabel(c),
+          groupe: c.isGroup,
+          participants: c.participants.map((p) => ({ nom: p.name, telephone: p.phone })),
+          messages: (messagesByConv[c.id] || []).map((m) => ({
+            date: m.createdAt,
+            de: m.sender ? m.sender.name : '',
+            contenu: m.deleted ? '[message supprimé]' : messagePreviewText(m),
+            piece_jointe: Boolean(m.attachment),
+          })),
+        })),
+      };
+
+      const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'seourouApps-sauvegarde-' + new Date().toISOString().slice(0, 10) + '.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showSettingsMsg('settingsStorageMsg', 'Sauvegarde téléchargée (' + backup.discussions.length + ' discussion(s)).', false);
+    } catch (err) {
+      showSettingsMsg('settingsStorageMsg', 'Erreur lors de l\'export : ' + err.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  }
+  $('exportBackupBtn').addEventListener('click', exportConversationsBackup);
+
   // ---------- Couleur d'accent (Paramètres → Apparence) ----------
   function refreshAccentSwatchSelection() {
     const current = ACCENT_COLORS.find((c) => document.body.classList.contains('accent-' + c)) || 'bleu';
@@ -3178,6 +5055,19 @@
       document.body.classList.add('accent-' + accent);
       localStorage.setItem('seourou_accent', accent);
       refreshAccentSwatchSelection();
+    });
+  });
+
+  // ---------- Taille du texte des discussions (Paramètres → Apparence) ----------
+  function refreshTextSizeSelection() {
+    document.querySelectorAll('.textSizeTab').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.size === textSize);
+    });
+  }
+  document.querySelectorAll('.textSizeTab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      applyTextSize(btn.dataset.size);
+      refreshTextSizeSelection();
     });
   });
 

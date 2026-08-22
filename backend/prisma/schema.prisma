@@ -18,6 +18,31 @@ model User {
   avatarUrl   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  // Dernière fois que cet utilisateur avait au moins un appareil/onglet
+  // connecté au socket temps réel (mis à jour quand son dernier socket se
+  // déconnecte, voir utils/presence.js) — sert à afficher "vu à ..." quand il
+  // n'est pas actuellement en ligne, comme WhatsApp. "En ligne" en revanche
+  // n'est jamais stocké en base : c'est un état purement en mémoire (voir
+  // presence.js), diffusé en direct via Socket.io.
+  lastSeenAt  DateTime?
+  // Confidentialité "dernière connexion" (Paramètres → Confidentialité), comme
+  // WhatsApp : quand activé, "en ligne"/"vu à ..." n'est jamais communiqué aux
+  // AUTRES utilisateurs (ni via l'API, ni via les événements temps réel). Ne
+  // change rien à ce que l'utilisateur voit lui-même des autres.
+  hideLastSeen Boolean @default(false)
+  // Numéro confirmé par code OTP envoyé par SMS (voir utils/otp.js, utils/sms.js).
+  // Ne bloque rien pour l'instant (l'inscription reste possible sans vérifier) :
+  // juste un badge "Numéro vérifié" affiché dans Paramètres, comme un premier pas
+  // vers une vérification obligatoire plus tard.
+  phoneVerified Boolean @default(false)
+  // Administrateur de l'application (pas d'un groupe/communauté en
+  // particulier) : peut supprimer le compte de n'importe quel autre
+  // utilisateur depuis Paramètres → Administration. Attribué automatiquement
+  // au(x) numéro(s) listé(s) dans la variable d'environnement ADMIN_PHONES
+  // (voir utils/adminPhones.js) — pas d'interface pour le retirer pour
+  // l'instant, volontairement : ce n'est pas demandé et une mauvaise
+  // manipulation ici serait plus grave qu'ailleurs.
+  isAdmin Boolean @default(false)
 
   participations ConversationParticipant[]
   messages        Message[]
@@ -33,6 +58,8 @@ model User {
   // auxquelles j'appartiens (en tant que membre ou admin).
   createdCommunities Community[]
   communityMemberships CommunityMember[]
+  // Réactions emoji laissées sur des messages (👍 ❤️ 😂 ...), comme WhatsApp.
+  messageReactions MessageReaction[]
 }
 
 // Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
@@ -81,6 +108,23 @@ model ConversationParticipant {
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // Sourdine (Paramètres → discussion) : n'affecte que les notifications push
+  // envoyées à CET utilisateur pour CETTE conversation (voir sockets/chat.js,
+  // notifyNewMessage) — la conversation reste visible normalement, juste sans
+  // notification. Propre à chaque participant, pas à la conversation entière.
+  muted    Boolean @default(false)
+  // Archivage (liste des discussions) : masque la conversation de la liste
+  // principale sans la supprimer ni en retirer les autres participants — propre
+  // à chaque participant, comme WhatsApp (archiver chez moi ne l'archive pas
+  // chez l'autre).
+  archived Boolean @default(false)
+  // Verrouillage (comme "Discussions verrouillées" de WhatsApp) : masque la
+  // conversation de la liste principale ET de l'archivage, visible uniquement
+  // dans la sous-vue "Discussions verrouillées" après re-saisie du mot de passe
+  // du compte (voir auth.controller.js, verifyPassword). Propre à chaque
+  // participant, comme muted/archived.
+  locked   Boolean @default(false)
+
   @@unique([conversationId, userId])
 }
 
@@ -108,8 +152,52 @@ model Message {
   // un texte de substitution ("Message supprimé") côté client.
   deleted         Boolean @default(false)
 
+  // Réponse citée (comme WhatsApp) : référence facultative vers le message
+  // auquel celui-ci répond. onDelete: SetNull plutôt que Cascade — si le
+  // message d'origine est effacé définitivement (voir message:erase), la
+  // réponse elle-même doit rester, juste sans aperçu du message cité.
+  replyToId String?
+  replyTo   Message?  @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   Message[] @relation("MessageReplies")
+
+  // Édition après envoi (comme WhatsApp) : le contenu est remplacé en place,
+  // "edited" sert juste à afficher la mention "modifié" côté client. Impossible
+  // sur un message avec pièce jointe ni un message déjà supprimé (voir
+  // sockets/chat.js, message:edit).
+  edited    Boolean   @default(false)
+  editedAt  DateTime?
+
+  // Message épinglé en haut de la discussion (comme WhatsApp, limité à
+  // quelques messages à la fois, voir MAX_PINNED_PER_CONVERSATION).
+  pinned    Boolean   @default(false)
+  pinnedAt  DateTime?
+
+  // Vrai si ce message est une copie transférée depuis une autre discussion
+  // (voir sockets/chat.js, message:forward) : sert juste à afficher la mention
+  // "Transféré" côté client, comme WhatsApp.
+  forwarded Boolean   @default(false)
+
+  reactions MessageReaction[]
+
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   sender       User         @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+// Réaction emoji sur un message (👍 ❤️ 😂 😮 😢 🙏, comme WhatsApp) : une seule
+// réaction par utilisateur et par message (choisir un nouvel emoji remplace
+// l'ancien, comme WhatsApp — pas d'accumulation de plusieurs réactions du
+// même utilisateur sur le même message).
+model MessageReaction {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
 }
 
 model Call {
@@ -209,4 +297,27 @@ model CommunityMember {
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([communityId, userId])
+}
+
+// Code à usage unique envoyé par SMS (vérification de numéro à l'inscription,
+// mot de passe oublié). Volontairement PAS lié à User par une relation stricte :
+// pour "mot de passe oublié", le numéro doit pouvoir être validé même si on ne
+// veut pas révéler si un compte existe pour ce numéro (voir auth.controller.js,
+// forgotPassword). Un seul code actif à la fois par (phone, purpose) : en créer
+// un nouveau invalide silencieusement les précédents (voir utils/otp.js).
+model OtpCode {
+  id         String    @id @default(uuid())
+  phone      String
+  // Jamais stocké en clair : seul son hash bcrypt est conservé, comme un mot de passe.
+  codeHash   String
+  purpose    String    // "verify_phone" | "reset_password"
+  expiresAt  DateTime
+  consumedAt DateTime?
+  // Nombre de tentatives de vérification déjà faites avec ce code : au-delà de
+  // OTP_MAX_ATTEMPTS (voir utils/otp.js), le code est refusé même s'il est
+  // encore valide, pour limiter le brute-force sur un code à 6 chiffres.
+  attempts   Int       @default(0)
+  createdAt  DateTime  @default(now())
+
+  @@index([phone, purpose])
 }

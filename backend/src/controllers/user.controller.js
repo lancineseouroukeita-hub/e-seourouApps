@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
+const { isOnline } = require('../utils/presence');
 
 // Taille max de la photo de profil stockée (data URL base64 complète, préfixe
 // "data:image/...;base64," inclus). Elle est redimensionnée et compressée côté
@@ -18,7 +19,15 @@ async function listUsers(req, res) {
     prisma.blockedUser.findMany({ where: { blockerId: req.user.id }, select: { blockedId: true } }),
   ]);
   const blockedIds = new Set(blocked.map((b) => b.blockedId));
-  return res.json({ users: users.map((u) => Object.assign(toPublicUser(u), { blocked: blockedIds.has(u.id) })) });
+  return res.json({
+    // Un utilisateur qui a activé "masquer ma dernière connexion" n'expose
+    // jamais online/lastSeenAt aux autres, quel que soit son statut réel.
+    users: users.map((u) => {
+      const pub = toPublicUser(u);
+      if (u.hideLastSeen) pub.lastSeenAt = null;
+      return Object.assign(pub, { blocked: blockedIds.has(u.id), online: u.hideLastSeen ? false : isOnline(u.id) });
+    }),
+  });
 }
 
 // Liste des utilisateurs que j'ai bloqués (Paramètres → Confidentialité).
@@ -139,11 +148,44 @@ async function updateMyPassword(req, res) {
   }
 }
 
+// Active/désactive "masquer ma dernière connexion" (Paramètres → Confidentialité).
+async function updateMyPrivacy(req, res) {
+  try {
+    const { hideLastSeen } = req.body;
+    if (typeof hideLastSeen !== 'boolean') {
+      return res.status(400).json({ error: 'hideLastSeen (booléen) est requis.' });
+    }
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { hideLastSeen },
+    });
+
+    // Corrige immédiatement ce que les autres voient déjà (ex: "en ligne"
+    // affiché avant l'activation du masquage) : sans ça, ils ne verraient le
+    // changement qu'à la prochaine connexion/déconnexion de cet utilisateur
+    // (voir sockets/index.js, qui revérifie ce réglage à chaque fois).
+    const io = req.app.get('io');
+    if (io) {
+      if (hideLastSeen) {
+        io.emit('presence:update', { userId: user.id, online: false, lastSeenAt: null });
+      } else {
+        io.emit('presence:update', { userId: user.id, online: isOnline(user.id), lastSeenAt: user.lastSeenAt });
+      }
+    }
+
+    return res.json({ user: toPublicUser(user) });
+  } catch (err) {
+    console.error('updateMyPrivacy error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la mise à jour de la confidentialité.' });
+  }
+}
+
 module.exports = {
   listUsers,
   updateMyAvatar,
   updateMyName,
   updateMyPassword,
+  updateMyPrivacy,
   listBlockedUsers,
   blockUser,
   unblockUser,

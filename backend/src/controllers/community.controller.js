@@ -1,5 +1,6 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
+const { notifyConversationCreated } = require('./conversation.controller');
 
 // Vérifie que l'utilisateur est membre d'une communauté, et renvoie son rôle
 // ("admin" | "member") ou null s'il n'en fait pas partie.
@@ -102,6 +103,22 @@ async function createCommunity(req, res) {
       },
       include: { members: { include: { user: true } }, conversations: true },
     });
+
+    // Notifie les membres ajoutés (temps réel) que le groupe d'annonces de la
+    // communauté vient d'apparaître dans leurs discussions — sans ça, il ne le
+    // verrait qu'au prochain rechargement de l'application.
+    const announcementConv = community.conversations.find((c) => c.isAnnouncement);
+    if (announcementConv) {
+      notifyConversationCreated(req, {
+        id: announcementConv.id,
+        isGroup: true,
+        name: announcementConv.name,
+        createdAt: announcementConv.createdAt,
+        participants: community.members.map((m) => ({ userId: m.userId, user: m.user, lastReadAt: null })),
+        messages: [],
+      }, userId);
+    }
+
     return res.status(201).json({ community: serializeCommunity(community, 'admin') });
   } catch (err) {
     console.error('createCommunity error:', err);
@@ -130,7 +147,11 @@ async function createCommunityGroup(req, res) {
         communityId,
         participants: { create: [userId, ...memberIds].map((id) => ({ userId: id })) },
       },
+      include: { participants: { include: { user: true } } },
     });
+
+    notifyConversationCreated(req, Object.assign({}, conversation, { messages: [] }), userId);
+
     return res.status(201).json({ conversationId: conversation.id });
   } catch (err) {
     console.error('createCommunityGroup error:', err);
@@ -162,6 +183,14 @@ async function addCommunityMember(req, res) {
         update: {},
         create: { conversationId: announcement.id, userId: newUserId },
       });
+
+      // Le nouveau membre doit voir apparaître le groupe d'annonces dans ses
+      // discussions immédiatement, sans attendre un rechargement.
+      const fullAnnouncement = await prisma.conversation.findUnique({
+        where: { id: announcement.id },
+        include: { participants: { include: { user: true } } },
+      });
+      notifyConversationCreated(req, Object.assign({}, fullAnnouncement, { messages: [] }), userId);
     }
     return res.json({ ok: true });
   } catch (err) {
