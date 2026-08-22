@@ -29,3 +29,13 @@ services:
         sync: false
       - key: TURN_HOST
         sync: false
+      # Identifiants Twilio pour l'envoi réel des codes par SMS (vérification du
+      # numéro, mot de passe oublié) : renseigner ici sans nouveau déploiement.
+      # Laissés vides, l'appli continue de fonctionner mais se contente de
+      # journaliser le code au lieu de l'envoyer — voir backend/src/utils/sms.js.
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM_NUMBER
+        sync: false
