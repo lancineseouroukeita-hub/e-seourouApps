@@ -1334,6 +1334,9 @@
   // Message en cours de modification (bandeau au-dessus du composer, comme
   // replyingTo mais pour message:edit au lieu de message:send), ou null.
   let editingMessage = null;
+  // Anti-double-envoi (voir sendMessage) : horodatage jusqu'auquel un nouvel
+  // envoi est ignoré.
+  let lastSendGuardUntil = 0;
   // Message dont le transfert est en cours (modale de sélection des discussions
   // cibles), ou null si la modale n'est pas ouverte.
   let forwardingMessageId = null;
@@ -4278,8 +4281,21 @@
 
     if (!content && !attachment) return;
     if (!activeConversationId) return;
+    // Garde-fou anti-double-envoi : un appui prolongé sur Entrée, ou un tap
+    // rapide répété sur le bouton d'envoi, peut déclencher sendMessage()
+    // plusieurs fois de suite avant que l'interface n'ait eu le temps de
+    // vider le champ de saisie. On ignore les appels qui suivent de trop près
+    // un envoi déjà en cours.
+    const now = Date.now();
+    if (now < lastSendGuardUntil) return;
+    lastSendGuardUntil = now + 500;
     const replyToId = replyingTo ? replyingTo.id : undefined;
-    socket.emit('message:send', { conversationId: activeConversationId, content, attachment, replyToId }, (res) => {
+    // Identifiant propre à cette tentative d'envoi (et non au message lui-même) :
+    // si le socket se reconnecte brièvement pendant l'envoi et que Socket.io
+    // ré-émet ce même paquet en tampon, le serveur reconnaît le doublon grâce à
+    // cet identifiant et ne recrée pas un second message (voir chat.js).
+    const clientMsgId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2));
+    socket.emit('message:send', { conversationId: activeConversationId, content, attachment, replyToId, clientMsgId }, (res) => {
       if (res && res.error) alert('Erreur envoi: ' + res.error);
     });
     input.value = '';

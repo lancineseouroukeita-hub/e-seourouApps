@@ -27,6 +27,29 @@ const EDIT_WINDOW_MS = 15 * 60 * 1000;
 // Nombre max de messages épinglés simultanément par conversation (comme WhatsApp).
 const MAX_PINNED_PER_CONVERSATION = 3;
 
+// Anti-doublon pour l'envoi de messages : sur une coupure réseau furtive
+// (wifi/4G instable), le client peut ré-émettre le même "message:send" une
+// fois reconnecté (tampon interne de Socket.io) avant même d'avoir reçu
+// l'accusé de réception du premier envoi — ce qui créait plusieurs messages
+// identiques d'affilée. Le client fournit un "clientMsgId" unique par tentative
+// d'envoi (le même pour tous les essais d'un même message) ; on retient le
+// résultat du premier envoi réussi et on le renvoie tel quel aux tentatives
+// suivantes, sans recréer ni rediffuser le message. Nettoyage automatique
+// après 60s (largement plus que le temps d'une reconnexion).
+const recentSends = new Map(); // clientMsgId -> { payload, ts }
+function getRecentSend(clientMsgId) {
+  if (!clientMsgId) return null;
+  const now = Date.now();
+  for (const [key, entry] of recentSends) {
+    if (now - entry.ts > 60000) recentSends.delete(key);
+  }
+  return recentSends.get(clientMsgId) || null;
+}
+function rememberSend(clientMsgId, payload) {
+  if (!clientMsgId) return;
+  recentSends.set(clientMsgId, { payload, ts: Date.now() });
+}
+
 /**
  * Attache les gestionnaires d'événements liés à la messagerie texte sur un socket déjà authentifié.
  * L'utilisateur rejoint automatiquement une "room" par conversation pour recevoir les nouveaux messages.
@@ -48,8 +71,14 @@ function registerChatHandlers(io, socket) {
     if (conversationId) socket.join(roomName(conversationId));
   });
 
-  socket.on('message:send', async ({ conversationId, content, attachment, replyToId }, callback) => {
+  socket.on('message:send', async ({ conversationId, content, attachment, replyToId, clientMsgId }, callback) => {
     try {
+      // Cette tentative d'envoi a déjà réussi une fois (voir commentaire plus
+      // haut sur recentSends) : on renvoie le même résultat sans recréer ni
+      // rediffuser de message.
+      const existing = getRecentSend(clientMsgId);
+      if (existing) return callback && callback({ message: existing.payload });
+
       const trimmedContent = (content || '').trim();
       const hasAttachment = attachment && attachment.data;
 
@@ -157,6 +186,7 @@ function registerChatHandlers(io, socket) {
         forwarded: false,
       };
 
+      rememberSend(clientMsgId, payload);
       io.to(roomName(conversationId)).emit('message:new', payload);
       callback && callback({ message: payload });
 
