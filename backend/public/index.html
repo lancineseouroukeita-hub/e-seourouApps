@@ -275,7 +275,7 @@
   /* -webkit-touch-callout:none évite qu'un appui long déclenche EN PLUS le
      menu natif du navigateur (sélection de texte/"copier" iOS) par-dessus
      notre propre menu d'actions (voir plus bas, openMessageActionMenu). */
-  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:calc(15px * var(--chat-font-scale));line-height:1.4;-webkit-touch-callout:none;}
+  .bubble{max-width:60%;padding:8px 12px;border-radius:14px;font-size:calc(15px * var(--chat-font-scale));line-height:1.4;-webkit-touch-callout:none;-webkit-user-select:none;-moz-user-select:none;-ms-user-select:none;user-select:none;}
   .msgRow.mine .bubble{background:var(--accent);color:white;border-bottom-right-radius:4px;}
   .msgRow:not(.mine) .bubble{background:var(--panel2);border-bottom-left-radius:4px;}
   .bubble .sender{font-size:11px;color:var(--muted);margin-bottom:2px;}
@@ -3101,27 +3101,32 @@
   $('deleteMsgOverlay').addEventListener('click', (e) => {
     if (e.target === $('deleteMsgOverlay')) closeDeleteMsgDialog();
   });
+  // "Pour moi seulement" : rien n'est diffusé aux autres participants (voir
+  // sockets/chat.js) — on retire donc le message localement tout de suite ;
+  // le serveur ne le renverra plus au prochain chargement (getMessages filtre
+  // déjà sur MessageHiddenForUser). Réutilisé pour masquer un message normal
+  // ET pour masquer, côté destinataire, la trace d'un message déjà supprimé.
+  function hideMessageForMe(m) {
+    socket.emit('message:delete', { messageId: m.id, forEveryone: false }, (res) => {
+      if (res && res.error) { alert('Erreur : ' + res.error); return; }
+      const list = messagesByConv[m.conversationId];
+      if (list) {
+        const idx = list.findIndex((x) => x.id === m.id);
+        if (idx !== -1) list.splice(idx, 1);
+      }
+      if (activeConversationId === m.conversationId) renderMessages();
+      loadConversations(); // rafraîchit l'aperçu si c'était le dernier message visible
+    });
+  }
   function confirmDeleteMessage(forEveryone) {
     const m = deleteMsgTarget;
     if (!m) return;
     closeDeleteMsgDialog();
-    socket.emit('message:delete', { messageId: m.id, forEveryone }, (res) => {
-      if (res && res.error) { alert('Erreur : ' + res.error); return; }
-      if (!forEveryone) {
-        // "Pour moi seulement" : rien n'est diffusé aux autres participants
-        // (voir sockets/chat.js) — on retire donc le message localement tout
-        // de suite ; le serveur ne le renverra plus au prochain chargement
-        // (getMessages filtre déjà sur MessageHiddenForUser).
-        const list = messagesByConv[m.conversationId];
-        if (list) {
-          const idx = list.findIndex((x) => x.id === m.id);
-          if (idx !== -1) list.splice(idx, 1);
-        }
-        if (activeConversationId === m.conversationId) renderMessages();
-        loadConversations(); // rafraîchit l'aperçu si c'était le dernier message visible
-      }
-      // forEveryone=true : la mise à jour (y compris pour notre propre
-      // client) arrive via l'évènement socket "message:deleted" déjà géré.
+    if (!forEveryone) { hideMessageForMe(m); return; }
+    socket.emit('message:delete', { messageId: m.id, forEveryone: true }, (res) => {
+      if (res && res.error) alert('Erreur : ' + res.error);
+      // sinon, la mise à jour (y compris pour notre propre client) arrive via
+      // l'évènement socket "message:deleted" déjà géré.
     });
   }
   $('deleteMsgOnlyMeBtn').addEventListener('click', () => confirmDeleteMessage(false));
@@ -3640,6 +3645,18 @@
     });
   }
 
+  // Sur la trace d'un message supprimé par quelqu'un d'autre, on ne peut pas
+  // l'effacer définitivement (réservé à l'auteur, voir eraseMessageTrace) —
+  // on peut en revanche la masquer de notre propre côté uniquement, comme un
+  // "supprimer pour moi" classique (l'autre personne la voit toujours).
+  function hideDeletedTraceForMe(messageId) {
+    if (!messageId) return;
+    const m = (messagesByConv[activeConversationId] || []).find((x) => x.id === messageId);
+    if (!m) return;
+    if (!confirm('Masquer cette trace de ton côté ? Elle restera visible pour l\'autre personne.')) return;
+    hideMessageForMe(m);
+  }
+
   // Clic sur le "✕" affiché sur un message déjà supprimé.
   $('messages').addEventListener('click', (e) => {
     const btn = e.target.closest('.eraseMsgBtn');
@@ -3858,9 +3875,9 @@
     // (uniquement si c'est notre propre message, seul cas où .eraseMsgBtn existe).
     const eraseBtn = bubble.querySelector('.eraseMsgBtn');
     if (bubble.querySelector('.msgDeleted')) {
-      if (!eraseBtn) return;
       e.preventDefault();
-      eraseMessageTrace(eraseBtn.dataset.id);
+      if (eraseBtn) eraseMessageTrace(eraseBtn.dataset.id);
+      else hideDeletedTraceForMe(row.dataset.id);
       return;
     }
     e.preventDefault();
@@ -3887,12 +3904,12 @@
     // (uniquement si c'est notre propre message, seul cas où .eraseMsgBtn existe).
     const eraseBtn = bubble.querySelector('.eraseMsgBtn');
     if (bubble.querySelector('.msgDeleted')) {
-      if (!eraseBtn) return;
       const touch = e.touches[0];
       msgLongPressStart = { x: touch.clientX, y: touch.clientY };
       clearTimeout(msgLongPressTimer);
       msgLongPressTimer = setTimeout(() => {
-        eraseMessageTrace(eraseBtn.dataset.id);
+        if (eraseBtn) eraseMessageTrace(eraseBtn.dataset.id);
+        else hideDeletedTraceForMe(row.dataset.id);
         msgLongPressStart = null;
       }, LONG_PRESS_MS);
       return;
