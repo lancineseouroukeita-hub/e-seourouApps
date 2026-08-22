@@ -334,6 +334,21 @@
   .emojiPickerPanel{position:fixed;width:290px;max-height:230px;overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:8px;z-index:200;box-shadow:0 12px 32px rgba(0,0,0,.45);display:grid;grid-template-columns:repeat(7, 1fr);gap:2px;}
   .emojiPickerPanel button{background:none;border:none;font-size:20px;cursor:pointer;padding:4px 0;line-height:1;border-radius:8px;}
   .emojiPickerPanel button:hover{background:var(--panel2);}
+  /* Sélecteur d'indicatif téléphonique (drapeau + code pays), comme WhatsApp,
+     sur les écrans de connexion/inscription/mot de passe oublié. */
+  .phoneFieldRow{display:flex;gap:8px;}
+  .phoneFieldRow input{flex:1;min-width:0;}
+  .countryCodeBtn{flex-shrink:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0 10px;font-size:14px;cursor:pointer;white-space:nowrap;}
+  .countryPickerBackdrop{position:fixed;inset:0;z-index:199;background:rgba(6,7,10,.5);}
+  .countryPicker{position:fixed;width:320px;max-width:90vw;max-height:70vh;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px;z-index:200;box-shadow:0 12px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;}
+  .countryPickerSearch{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:8px;flex-shrink:0;}
+  .countryPickerList{overflow-y:auto;flex:1;}
+  .countryPickerItem{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:var(--text);padding:8px 6px;border-radius:8px;cursor:pointer;text-align:left;font-size:14px;}
+  .countryPickerItem:hover{background:var(--panel2);}
+  .countryPickerFlag{font-size:18px;flex-shrink:0;}
+  .countryPickerName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .countryPickerDial{color:var(--muted);font-size:12.5px;flex-shrink:0;}
+  .countryPickerEmpty{padding:16px;text-align:center;color:var(--muted);font-size:13px;}
   /* Menu du bouton "+" (pièce jointe) façon WhatsApp : une icône colorée par
      type de contenu, ouvert au-dessus du bouton comme les autres menus flottants. */
   .attachMenuBackdrop{position:fixed;inset:0;z-index:199;background:transparent;}
@@ -752,7 +767,10 @@
 
       <div id="loginForm">
         <label>Numéro de téléphone</label>
-        <input id="loginPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
+        <div class="phoneFieldRow">
+          <button type="button" class="countryCodeBtn" id="loginCountryBtn"></button>
+          <input id="loginPhone" type="tel" placeholder="6XX XX XX XX" autocomplete="tel">
+        </div>
         <label>Mot de passe</label>
         <input id="loginPassword" type="password" placeholder="••••••••">
         <button class="primaryBtn" id="loginBtn">Se connecter</button>
@@ -763,7 +781,10 @@
         <label>Nom</label>
         <input id="regName" type="text" placeholder="Votre nom">
         <label>Numéro de téléphone</label>
-        <input id="regPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
+        <div class="phoneFieldRow">
+          <button type="button" class="countryCodeBtn" id="regCountryBtn"></button>
+          <input id="regPhone" type="tel" placeholder="6XX XX XX XX" autocomplete="tel">
+        </div>
         <label>Mot de passe</label>
         <input id="regPassword" type="password" placeholder="6 caractères minimum">
         <button class="primaryBtn" id="registerBtn">Créer le compte</button>
@@ -775,7 +796,10 @@
       <div id="forgotPasswordForm" style="display:none;">
         <div id="forgotStep1">
           <label>Numéro de téléphone</label>
-          <input id="forgotPhone" type="tel" placeholder="+224 6XX XX XX XX" autocomplete="tel">
+          <div class="phoneFieldRow">
+            <button type="button" class="countryCodeBtn" id="forgotCountryBtn"></button>
+            <input id="forgotPhone" type="tel" placeholder="6XX XX XX XX" autocomplete="tel">
+          </div>
           <button class="primaryBtn" id="forgotSendCodeBtn">Recevoir un code par SMS</button>
         </div>
         <div id="forgotStep2" style="display:none;">
@@ -1332,6 +1356,95 @@
 (() => {
   'use strict';
 
+  // ---------- Indicatifs téléphoniques (pays + drapeau), comme WhatsApp ----------
+  // Le drapeau est calculé à partir du code ISO 3166-1 alpha-2 (deux "indicateurs
+  // régionaux" Unicode) plutôt que copié caractère par caractère : plus fiable
+  // pour ~200 pays, et ça marche pour n'importe quel code à deux lettres.
+  function flagFromIso2(iso2) {
+    return String.fromCodePoint(...iso2.toUpperCase().split('').map((c) => 127397 + c.charCodeAt(0)));
+  }
+  const COUNTRIES = [
+    ['GN', 'Guinée', '+224'], ['SN', 'Sénégal', '+221'], ['CI', 'Côte d\'Ivoire', '+225'],
+    ['ML', 'Mali', '+223'], ['BF', 'Burkina Faso', '+226'], ['NE', 'Niger', '+227'],
+    ['TG', 'Togo', '+228'], ['BJ', 'Bénin', '+229'], ['MR', 'Mauritanie', '+222'],
+    ['GW', 'Guinée-Bissau', '+245'], ['GM', 'Gambie', '+220'], ['SL', 'Sierra Leone', '+232'],
+    ['LR', 'Liberia', '+231'], ['GH', 'Ghana', '+233'], ['NG', 'Nigeria', '+234'],
+    ['CM', 'Cameroun', '+237'], ['TD', 'Tchad', '+235'], ['CF', 'Centrafrique', '+236'],
+    ['GA', 'Gabon', '+241'], ['CG', 'Congo-Brazzaville', '+242'], ['CD', 'RD Congo', '+243'],
+    ['GQ', 'Guinée équatoriale', '+240'], ['ST', 'Sao Tomé-et-Principe', '+239'],
+    ['AO', 'Angola', '+244'], ['ZM', 'Zambie', '+260'], ['ZW', 'Zimbabwe', '+263'],
+    ['MZ', 'Mozambique', '+258'], ['MW', 'Malawi', '+265'], ['NA', 'Namibie', '+264'],
+    ['BW', 'Botswana', '+267'], ['ZA', 'Afrique du Sud', '+27'], ['LS', 'Lesotho', '+266'],
+    ['SZ', 'Eswatini', '+268'], ['MG', 'Madagascar', '+261'], ['MU', 'Maurice', '+230'],
+    ['SC', 'Seychelles', '+248'], ['KM', 'Comores', '+269'], ['DJ', 'Djibouti', '+253'],
+    ['SO', 'Somalie', '+252'], ['ET', 'Éthiopie', '+251'], ['ER', 'Érythrée', '+291'],
+    ['SS', 'Soudan du Sud', '+211'], ['SD', 'Soudan', '+249'], ['KE', 'Kenya', '+254'],
+    ['UG', 'Ouganda', '+256'], ['TZ', 'Tanzanie', '+255'], ['RW', 'Rwanda', '+250'],
+    ['BI', 'Burundi', '+257'], ['EG', 'Égypte', '+20'], ['LY', 'Libye', '+218'],
+    ['TN', 'Tunisie', '+216'], ['DZ', 'Algérie', '+213'], ['MA', 'Maroc', '+212'],
+    ['EH', 'Sahara occidental', '+212'], ['CV', 'Cap-Vert', '+238'],
+    ['FR', 'France', '+33'], ['BE', 'Belgique', '+32'], ['CH', 'Suisse', '+41'],
+    ['LU', 'Luxembourg', '+352'], ['MC', 'Monaco', '+377'], ['DE', 'Allemagne', '+49'],
+    ['GB', 'Royaume-Uni', '+44'], ['IE', 'Irlande', '+353'], ['ES', 'Espagne', '+34'],
+    ['PT', 'Portugal', '+351'], ['IT', 'Italie', '+39'], ['NL', 'Pays-Bas', '+31'],
+    ['AT', 'Autriche', '+43'], ['DK', 'Danemark', '+45'], ['SE', 'Suède', '+46'],
+    ['NO', 'Norvège', '+47'], ['FI', 'Finlande', '+358'], ['IS', 'Islande', '+354'],
+    ['PL', 'Pologne', '+48'], ['CZ', 'République tchèque', '+420'], ['SK', 'Slovaquie', '+421'],
+    ['HU', 'Hongrie', '+36'], ['RO', 'Roumanie', '+40'], ['BG', 'Bulgarie', '+359'],
+    ['GR', 'Grèce', '+30'], ['HR', 'Croatie', '+385'], ['SI', 'Slovénie', '+386'],
+    ['RS', 'Serbie', '+381'], ['BA', 'Bosnie-Herzégovine', '+387'], ['ME', 'Monténégro', '+382'],
+    ['MK', 'Macédoine du Nord', '+389'], ['AL', 'Albanie', '+355'], ['XK', 'Kosovo', '+383'],
+    ['LT', 'Lituanie', '+370'], ['LV', 'Lettonie', '+371'], ['EE', 'Estonie', '+372'],
+    ['UA', 'Ukraine', '+380'], ['BY', 'Biélorussie', '+375'], ['MD', 'Moldavie', '+373'],
+    ['RU', 'Russie', '+7'], ['GE', 'Géorgie', '+995'], ['AM', 'Arménie', '+374'],
+    ['AZ', 'Azerbaïdjan', '+994'], ['TR', 'Turquie', '+90'], ['CY', 'Chypre', '+357'],
+    ['MT', 'Malte', '+356'], ['AD', 'Andorre', '+376'], ['LI', 'Liechtenstein', '+423'],
+    ['SM', 'Saint-Marin', '+378'], ['VA', 'Vatican', '+379'],
+    ['US', 'États-Unis', '+1'], ['CA', 'Canada', '+1'], ['MX', 'Mexique', '+52'],
+    ['GT', 'Guatemala', '+502'], ['BZ', 'Belize', '+501'], ['HN', 'Honduras', '+504'],
+    ['SV', 'Salvador', '+503'], ['NI', 'Nicaragua', '+505'], ['CR', 'Costa Rica', '+506'],
+    ['PA', 'Panama', '+507'], ['CU', 'Cuba', '+53'], ['JM', 'Jamaïque', '+1876'],
+    ['HT', 'Haïti', '+509'], ['DO', 'République dominicaine', '+1809'],
+    ['TT', 'Trinité-et-Tobago', '+1868'], ['BS', 'Bahamas', '+1242'], ['BB', 'Barbade', '+1246'],
+    ['CO', 'Colombie', '+57'], ['VE', 'Venezuela', '+58'], ['EC', 'Équateur', '+593'],
+    ['PE', 'Pérou', '+51'], ['BO', 'Bolivie', '+591'], ['CL', 'Chili', '+56'],
+    ['AR', 'Argentine', '+54'], ['UY', 'Uruguay', '+598'], ['PY', 'Paraguay', '+595'],
+    ['BR', 'Brésil', '+55'], ['GY', 'Guyana', '+592'], ['SR', 'Suriname', '+597'],
+    ['GF', 'Guyane française', '+594'], ['GP', 'Guadeloupe', '+590'], ['MQ', 'Martinique', '+596'],
+    ['RE', 'La Réunion', '+262'], ['YT', 'Mayotte', '+262'], ['PF', 'Polynésie française', '+689'],
+    ['NC', 'Nouvelle-Calédonie', '+687'],
+    ['CN', 'Chine', '+86'], ['JP', 'Japon', '+81'], ['KR', 'Corée du Sud', '+82'],
+    ['KP', 'Corée du Nord', '+850'], ['MN', 'Mongolie', '+976'], ['TW', 'Taïwan', '+886'],
+    ['HK', 'Hong Kong', '+852'], ['MO', 'Macao', '+853'], ['VN', 'Vietnam', '+84'],
+    ['LA', 'Laos', '+856'], ['KH', 'Cambodge', '+855'], ['TH', 'Thaïlande', '+66'],
+    ['MM', 'Myanmar', '+95'], ['MY', 'Malaisie', '+60'], ['SG', 'Singapour', '+65'],
+    ['ID', 'Indonésie', '+62'], ['PH', 'Philippines', '+63'], ['BN', 'Brunei', '+673'],
+    ['TL', 'Timor oriental', '+670'], ['IN', 'Inde', '+91'], ['PK', 'Pakistan', '+92'],
+    ['BD', 'Bangladesh', '+880'], ['LK', 'Sri Lanka', '+94'], ['NP', 'Népal', '+977'],
+    ['BT', 'Bhoutan', '+975'], ['MV', 'Maldives', '+960'], ['AF', 'Afghanistan', '+93'],
+    ['KZ', 'Kazakhstan', '+7'], ['UZ', 'Ouzbékistan', '+998'], ['TM', 'Turkménistan', '+993'],
+    ['TJ', 'Tadjikistan', '+992'], ['KG', 'Kirghizistan', '+996'],
+    ['SA', 'Arabie saoudite', '+966'], ['AE', 'Émirats arabes unis', '+971'],
+    ['QA', 'Qatar', '+974'], ['BH', 'Bahreïn', '+973'], ['KW', 'Koweït', '+965'],
+    ['OM', 'Oman', '+968'], ['YE', 'Yémen', '+967'], ['JO', 'Jordanie', '+962'],
+    ['LB', 'Liban', '+961'], ['SY', 'Syrie', '+963'], ['IQ', 'Irak', '+964'],
+    ['IR', 'Iran', '+98'], ['IL', 'Israël', '+972'], ['PS', 'Palestine', '+970'],
+    ['AU', 'Australie', '+61'], ['NZ', 'Nouvelle-Zélande', '+64'], ['FJ', 'Fidji', '+679'],
+    ['PG', 'Papouasie-Nouvelle-Guinée', '+675'], ['WS', 'Samoa', '+685'],
+    ['TO', 'Tonga', '+676'], ['VU', 'Vanuatu', '+678'], ['SB', 'Îles Salomon', '+677'],
+  ].map(([iso2, name, dial]) => ({ iso2, name, dial, flag: flagFromIso2(iso2) }));
+
+  function findCountryByIso2(iso2) {
+    return COUNTRIES.find((c) => c.iso2 === iso2);
+  }
+  function defaultCountry() {
+    return findCountryByIso2('GN') || COUNTRIES[0];
+  }
+  // Un pays par champ téléphone (connexion / inscription / mot de passe
+  // oublié), tous initialisés à la Guinée par défaut — comme l'ancien
+  // indicatif fixe "+224" affiché en placeholder, mais modifiable désormais.
+  const phoneCountry = { login: defaultCountry(), reg: defaultCountry(), forgot: defaultCountry() };
+
   // ---------- State ----------
   // La page est servie par le même serveur Express que l'API et le socket
   // (voir backend/src/index.js), donc par défaut on utilise la même origine
@@ -1644,6 +1757,86 @@
     showAuthError('');
   });
 
+  // ---------- Sélecteur d'indicatif (drapeau + code pays) ----------
+  // `prefix` vaut "login", "reg" ou "forgot" — désigne à la fois le champ
+  // #<prefix>Phone et son bouton #<prefix>CountryBtn.
+  function updateCountryBtn(prefix) {
+    const c = phoneCountry[prefix] || defaultCountry();
+    phoneCountry[prefix] = c;
+    $(prefix + 'CountryBtn').textContent = c.flag + ' ' + c.dial;
+  }
+  // Numéro complet (indicatif + chiffres locaux) à envoyer au serveur — le
+  // champ visible ne contient plus que la partie locale du numéro.
+  function getFullPhone(prefix) {
+    const c = phoneCountry[prefix] || defaultCountry();
+    const digits = $(prefix + 'Phone').value.replace(/\D/g, '');
+    return digits ? c.dial + digits : '';
+  }
+  // Inverse de getFullPhone : reçoit un numéro complet (ex: après une
+  // réinitialisation de mot de passe) et retrouve à la fois le pays et la
+  // partie locale, pour préremplir correctement les deux.
+  function setFullPhone(prefix, fullPhone) {
+    const raw = String(fullPhone || '').replace(/[^\d+]/g, '');
+    // Le plus long indicatif correspondant l'emporte (ex: +1 partagé par
+    // plusieurs pays d'Amérique du Nord/Caraïbes, mais +1809 plus spécifique
+    // à la République dominicaine doit être reconnu en priorité).
+    const match = COUNTRIES.filter((c) => raw.startsWith(c.dial)).sort((a, b) => b.dial.length - a.dial.length)[0];
+    if (match) {
+      phoneCountry[prefix] = match;
+      $(prefix + 'Phone').value = raw.slice(match.dial.length);
+    } else {
+      $(prefix + 'Phone').value = raw.replace('+', '');
+    }
+    updateCountryBtn(prefix);
+  }
+  function closeCountryPicker() {
+    document.querySelectorAll('.countryPicker, .countryPickerBackdrop').forEach((el) => el.remove());
+  }
+  function openCountryPicker(prefix) {
+    closeCountryPicker();
+    const panel = document.createElement('div');
+    panel.className = 'countryPicker';
+    panel.style.left = '50%';
+    panel.style.top = '50%';
+    panel.style.transform = 'translate(-50%, -50%)';
+    panel.innerHTML = '<input type="text" class="countryPickerSearch" placeholder="Rechercher un pays…"><div class="countryPickerList"></div>';
+    const backdrop = document.createElement('div');
+    backdrop.className = 'countryPickerBackdrop';
+    backdrop.addEventListener('click', closeCountryPicker);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(panel);
+    const listEl = panel.querySelector('.countryPickerList');
+    function renderList(term) {
+      const q = (term || '').trim().toLowerCase();
+      const filtered = !q ? COUNTRIES : COUNTRIES.filter((c) => c.name.toLowerCase().includes(q) || c.dial.includes(q));
+      listEl.innerHTML = filtered.length
+        ? filtered.map((c) => `
+          <button type="button" class="countryPickerItem" data-iso="${c.iso2}">
+            <span class="countryPickerFlag">${c.flag}</span>
+            <span class="countryPickerName">${escapeHtml(c.name)}</span>
+            <span class="countryPickerDial">${c.dial}</span>
+          </button>
+        `).join('')
+        : '<div class="countryPickerEmpty">Aucun pays trouvé</div>';
+      listEl.querySelectorAll('.countryPickerItem').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const c = findCountryByIso2(btn.dataset.iso);
+          if (c) { phoneCountry[prefix] = c; updateCountryBtn(prefix); }
+          closeCountryPicker();
+          $(prefix + 'Phone').focus();
+        });
+      });
+    }
+    renderList('');
+    const searchInput = panel.querySelector('.countryPickerSearch');
+    searchInput.addEventListener('input', () => renderList(searchInput.value));
+    searchInput.focus();
+  }
+  ['login', 'reg', 'forgot'].forEach((prefix) => {
+    updateCountryBtn(prefix);
+    $(prefix + 'CountryBtn').addEventListener('click', () => openCountryPicker(prefix));
+  });
+
   // ---------- Mot de passe oublié ----------
   function showForgotPasswordForm() {
     $('loginForm').style.display = 'none';
@@ -1651,7 +1844,9 @@
     $('forgotPasswordForm').style.display = 'block';
     $('forgotStep1').style.display = 'block';
     $('forgotStep2').style.display = 'none';
+    phoneCountry.forgot = phoneCountry.login;
     $('forgotPhone').value = $('loginPhone').value;
+    updateCountryBtn('forgot');
     showAuthError('');
   }
 
@@ -1668,7 +1863,7 @@
   $('forgotSendCodeBtn').addEventListener('click', async () => {
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
-    const phone = $('forgotPhone').value.trim();
+    const phone = getFullPhone('forgot');
     if (!phone) return showAuthError('Numéro de téléphone requis.');
     const btn = $('forgotSendCodeBtn');
     btn.disabled = true;
@@ -1685,7 +1880,7 @@
 
   $('forgotResetBtn').addEventListener('click', async () => {
     showAuthError('');
-    const phone = $('forgotPhone').value.trim();
+    const phone = getFullPhone('forgot');
     const code = $('forgotCode').value.trim();
     const newPassword = $('forgotNewPassword').value;
     if (!code || !newPassword) return showAuthError('Code et nouveau mot de passe requis.');
@@ -1694,7 +1889,7 @@
     try {
       await api('/api/auth/reset-password', { method: 'POST', body: JSON.stringify({ phone, code, newPassword }) });
       backToLoginForm();
-      $('loginPhone').value = phone;
+      setFullPhone('login', phone);
       $('loginPassword').value = '';
       showAuthError('');
       alert('Mot de passe réinitialisé. Vous pouvez maintenant vous connecter.');
@@ -1708,7 +1903,7 @@
   $('loginBtn').addEventListener('click', async () => {
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
-    const phone = $('loginPhone').value.trim();
+    const phone = getFullPhone('login');
     const password = $('loginPassword').value;
     if (!phone || !password) return showAuthError('Numéro de téléphone et mot de passe requis.');
     try {
@@ -1721,7 +1916,7 @@
     showAuthError('');
     apiBase = $('apiBaseInput').value.replace(/\/$/, '');
     const name = $('regName').value.trim();
-    const phone = $('regPhone').value.trim();
+    const phone = getFullPhone('reg');
     const password = $('regPassword').value;
     if (!name || !phone || !password) return showAuthError('Nom, numéro de téléphone et mot de passe requis.');
     try {
