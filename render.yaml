@@ -29,10 +29,18 @@ services:
         sync: false
       - key: TURN_HOST
         sync: false
-      # Identifiants Twilio pour l'envoi réel des codes par SMS (vérification du
+      # Identifiants pour l'envoi réel des codes par SMS (vérification du
       # numéro, mot de passe oublié) : renseigner ici sans nouveau déploiement.
       # Laissés vides, l'appli continue de fonctionner mais se contente de
       # journaliser le code au lieu de l'envoyer — voir backend/src/utils/sms.js.
+      # Orange (moins cher pour la Guinée, payable par crédit Orange/Orange
+      # Money) est utilisé en priorité si renseigné, Twilio sinon.
+      - key: ORANGE_CLIENT_ID
+        sync: false
+      - key: ORANGE_CLIENT_SECRET
+        sync: false
+      - key: ORANGE_SENDER_ADDRESS
+        sync: false
       - key: TWILIO_ACCOUNT_SID
         sync: false
       - key: TWILIO_AUTH_TOKEN
