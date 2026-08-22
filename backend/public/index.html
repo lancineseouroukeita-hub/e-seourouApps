@@ -373,6 +373,17 @@
   #editBanner .replyBannerSender{font-weight:600;color:#f5a623;}
   #editBannerClose{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:4px;flex-shrink:0;margin-left:auto;}
   #editBannerClose:hover{color:var(--text);}
+  /* Aperçu de pièce jointe avant envoi (photo/vidéo/document/audio) : même
+     mise en page que #replyBanner/#editBanner. */
+  #attachPreviewBanner{display:flex;align-items:center;gap:8px;padding:8px 18px;border-top:1px solid var(--border);background:var(--panel2);}
+  #attachPreviewBanner .replyBannerBar{width:3px;align-self:stretch;background:var(--accent);border-radius:2px;flex-shrink:0;}
+  #attachPreviewContent{flex:1;min-width:0;display:flex;align-items:center;gap:10px;font-size:13px;}
+  #attachPreviewContent img{width:38px;height:38px;object-fit:cover;border-radius:6px;flex-shrink:0;}
+  #attachPreviewContent .attachPreviewIcon{width:38px;height:38px;border-radius:6px;background:var(--panel);display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;}
+  #attachPreviewContent .attachPreviewName{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  #attachPreviewContent .attachPreviewSize{color:var(--muted);font-size:11.5px;}
+  #attachPreviewClose{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:4px;flex-shrink:0;margin-left:auto;}
+  #attachPreviewClose:hover{color:var(--text);}
   /* Mention "modifié" (comme WhatsApp) à côté de l'heure du message. */
   .editedLabel{font-size:10px;opacity:.6;font-style:italic;}
   /* Mention "Transféré" au-dessus du contenu d'un message transféré. */
@@ -906,6 +917,16 @@
           <div id="editBannerContent"><div class="replyBannerSender">Modifier le message</div></div>
           <button id="editBannerClose" title="Annuler la modification">✕</button>
         </div>
+        <!-- Aperçu d'une pièce jointe choisie (photo, vidéo, document, audio)
+             avant envoi : on peut ajouter une légende dans le champ de texte
+             puis valider avec le bouton d'envoi, ou annuler avec "✕", comme
+             sur WhatsApp — plutôt que d'envoyer instantanément dès le choix
+             du fichier. -->
+        <div id="attachPreviewBanner" style="display:none;">
+          <div class="replyBannerBar"></div>
+          <div id="attachPreviewContent"></div>
+          <button id="attachPreviewClose" title="Annuler l'envoi">✕</button>
+        </div>
         <div id="composer">
           <input type="file" id="fileInput" style="display:none">
           <input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none">
@@ -1345,6 +1366,10 @@
   // Anti-double-envoi (voir sendMessage) : horodatage jusqu'auquel un nouvel
   // envoi est ignoré.
   let lastSendGuardUntil = 0;
+  // Pièce jointe choisie (fichier/photo) en attente de validation par
+  // l'utilisateur (voir renderAttachPreview), ou null si aucune n'est en
+  // attente. A la forme { data (base64), mime, name, size, type }.
+  let pendingAttachment = null;
   // Message dont le transfert est en cours (modale de sélection des discussions
   // cibles), ou null si la modale n'est pas ouverte.
   let forwardingMessageId = null;
@@ -3420,6 +3445,7 @@
     $('typingIndicator').textContent = '';
     updateChatSubtitle(conv);
     cancelReply(); // une réponse en cours concernait forcément l'ancienne discussion
+    cancelAttachPreview(); // idem pour une pièce jointe pas encore envoyée
     cancelEdit(); // une modification en cours concernait forcément l'ancienne discussion
     closeChatSearch();
 
@@ -3644,7 +3670,10 @@
   // que lorsqu'il y a du texte à envoyer ; l'appareil photo reste toujours
   // visible à côté.
   function updateComposerButtons() {
-    const hasText = $('msgInput').value.trim().length > 0;
+    // Une pièce jointe en attente de validation (voir renderAttachPreview)
+    // doit aussi faire apparaître le bouton d'envoi, même sans texte tapé —
+    // exactement comme s'il y avait du texte.
+    const hasText = $('msgInput').value.trim().length > 0 || Boolean(pendingAttachment);
     $('sendBtn').style.display = hasText ? 'flex' : 'none';
     $('voiceBtn').style.display = hasText ? 'none' : 'flex';
   }
@@ -4287,7 +4316,12 @@
       return;
     }
 
-    if (!content && !attachment) return;
+    // Une pièce jointe choisie via le menu "+" (ou l'appareil photo) attend en
+    // aperçu au-dessus du composer (voir renderAttachPreview) : c'est elle
+    // qu'on envoie ici si aucune pièce jointe n'est passée directement en
+    // argument (cas du message vocal, qui garde son propre flux immédiat).
+    const finalAttachment = attachment || pendingAttachment;
+    if (!content && !finalAttachment) return;
     if (!activeConversationId) return;
     // Garde-fou anti-double-envoi : un appui prolongé sur Entrée, ou un tap
     // rapide répété sur le bouton d'envoi, peut déclencher sendMessage()
@@ -4303,10 +4337,12 @@
     // ré-émet ce même paquet en tampon, le serveur reconnaît le doublon grâce à
     // cet identifiant et ne recrée pas un second message (voir chat.js).
     const clientMsgId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2));
-    socket.emit('message:send', { conversationId: activeConversationId, content, attachment, replyToId, clientMsgId }, (res) => {
+    socket.emit('message:send', { conversationId: activeConversationId, content, attachment: finalAttachment, replyToId, clientMsgId }, (res) => {
       if (res && res.error) alert('Erreur envoi: ' + res.error);
     });
     input.value = '';
+    pendingAttachment = null;
+    renderAttachPreview();
     cancelReply();
     updateComposerButtons();
   }
@@ -4380,7 +4416,10 @@
   });
 
   // Logique commune au sélecteur de fichiers générique et au bouton appareil
-  // photo dédié : les deux envoient au final une pièce jointe de la même façon.
+  // photo dédié : les deux placent la pièce jointe en aperçu (au lieu de
+  // l'envoyer tout de suite) — l'utilisateur valide ensuite avec le bouton
+  // d'envoi (éventuellement après avoir tapé une légende), ou annule avec le
+  // "✕" du bandeau, comme sur WhatsApp.
   async function handlePickedFile(file) {
     if (!file) return;
     if (file.size > MAX_ATTACHMENT_BYTES) {
@@ -4390,11 +4429,40 @@
     try {
       const base64 = await blobToBase64(file);
       const type = file.type && file.type.startsWith('image/') ? 'image' : 'file';
-      sendMessage({ data: base64, mime: file.type || 'application/octet-stream', name: file.name, size: file.size, type });
+      pendingAttachment = { data: base64, mime: file.type || 'application/octet-stream', name: file.name, size: file.size, type };
+      renderAttachPreview();
     } catch (err) {
       alert('Erreur de lecture du fichier : ' + err.message);
     }
   }
+
+  function formatFileSize(bytes) {
+    if (!Number.isFinite(bytes)) return '';
+    if (bytes < 1024) return bytes + ' o';
+    if (bytes < 1024 * 1024) return Math.round(bytes / 1024) + ' Ko';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' Mo';
+  }
+
+  function renderAttachPreview() {
+    const banner = $('attachPreviewBanner');
+    if (!pendingAttachment) { banner.style.display = 'none'; return; }
+    const a = pendingAttachment;
+    const thumb = a.type === 'image'
+      ? `<img src="data:${a.mime};base64,${a.data}" alt="">`
+      : `<div class="attachPreviewIcon">📎</div>`;
+    $('attachPreviewContent').innerHTML = `${thumb}<div style="min-width:0;overflow:hidden;">
+        <div class="attachPreviewName">${escapeHtml(a.name || 'Fichier')}</div>
+        <div class="attachPreviewSize">${formatFileSize(a.size)}</div>
+      </div>`;
+    banner.style.display = 'flex';
+    updateComposerButtons();
+    $('msgInput').focus();
+  }
+  function cancelAttachPreview() {
+    pendingAttachment = null;
+    renderAttachPreview();
+  }
+  $('attachPreviewClose').addEventListener('click', cancelAttachPreview);
 
   $('cameraInput').addEventListener('change', () => {
     const file = $('cameraInput').files[0];
