@@ -4096,27 +4096,38 @@
     if (document.querySelector('.emojiPickerPanel')) { closeComposerEmojiPicker(); return; }
     closeReactionPicker();
     closeTagMenu();
-    const panel = document.createElement('div');
-    panel.className = 'emojiPickerPanel';
-    panel.innerHTML = COMPOSER_EMOJIS.map((emo) => `<button type="button" data-emoji="${emo}">${emo}</button>`).join('');
-    panel.querySelectorAll('button').forEach((b) => {
-      b.addEventListener('click', () => insertEmojiInComposer(b.dataset.emoji));
-    });
-    document.body.appendChild(panel);
-    const anchor = $('msgInputWrap').getBoundingClientRect();
-    panel.style.left = Math.max(8, Math.min(anchor.left, window.innerWidth - panel.offsetWidth - 8)) + 'px';
-    panel.style.top = Math.max(8, anchor.top - panel.offsetHeight - 8) + 'px';
+    // Referme le clavier natif du téléphone s'il était ouvert (sinon il
+    // repasse au premier plan par-dessus notre grille et donne l'impression
+    // que deux sélecteurs d'emoji s'affichent en même temps). On laisse un
+    // court délai pour que l'animation de fermeture du clavier se termine
+    // avant de calculer la position de la grille.
+    const wasFocused = document.activeElement === $('msgInput');
+    if (wasFocused) $('msgInput').blur();
+    setTimeout(() => {
+      const panel = document.createElement('div');
+      panel.className = 'emojiPickerPanel';
+      panel.innerHTML = COMPOSER_EMOJIS.map((emo) => `<button type="button" data-emoji="${emo}">${emo}</button>`).join('');
+      panel.querySelectorAll('button').forEach((b) => {
+        b.addEventListener('click', () => insertEmojiInComposer(b.dataset.emoji));
+      });
+      document.body.appendChild(panel);
+      const anchor = $('msgInputWrap').getBoundingClientRect();
+      panel.style.left = Math.max(8, Math.min(anchor.left, window.innerWidth - panel.offsetWidth - 8)) + 'px';
+      panel.style.top = Math.max(8, anchor.top - panel.offsetHeight - 8) + 'px';
+    }, wasFocused ? 80 : 0);
   }
   // Insère l'emoji choisi à la position du curseur dans le champ de saisie
-  // (et non pas juste à la fin), comme le ferait un clavier natif.
+  // (et non pas juste à la fin), comme le ferait un clavier natif. On évite
+  // volontairement d'appeler input.focus() ici : ça rouvrirait le clavier
+  // natif du téléphone par-dessus notre grille à chaque emoji choisi.
   function insertEmojiInComposer(emoji) {
     const input = $('msgInput');
-    const start = input.selectionStart ?? input.value.length;
-    const end = input.selectionEnd ?? input.value.length;
+    const isFocused = document.activeElement === input;
+    const start = (isFocused && input.selectionStart != null) ? input.selectionStart : input.value.length;
+    const end = (isFocused && input.selectionEnd != null) ? input.selectionEnd : input.value.length;
     input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
     const newPos = start + emoji.length;
     input.setSelectionRange(newPos, newPos);
-    input.focus();
     input.dispatchEvent(new Event('input', { bubbles: true }));
   }
   $('msgInputWrap').querySelector('.emojiIcon').addEventListener('click', (e) => {
