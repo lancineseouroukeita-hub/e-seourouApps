@@ -677,6 +677,20 @@
   #newChatList .listItem{cursor:pointer;}
   #newChatEmpty{padding:16px;text-align:center;color:var(--muted);font-size:13px;}
 
+  /* ---------- Menu "⋯" façon WhatsApp (au-dessus de la liste des
+     discussions) : petite carte flottante ancrée sous le bouton, pas une
+     fenêtre modale centrée comme les autres overlays. */
+  #sidebarMenuOverlay{position:fixed;inset:0;display:none;z-index:130;}
+  #sidebarMenuOverlay.show{display:block;}
+  #sidebarMenuCard{position:absolute;top:56px;left:10px;background:var(--panel);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 28px rgba(0,0,0,.4);width:252px;max-width:calc(100vw - 20px);overflow:hidden;padding:6px;}
+  .sidebarMenuItem{display:flex;align-items:center;gap:12px;width:100%;box-sizing:border-box;padding:11px 10px;background:none;border:none;color:var(--text);font-size:14.5px;cursor:pointer;border-radius:8px;text-align:left;font-family:inherit;}
+  .sidebarMenuItem:hover{background:var(--panel2);}
+  .sidebarMenuIcon{width:20px;height:20px;display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--text);}
+  .sidebarMenuIcon svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;}
+  .sidebarMenuLabel{flex:1;font-weight:600;}
+  .sidebarMenuChevron{color:var(--muted);font-size:15px;flex-shrink:0;}
+  .sidebarMenuDivider{height:1px;background:var(--border);margin:4px 6px;}
+
   /* ---------- Discussions verrouillées : demande du mot de passe ---------- */
   #lockedUnlockOverlay, #clearChatOverlay, #deleteMsgOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
   #lockedUnlockOverlay.show, #clearChatOverlay.show, #deleteMsgOverlay.show{display:flex;}
@@ -1324,6 +1338,44 @@
         <input id="newChatSearchInput" type="text" placeholder="Rechercher par nom ou numéro">
         <div id="newChatList"></div>
       </div>
+    </div>
+  </div>
+
+  <!-- ---------- Menu "⋯" du haut de la liste des discussions, façon WhatsApp ---------- -->
+  <div id="sidebarMenuOverlay">
+    <div id="sidebarMenuCard">
+      <button class="sidebarMenuItem" id="sidebarMenuSubscriptions">
+        <span class="sidebarMenuIcon"><svg viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z"></path><path d="M9.3 12l1.8 1.8L15 9.6"></path></svg></span>
+        <span class="sidebarMenuLabel">Abonnements</span>
+        <span class="sidebarMenuChevron">↗</span>
+      </button>
+      <div class="sidebarMenuDivider"></div>
+      <button class="sidebarMenuItem" id="sidebarMenuLists">
+        <span class="sidebarMenuIcon"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="8.5" cy="10" r="1.7"></circle><path d="M5.5 16c.6-1.8 2-2.7 3-2.7s2.4.9 3 2.7"></path><line x1="14" y1="9" x2="18" y2="9"></line><line x1="14" y1="12" x2="18" y2="12"></line></svg></span>
+        <span class="sidebarMenuLabel">Listes</span>
+        <span class="sidebarMenuChevron">›</span>
+      </button>
+      <button class="sidebarMenuItem" id="sidebarMenuBroadcast">
+        <span class="sidebarMenuIcon"><svg viewBox="0 0 24 24"><path d="M4 5h13a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2H9l-4 3v-3H4a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2z"></path><path d="M20.3 8.7c.8.5 1.3 1.3 1.3 2.3s-.5 1.8-1.3 2.3"></path></svg></span>
+        <span class="sidebarMenuLabel">Messages de diffusion</span>
+        <span class="sidebarMenuChevron">›</span>
+      </button>
+      <button class="sidebarMenuItem" id="sidebarMenuImportant">
+        <span class="sidebarMenuIcon"><svg viewBox="0 0 24 24"><path d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.9l-5.2 2.6 1-5.8-4.2-4.1 5.8-.8L12 3.5z"></path></svg></span>
+        <span class="sidebarMenuLabel">Important</span>
+        <span class="sidebarMenuChevron">›</span>
+      </button>
+      <button class="sidebarMenuItem" id="sidebarMenuDevices">
+        <span class="sidebarMenuIcon"><svg viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="10" rx="1.5"></rect><line x1="2" y1="19" x2="22" y2="19"></line></svg></span>
+        <span class="sidebarMenuLabel">Appareils connectés</span>
+        <span class="sidebarMenuChevron">›</span>
+      </button>
+      <div class="sidebarMenuDivider"></div>
+      <button class="sidebarMenuItem" id="sidebarMenuSettings">
+        <span class="sidebarMenuIcon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 13a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V19a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H4a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H10a1.7 1.7 0 0 0 1-1.5V4a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V10a1.7 1.7 0 0 0 1.5 1H20a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"></path></svg></span>
+        <span class="sidebarMenuLabel">Paramètres</span>
+        <span class="sidebarMenuChevron">›</span>
+      </button>
     </div>
   </div>
 
@@ -3640,7 +3692,22 @@
 
   // "⋯" ouvre les paramètres (profil, notifications, apparence…), comme le
   // ferait un menu de discussions classique.
-  $('sidebarMenuBtn').addEventListener('click', () => $('settingsBtn').click());
+  // Menu "⋯" façon WhatsApp : Abonnements/Messages de diffusion/Important/
+  // Appareils connectés n'ont pas encore de fonctionnalité derrière (pas de
+  // données ni d'écran dédiés côté serveur), donc "bientôt disponible" comme
+  // pour les autres boutons non implémentés du menu pièce jointe. "Listes"
+  // réutilise directement le mécanisme de filtres personnalisés déjà en
+  // place (addFilterBtn), et "Paramètres" ouvre l'écran existant.
+  function openSidebarMenu() { $('sidebarMenuOverlay').classList.add('show'); }
+  function closeSidebarMenu() { $('sidebarMenuOverlay').classList.remove('show'); }
+  $('sidebarMenuBtn').addEventListener('click', (e) => { e.stopPropagation(); openSidebarMenu(); });
+  $('sidebarMenuOverlay').addEventListener('click', (e) => { if (e.target === $('sidebarMenuOverlay')) closeSidebarMenu(); });
+  $('sidebarMenuSubscriptions').addEventListener('click', () => { closeSidebarMenu(); alert('Abonnements : bientôt disponible.'); });
+  $('sidebarMenuLists').addEventListener('click', () => { closeSidebarMenu(); $('addFilterBtn').click(); });
+  $('sidebarMenuBroadcast').addEventListener('click', () => { closeSidebarMenu(); alert('Messages de diffusion : bientôt disponible.'); });
+  $('sidebarMenuImportant').addEventListener('click', () => { closeSidebarMenu(); alert('Messages importants : bientôt disponible.'); });
+  $('sidebarMenuDevices').addEventListener('click', () => { closeSidebarMenu(); alert('Appareils connectés : bientôt disponible.'); });
+  $('sidebarMenuSettings').addEventListener('click', () => { closeSidebarMenu(); $('settingsBtn').click(); });
 
   // "+" : ouvre l'écran "Nouvelle discussion" (recherche parmi les comptes
   // déjà créés sur l'appli, par nom ou numéro de téléphone) — remplace
