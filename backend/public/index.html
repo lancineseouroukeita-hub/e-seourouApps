@@ -327,6 +327,12 @@
   .reactionPicker{position:fixed;background:var(--panel);border:1px solid var(--border);border-radius:20px;padding:6px 8px;z-index:200;display:flex;gap:4px;box-shadow:0 8px 24px rgba(0,0,0,.4);}
   .reactionPicker button{background:none;border:none;font-size:20px;cursor:pointer;padding:2px 4px;line-height:1;border-radius:8px;}
   .reactionPicker button:hover{background:var(--panel2);transform:scale(1.15);}
+  /* Sélecteur d'emoji du composer (bouton 🙂 dans le champ de saisie) : grille
+     défilable, ouverte au-dessus du composer comme sur WhatsApp. */
+  #msgInputWrap .emojiIcon{cursor:pointer;pointer-events:auto;}
+  .emojiPickerPanel{position:fixed;width:290px;max-height:230px;overflow-y:auto;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:8px;z-index:200;box-shadow:0 12px 32px rgba(0,0,0,.45);display:grid;grid-template-columns:repeat(7, 1fr);gap:2px;}
+  .emojiPickerPanel button{background:none;border:none;font-size:20px;cursor:pointer;padding:4px 0;line-height:1;border-radius:8px;}
+  .emojiPickerPanel button:hover{background:var(--panel2);}
   /* Menu d'actions sur un message façon iOS/WhatsApp : appui long sur mobile
      (pas de survol possible), clic droit sur PC. Un fond transparent
      (msgContextMenuBackdrop) capte le clic/tap "à côté" pour fermer le menu,
@@ -4067,6 +4073,56 @@
     // (sinon le picker pouvait légèrement dépasser à gauche sur un petit écran).
     menu.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - menu.offsetWidth - 8)) + 'px';
   }
+
+  // ---------- Sélecteur d'emoji du composer (bouton 🙂) ----------
+  // Liste volontairement large mais statique (pas de dépendance externe) :
+  // couvre les émojis les plus utilisés dans une conversation courante.
+  const COMPOSER_EMOJIS = [
+    '😀','😁','😂','🤣','😊','😍','😘','😗','😉','😎','🤩','🥳','😇','🙂','🙃','😅',
+    '😢','😭','😡','😱','😴','🤔','😐','😏','🙄','😬','😳','🥺','😔','😩','😤','🤗',
+    '👍','👎','👏','🙏','💪','🤝','👌','✌️','🤞','🤙','👋','🤟','💯','🔥','✨','🎉',
+    '❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','💕','💖','💗','😻','😢','😆','😜',
+    '🤦','🤷','🥰','😌','😋','😷','🤒','🤕','😈','👻','💀','🤖','🎂','🍕','☕','🍺',
+    '⚽','🎵','📸','🎁','🌹','🌞','🌙','⭐','☀️','🌧️','❄️','⚡','🚗','✈️','🏠','📱',
+  ];
+  function closeComposerEmojiPicker() {
+    const existing = document.querySelector('.emojiPickerPanel');
+    if (existing) existing.remove();
+  }
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.emojiPickerPanel') && !e.target.closest('.emojiIcon')) closeComposerEmojiPicker();
+  });
+  function openComposerEmojiPicker() {
+    if (document.querySelector('.emojiPickerPanel')) { closeComposerEmojiPicker(); return; }
+    closeReactionPicker();
+    closeTagMenu();
+    const panel = document.createElement('div');
+    panel.className = 'emojiPickerPanel';
+    panel.innerHTML = COMPOSER_EMOJIS.map((emo) => `<button type="button" data-emoji="${emo}">${emo}</button>`).join('');
+    panel.querySelectorAll('button').forEach((b) => {
+      b.addEventListener('click', () => insertEmojiInComposer(b.dataset.emoji));
+    });
+    document.body.appendChild(panel);
+    const anchor = $('msgInputWrap').getBoundingClientRect();
+    panel.style.left = Math.max(8, Math.min(anchor.left, window.innerWidth - panel.offsetWidth - 8)) + 'px';
+    panel.style.top = Math.max(8, anchor.top - panel.offsetHeight - 8) + 'px';
+  }
+  // Insère l'emoji choisi à la position du curseur dans le champ de saisie
+  // (et non pas juste à la fin), comme le ferait un clavier natif.
+  function insertEmojiInComposer(emoji) {
+    const input = $('msgInput');
+    const start = input.selectionStart ?? input.value.length;
+    const end = input.selectionEnd ?? input.value.length;
+    input.value = input.value.slice(0, start) + emoji + input.value.slice(end);
+    const newPos = start + emoji.length;
+    input.setSelectionRange(newPos, newPos);
+    input.focus();
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  $('msgInputWrap').querySelector('.emojiIcon').addEventListener('click', (e) => {
+    e.stopPropagation();
+    openComposerEmojiPicker();
+  });
 
   // ---------- Réponse citée (reply) ----------
   function startReply(m) {
