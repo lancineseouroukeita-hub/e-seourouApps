@@ -44,6 +44,14 @@ function serializeConversation(conv, currentUserId) {
   const mine = currentUserId && conv.participants
     ? conv.participants.find((p) => (p.userId || (p.user && p.user.id)) === currentUserId)
     : null;
+  // "Effacer la discussion" → "seulement pour moi" (mine.clearedAt) : masque
+  // les messages antérieurs à cette date UNIQUEMENT pour l'aperçu que MOI je
+  // vois ici — l'autre participant garde les siens (voir aussi getMessages,
+  // qui applique le même filtre pour l'historique complet de la conversation).
+  const clearedAtMs = mine && mine.clearedAt ? new Date(mine.clearedAt).getTime() : null;
+  const visibleMessages = clearedAtMs
+    ? (conv.messages || []).filter((m) => new Date(m.createdAt).getTime() > clearedAtMs)
+    : (conv.messages || []);
   return {
     id: conv.id,
     isGroup: conv.isGroup,
@@ -62,12 +70,12 @@ function serializeConversation(conv, currentUserId) {
       if (p.user.hideLastSeen) pub.lastSeenAt = null;
       return Object.assign(pub, { lastReadAt: p.lastReadAt, online: p.user.hideLastSeen ? false : isOnline(p.user.id) });
     }),
-    lastMessage: conv.messages && conv.messages[0]
+    lastMessage: visibleMessages[0]
       ? {
-        id: conv.messages[0].id,
-        content: previewLabel(conv.messages[0]),
-        senderId: conv.messages[0].senderId,
-        createdAt: conv.messages[0].createdAt,
+        id: visibleMessages[0].id,
+        content: previewLabel(visibleMessages[0]),
+        senderId: visibleMessages[0].senderId,
+        createdAt: visibleMessages[0].createdAt,
       }
       : null,
   };
@@ -79,7 +87,12 @@ async function listConversations(req, res) {
     where: { participants: { some: { userId: req.user.id } } },
     include: {
       participants: { include: { user: true } },
-      messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+      // On récupère une petite marge (pas juste le dernier) : si j'ai "effacé
+      // pour moi" cette conversation juste avant, le tout dernier message
+      // global peut être antérieur à mon clearedAt et donc invisible pour moi
+      // — serializeConversation doit pouvoir chercher un peu plus loin pour
+      // trouver le premier message qui M'est encore visible.
+      messages: { orderBy: { createdAt: 'desc' }, take: 30 },
     },
     orderBy: { createdAt: 'desc' },
   });
@@ -155,7 +168,13 @@ async function getMessages(req, res) {
   }
 
   const messages = await prisma.message.findMany({
-    where: { conversationId },
+    where: {
+      conversationId,
+      // "Effacer pour moi" (participant.clearedAt) : je ne revois plus les
+      // messages antérieurs à cette date, mais ils restent intacts pour les
+      // autres participants (voir clearConversation).
+      ...(participant.clearedAt ? { createdAt: { gt: participant.clearedAt } } : {}),
+    },
     orderBy: { createdAt: 'asc' },
     include: {
       sender: true,
@@ -248,6 +267,62 @@ async function leaveConversation(req, res) {
   }
 }
 
+// "Effacer la discussion" (menu d'appui long/clic droit) : deux options,
+// comme sur WhatsApp. body: { forEveryone: boolean }
+// - forEveryone=false ("Supprimer uniquement pour moi") : avance juste MON
+//   propre horodatage clearedAt (voir serializeConversation/getMessages qui
+//   filtrent en fonction de lui) — l'autre participant garde tout son
+//   historique intact de son côté.
+// - forEveryone=true ("Supprimer pour tout le monde") : réutilise la
+//   "suppression douce" déjà en place pour un message individuel (deleted +
+//   contenu vidé) mais appliquée à TOUS les messages existants — la
+//   discussion reste dans la liste (vide), pour tout le monde.
+async function clearConversation(req, res) {
+  const { conversationId } = req.params;
+  const { forEveryone } = req.body || {};
+  try {
+    const participant = await prisma.conversationParticipant.findUnique({
+      where: { conversationId_userId: { conversationId, userId: req.user.id } },
+    });
+    if (!participant) return res.status(404).json({ error: 'Conversation introuvable.' });
+
+    if (forEveryone) {
+      await prisma.message.updateMany({
+        where: { conversationId, deleted: false },
+        data: {
+          deleted: true,
+          content: '',
+          attachmentData: null,
+          attachmentMime: null,
+          attachmentName: null,
+          attachmentSize: null,
+          duration: null,
+        },
+      });
+      // Prévient les autres participants en temps réel (même mécanisme que
+      // pour un nouveau message/une nouvelle conversation), pour que leur
+      // écran de discussion se rafraîchisse tout de suite si elle est ouverte
+      // chez eux au moment où j'efface.
+      const io = req.app.get('io');
+      if (io) {
+        const others = await prisma.conversationParticipant.findMany({
+          where: { conversationId, userId: { not: req.user.id } },
+        });
+        others.forEach((p) => io.to(userRoomName(p.userId)).emit('conversation:cleared', { conversationId }));
+      }
+    } else {
+      await prisma.conversationParticipant.update({
+        where: { id: participant.id },
+        data: { clearedAt: new Date() },
+      });
+    }
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('clearConversation error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de l\'effacement de la discussion.' });
+  }
+}
+
 module.exports = {
   listConversations,
   createConversation,
@@ -257,5 +332,6 @@ module.exports = {
   serializeConversation,
   notifyConversationCreated,
   updateMyConversationSettings,
+  clearConversation,
 };
 

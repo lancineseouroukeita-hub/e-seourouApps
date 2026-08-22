@@ -610,12 +610,15 @@
   #forwardFooter .primaryBtn:disabled{opacity:.5;cursor:not-allowed;}
 
   /* ---------- Discussions verrouillées : demande du mot de passe ---------- */
-  #lockedUnlockOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
-  #lockedUnlockOverlay.show{display:flex;}
-  #lockedUnlockCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:360px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
-  #lockedUnlockHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
-  #lockedUnlockHeader h2{margin:0;font-size:16px;}
-  #lockedUnlockHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #lockedUnlockOverlay, #clearChatOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
+  #lockedUnlockOverlay.show, #clearChatOverlay.show{display:flex;}
+  #lockedUnlockCard, #clearChatCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:360px;max-width:100%;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #lockedUnlockHeader, #clearChatHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #lockedUnlockHeader h2, #clearChatHeader h2{margin:0;font-size:16px;}
+  #lockedUnlockHeader button, #clearChatHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #clearChatBody{padding:16px;}
+  #clearChatBody .primaryBtn{width:100%;background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;}
+  #clearChatBody .dangerFullBtn{margin-top:8px;}
   #lockedUnlockBody{padding:16px;}
   #lockedUnlockBody input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:15px;}
   #lockedUnlockBody .primaryBtn{background:var(--accent);border:none;color:white;border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;}
@@ -1250,6 +1253,21 @@
     </div>
   </div>
 
+  <!-- ---------- Effacer une discussion : pour moi seulement ou pour tout le monde ---------- -->
+  <div id="clearChatOverlay">
+    <div id="clearChatCard">
+      <div id="clearChatHeader">
+        <h2>Effacer la discussion</h2>
+        <button id="closeClearChatBtn" title="Fermer">✕</button>
+      </div>
+      <div id="clearChatBody">
+        <p id="clearChatText" style="font-size:13px;color:var(--muted);margin:0 0 14px;"></p>
+        <button id="clearChatOnlyMeBtn" class="primaryBtn">Supprimer uniquement pour moi</button>
+        <button id="clearChatEveryoneBtn" class="dangerFullBtn">Supprimer pour tout le monde</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -1329,6 +1347,15 @@
   let lockedChatsUnlocked = false;
   let favoriteConvIds = new Set(JSON.parse(localStorage.getItem('seourou_favorites') || '[]'));
   function saveFavorites() { localStorage.setItem('seourou_favorites', JSON.stringify([...favoriteConvIds])); }
+
+  // "Marquer comme non lu" (menu d'appui long) : contrairement à
+  // muted/archived/locked/clearedAt qui sont propres à chaque participant côté
+  // serveur, ce marqueur est purement local à cet appareil (comme sur WhatsApp,
+  // où ça ne se synchronise pas forcément entre appareils) — pas besoin d'un
+  // champ serveur dédié. Vidé automatiquement à l'ouverture de la discussion
+  // (voir openConversation).
+  let manualUnreadConvIds = new Set(JSON.parse(localStorage.getItem('seourou_manual_unread') || '[]'));
+  function saveManualUnread() { localStorage.setItem('seourou_manual_unread', JSON.stringify([...manualUnreadConvIds])); }
 
   // Filtres personnalisés (bouton "+" à côté de "Groupes", comme WhatsApp) :
   // propres à cet appareil, stockés localement. Chaque filtre a un nom et une
@@ -2382,6 +2409,20 @@
       socket.emit('conversation:join', { conversationId: conversation.id });
     });
 
+    // Quelqu'un a choisi "Effacer la discussion → pour tout le monde" (voir
+    // openClearChatDialog) : nos messages en cache pour cette conversation ne
+    // sont plus valides, on les revide et on rafraîchit si elle est ouverte.
+    socket.on('conversation:cleared', ({ conversationId }) => {
+      delete messagesByConv[conversationId];
+      const c = conversations.find((x) => x.id === conversationId);
+      if (c) c.lastMessage = null;
+      renderConvList();
+      if (activeConversationId === conversationId) {
+        messagesByConv[conversationId] = [];
+        renderMessages();
+      }
+    });
+
     socket.on('message:new', (msg) => {
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
       messagesByConv[msg.conversationId].push(msg);
@@ -2686,6 +2727,7 @@
   // et est arrivé après mon propre lastReadAt (même donnée que celle utilisée
   // pour les doubles coches, vue du côté de l'autre participant).
   function isConvUnread(c) {
+    if (manualUnreadConvIds.has(c.id)) return true;
     const lm = c.lastMessage;
     if (!lm) return false;
     const senderId = lm.sender ? lm.sender.id : lm.senderId;
@@ -2897,37 +2939,74 @@
   // Réutilise volontairement les classes CSS .msgContextMenu* (même habillage
   // visuel, pas besoin de les dupliquer) même si leur nom vient du menu des
   // messages.
+  // Marque/démarque manuellement une discussion comme "non lue" (purement
+  // local, voir manualUnreadConvIds).
+  function toggleManualUnread(c) {
+    if (manualUnreadConvIds.has(c.id)) manualUnreadConvIds.delete(c.id);
+    else manualUnreadConvIds.add(c.id);
+    saveManualUnread();
+    renderConvList();
+  }
+
+  // L'ordre et le contenu de ce menu suivent volontairement celui de
+  // WhatsApp : "Marquer comme non lu", "Archiver" et "Bloquer" n'ont de sens
+  // que pour une discussion à deux (jamais pour un groupe), et le bouton
+  // destructeur final devient "Quitter le groupe" pour un groupe au lieu de
+  // "Supprimer la discussion".
   function openConvActionMenu(rowEl, c, x, y) {
     closeMessageActionMenu();
     closeTagMenu();
     closeReactionPicker();
     const label = convLabel(c);
     const isFav = favoriteConvIds.has(c.id);
+    const other = !c.isGroup ? (c.participants.find((p) => p.id !== me.id) || c.participants[0]) : null;
+    // `users` (chargé à la connexion pour composer un groupe/une communauté,
+    // voir loadUsers) est la seule source qui connaît déjà l'état "bloqué" —
+    // les participants d'une conversation ne le portent pas eux-mêmes.
+    const knownOther = other ? (users.find((u) => u.id === other.id) || other) : null;
+    const isBlocked = Boolean(knownOther && knownOther.blocked);
+    const unread = isConvUnread(c);
 
-    const items = [
-      {
-        icon: isFav ? '★' : '☆',
-        label: isFav ? 'Retirer des favoris' : 'Ajouter aux favoris',
-        action: () => { if (favoriteConvIds.has(c.id)) favoriteConvIds.delete(c.id); else favoriteConvIds.add(c.id); saveFavorites(); renderConvList(); },
-      },
-      { icon: '🏷️', label: 'Ajouter à un filtre personnalisé', action: () => openTagMenu(rowEl, c.id) },
-      { icon: c.muted ? '🔔' : '🔕', label: c.muted ? 'Réactiver les notifications' : 'Mettre en sourdine', action: () => toggleConversationSetting(c, 'muted') },
-      { icon: c.archived ? '📤' : '📥', label: c.archived ? 'Désarchiver' : 'Archiver', action: () => toggleConversationSetting(c, 'archived') },
-      { icon: c.locked ? '🔓' : '🔒', label: c.locked ? 'Déverrouiller cette discussion' : 'Verrouiller cette discussion', action: () => toggleConversationSetting(c, 'locked') },
-    ];
+    const items = [];
+    if (!c.isGroup) {
+      items.push({
+        icon: unread ? '✅' : '🔵',
+        label: unread ? 'Marquer comme lu' : 'Marquer comme non lu',
+        action: () => toggleManualUnread(c),
+      });
+      items.push({ icon: c.archived ? '📤' : '📥', label: c.archived ? 'Désarchiver' : 'Archiver', action: () => toggleConversationSetting(c, 'archived') });
+    }
+    items.push({ icon: c.muted ? '🔔' : '🔕', label: c.muted ? 'Réactiver les notifications' : 'Mode silencieux', action: () => toggleConversationSetting(c, 'muted') });
+    items.push({ icon: c.locked ? '🔓' : '🔒', label: c.locked ? 'Déverrouiller cette discussion' : 'Verrouiller la discussion', action: () => toggleConversationSetting(c, 'locked') });
+    items.push({
+      icon: isFav ? '★' : '☆',
+      label: isFav ? 'Retirer des favoris' : 'Ajouter aux favoris',
+      action: () => { if (favoriteConvIds.has(c.id)) favoriteConvIds.delete(c.id); else favoriteConvIds.add(c.id); saveFavorites(); renderConvList(); },
+    });
+    items.push({ icon: '📇', label: 'Ajouter à la liste', action: () => openTagMenu(rowEl, c.id) });
+    if (!c.isGroup && other) {
+      items.push({
+        icon: '🚫',
+        label: (isBlocked ? 'Débloquer ' : 'Bloquer ') + other.name,
+        action: () => toggleBlockUser(knownOther),
+      });
+    }
+    items.push({ icon: '🧹', label: 'Effacer la discussion', action: () => openClearChatDialog(c, label) });
 
     const menu = document.createElement('div');
     menu.className = 'msgContextMenu';
     let html = items.map((it, i) => `
       <button class="msgContextMenuItem" data-i="${i}">
         <span class="msgContextMenuIcon">${it.icon}</span>
-        <span>${it.label}</span>
+        <span>${escapeHtml(it.label)}</span>
       </button>
     `).join('');
+    const destructiveIcon = c.isGroup ? '🚪' : '🗑️';
+    const destructiveLabel = c.isGroup ? 'Quitter le groupe' : 'Supprimer la discussion';
     html += `<div class="msgContextMenuDivider"></div>
       <button class="msgContextMenuItem danger" data-i="delete">
-        <span class="msgContextMenuIcon">🗑️</span>
-        <span>Supprimer cette discussion</span>
+        <span class="msgContextMenuIcon">${destructiveIcon}</span>
+        <span>${destructiveLabel}</span>
       </button>`;
     menu.innerHTML = html;
     menu.querySelectorAll('.msgContextMenuItem').forEach((btn) => {
@@ -2947,6 +3026,42 @@
     document.body.insertBefore(backdrop, menu);
     msgContextMenuOpen = true;
   }
+
+  // ---------- "Effacer la discussion" : pour moi seulement / pour tout le monde ----------
+  let clearChatTargetConv = null;
+  function openClearChatDialog(c, label) {
+    closeMessageActionMenu();
+    clearChatTargetConv = c;
+    $('clearChatText').textContent = `Les messages avec ${label} seront effacés. La discussion restera dans votre liste.`;
+    $('clearChatOverlay').classList.add('show');
+  }
+  function closeClearChatDialog() {
+    $('clearChatOverlay').classList.remove('show');
+    clearChatTargetConv = null;
+  }
+  $('closeClearChatBtn').addEventListener('click', closeClearChatDialog);
+  $('clearChatOverlay').addEventListener('click', (e) => {
+    if (e.target === $('clearChatOverlay')) closeClearChatDialog();
+  });
+  async function confirmClearChat(forEveryone) {
+    const c = clearChatTargetConv;
+    if (!c) return;
+    closeClearChatDialog();
+    try {
+      await api('/api/conversations/' + c.id + '/clear', { method: 'POST', body: JSON.stringify({ forEveryone }) });
+      c.lastMessage = null;
+      delete messagesByConv[c.id];
+      renderConvList();
+      if (activeConversationId === c.id) {
+        messagesByConv[c.id] = [];
+        renderMessages();
+      }
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  }
+  $('clearChatOnlyMeBtn').addEventListener('click', () => confirmClearChat(false));
+  $('clearChatEveryoneBtn').addEventListener('click', () => confirmClearChat(true));
 
   // Clic droit (PC) sur une discussion : ouvre le menu au lieu du menu
   // contextuel par défaut du navigateur.
@@ -3017,7 +3132,11 @@
   // historique de son côté, comme "supprimer la discussion" sur WhatsApp).
   // Si la conversation supprimée était ouverte, on revient à l'écran vide.
   async function deleteConversation(conversationId, label) {
-    if (!confirm(`Supprimer la discussion avec ${label} ? Elle disparaîtra de votre liste.`)) return;
+    const conv = conversations.find((c) => c.id === conversationId);
+    const confirmMsg = conv && conv.isGroup
+      ? `Quitter le groupe "${label}" ? Vous ne recevrez plus ses messages ; les autres membres restent dans le groupe.`
+      : `Supprimer la discussion avec ${label} ? Elle disparaîtra de votre liste.`;
+    if (!confirm(confirmMsg)) return;
     try {
       await api('/api/conversations/' + conversationId, { method: 'DELETE' });
       conversations = conversations.filter((c) => c.id !== conversationId);
@@ -3182,6 +3301,9 @@
       const myP = openedConv.participants.find((p) => p.id === me.id);
       if (myP) myP.lastReadAt = new Date().toISOString();
     }
+    // Un marquage manuel "non lu" (menu d'appui long) disparaît dès qu'on
+    // rouvre la discussion, comme sur WhatsApp.
+    if (manualUnreadConvIds.has(convId)) { manualUnreadConvIds.delete(convId); saveManualUnread(); }
     renderConvList();
     $('emptyState').style.display = 'none';
     $('activeChat').style.display = 'flex';

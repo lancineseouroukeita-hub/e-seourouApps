@@ -124,6 +124,12 @@ model ConversationParticipant {
   // du compte (voir auth.controller.js, verifyPassword). Propre à chaque
   // participant, comme muted/archived.
   locked   Boolean @default(false)
+  // "Effacer la discussion" → "Supprimer uniquement pour moi" (comme WhatsApp) :
+  // horodatage à partir duquel je masque les messages plus anciens, seulement
+  // de MON côté (l'autre participant garde les siens). Contrairement à
+  // muted/archived/locked qui sont des états, celui-ci est juste une date de
+  // coupure comparée à Message.createdAt (voir getMessages/serializeConversation).
+  clearedAt DateTime?
 
   @@unique([conversationId, userId])
 }
