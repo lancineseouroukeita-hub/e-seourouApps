@@ -1552,7 +1552,13 @@
   // l'autre en 4G/5G), car les flux audio/vidéo ne peuvent pas se frayer un chemin
   // directement. Le serveur TURN sert de relais de secours dans ce cas : c'est ce qui
   // manquait quand l'appel se "connectait" sans son ni image.
-  const ICE_SERVERS = [
+  // Valeurs de secours seulement : dès la connexion, refreshIceServers() les
+  // remplace par la config renvoyée par le serveur (voir /api/calls/ice-servers
+  // et call.controller.js), qui lit les identifiants TURN depuis des variables
+  // d'environnement Render plutôt que de les garder écrits en clair ici, où
+  // n'importe qui ouvrant les outils développeur du navigateur pouvait les
+  // lire — même sans être connecté à l'application.
+  let ICE_SERVERS = [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun.relay.metered.ca:80' },
@@ -1577,6 +1583,16 @@
       credential: 'hhD7ibTLehv5CtkY',
     },
   ];
+  async function refreshIceServers() {
+    try {
+      const data = await api('/api/calls/ice-servers');
+      if (data && Array.isArray(data.iceServers) && data.iceServers.length) {
+        ICE_SERVERS = data.iceServers;
+      }
+    } catch (err) {
+      console.error('Impossible de récupérer la config des serveurs ICE depuis le serveur, on garde les valeurs de secours :', err);
+    }
+  }
   let localStream = null;
   let currentCall = null; // { callId, conversationId, type }
   let peerConnections = {}; // socketId -> RTCPeerConnection
@@ -1942,6 +1958,7 @@
     loadConversations();
     setupPushNotifications();
     clearNotificationsAndBadge();
+    refreshIceServers();
   }
 
   $('logoutBtn').addEventListener('click', () => {

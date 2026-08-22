@@ -1,5 +1,33 @@
 const prisma = require('../config/prisma');
 
+// Serveurs STUN/TURN pour les appels WebRTC (voix/vidéo). Les identifiants TURN
+// (relais utilisé quand la connexion directe entre deux réseaux différents
+// échoue — ex: un participant en wifi, l'autre en 4G) étaient auparavant écrits
+// en clair dans le code de la page, visibles par n'importe qui ouvrant les
+// outils développeur du navigateur, même sans être connecté. Ici, la config
+// est lue depuis des variables d'environnement côté serveur (modifiables sur
+// Render sans nouveau déploiement) et n'est renvoyée qu'aux utilisateurs déjà
+// authentifiés (voir requireAuth sur la route) — les valeurs par défaut
+// reprennent l'ancien compte Metered.ca gratuit tel quel, pour ne rien casser
+// tant que personne n'a renseigné de nouvelles variables sur Render.
+function getIceServers(req, res) {
+  const turnUsername = process.env.TURN_USERNAME || '1c16e03d8537142774d692d5';
+  const turnCredential = process.env.TURN_CREDENTIAL || 'hhD7ibTLehv5CtkY';
+  const turnHost = process.env.TURN_HOST || 'global.relay.metered.ca';
+
+  const iceServers = [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    { urls: `turn:${turnHost}:80`, username: turnUsername, credential: turnCredential },
+    { urls: `turn:${turnHost}:80?transport=tcp`, username: turnUsername, credential: turnCredential },
+    { urls: `turn:${turnHost}:443`, username: turnUsername, credential: turnCredential },
+    { urls: `turns:${turnHost}:443?transport=tcp`, username: turnUsername, credential: turnCredential },
+  ];
+
+  return res.json({ iceServers });
+}
+
 // Historique des appels (onglet "Appels", comme WhatsApp) : tous les appels des
 // conversations auxquelles je participe, avec pour chacun mon statut (décroché
 // / manqué), le sens (sortant / entrant) et la durée si j'ai réellement rejoint
@@ -57,4 +85,4 @@ async function listCalls(req, res) {
   return res.json({ calls: result });
 }
 
-module.exports = { listCalls };
+module.exports = { listCalls, getIceServers };

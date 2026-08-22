@@ -18,3 +18,14 @@ services:
         value: "*"
       - key: DATABASE_URL
         sync: false
+      # Identifiants du serveur TURN (relais des appels audio/vidéo entre deux
+      # réseaux différents) : renseigner ici pour les faire tourner sans
+      # nouveau déploiement, plutôt que de les modifier dans le code comme
+      # avant. Laissés vides, l'application garde le compte Metered.ca gratuit
+      # utilisé jusqu'ici — voir backend/src/controllers/call.controller.js.
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
+      - key: TURN_HOST
+        sync: false
