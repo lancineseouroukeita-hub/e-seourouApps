@@ -338,14 +338,20 @@
      sur les écrans de connexion/inscription/mot de passe oublié. */
   .phoneFieldRow{display:flex;gap:8px;}
   .phoneFieldRow input{flex:1;min-width:0;}
-  .countryCodeBtn{flex-shrink:0;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0 10px;font-size:14px;cursor:pointer;white-space:nowrap;}
+  .countryCodeBtn{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:0 10px;font-size:14px;cursor:pointer;white-space:nowrap;}
+  /* Image de drapeau (flagcdn.com) plutôt que l'emoji Unicode 🇬🇳 : sur Windows,
+     la plupart des navigateurs n'ont pas de police gérant les séquences
+     "regional indicator" et affichent les deux lettres du code pays au lieu du
+     drapeau, contrairement à iOS/Android/Mac. */
+  .flagImg{height:14px;width:auto;vertical-align:middle;border-radius:2px;display:inline-block;}
   .countryPickerBackdrop{position:fixed;inset:0;z-index:199;background:rgba(6,7,10,.5);}
   .countryPicker{position:fixed;width:320px;max-width:90vw;max-height:70vh;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:10px;z-index:200;box-shadow:0 12px 40px rgba(0,0,0,.5);display:flex;flex-direction:column;}
   .countryPickerSearch{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:8px;flex-shrink:0;}
   .countryPickerList{overflow-y:auto;flex:1;}
   .countryPickerItem{display:flex;align-items:center;gap:10px;width:100%;background:none;border:none;color:var(--text);padding:8px 6px;border-radius:8px;cursor:pointer;text-align:left;font-size:14px;}
   .countryPickerItem:hover{background:var(--panel2);}
-  .countryPickerFlag{font-size:18px;flex-shrink:0;}
+  .countryPickerFlag{font-size:18px;flex-shrink:0;display:inline-flex;align-items:center;}
+  .countryPickerFlag .flagImg{height:16px;}
   .countryPickerName{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .countryPickerDial{color:var(--muted);font-size:12.5px;flex-shrink:0;}
   .countryPickerEmpty{padding:16px;text-align:center;color:var(--muted);font-size:13px;}
@@ -1774,12 +1780,19 @@
   });
 
   // ---------- Sélecteur d'indicatif (drapeau + code pays) ----------
+  // L'emoji drapeau (ex: 🇬🇳) ne s'affiche pas correctement sur Windows —
+  // manque souvent de police adaptée, contrairement à iOS/Android/Mac — donc
+  // on utilise de petites images de drapeau (flagcdn.com, gratuit, sans clé)
+  // plutôt que de compter sur le rendu emoji du système.
+  function flagImgHtml(iso2) {
+    return `<img class="flagImg" src="https://flagcdn.com/h20/${iso2.toLowerCase()}.png" alt="">`;
+  }
   // `prefix` vaut "login", "reg" ou "forgot" — désigne à la fois le champ
   // #<prefix>Phone et son bouton #<prefix>CountryBtn.
   function updateCountryBtn(prefix) {
     const c = phoneCountry[prefix] || defaultCountry();
     phoneCountry[prefix] = c;
-    $(prefix + 'CountryBtn').textContent = c.flag + ' ' + c.dial;
+    $(prefix + 'CountryBtn').innerHTML = flagImgHtml(c.iso2) + ' ' + escapeHtml(c.dial);
   }
   // Numéro complet (indicatif + chiffres locaux) à envoyer au serveur — le
   // champ visible ne contient plus que la partie locale du numéro.
@@ -1828,7 +1841,7 @@
       listEl.innerHTML = filtered.length
         ? filtered.map((c) => `
           <button type="button" class="countryPickerItem" data-iso="${c.iso2}">
-            <span class="countryPickerFlag">${c.flag}</span>
+            <span class="countryPickerFlag">${flagImgHtml(c.iso2)}</span>
             <span class="countryPickerName">${escapeHtml(c.name)}</span>
             <span class="countryPickerDial">${c.dial}</span>
           </button>
