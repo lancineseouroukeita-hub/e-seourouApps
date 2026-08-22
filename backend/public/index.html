@@ -257,18 +257,14 @@
   #chatHeader button:hover{background:#282e3a;}
   /* Boutons d'appel en pilule avec icônes seules (comme WhatsApp), plus
      spécifique que la règle générique "#chatHeader button" ci-dessus. */
-  #chatHeader .callBtns{margin-left:auto;display:flex;gap:8px;}
+  #chatHeader .callBtns{margin-left:auto;display:flex;align-items:center;gap:8px;}
   #chatHeader .callBtns button{border:none;border-radius:50%;width:34px;height:34px;padding:0;font-size:15px;display:flex;align-items:center;justify-content:center;}
-  /* Vidéo en bleu (couleur d'accent), audio en vert : deux couleurs distinctes
-     pour différencier les deux types d'appel d'un coup d'œil. Les emoji 🎥/📞
-     ont leurs propres couleurs fixes qu'on ne peut pas recolorer directement ;
-     le filtre s'applique donc seulement à l'icône (span imbriqué), jamais au
-     bouton entier, sinon le fond coloré lui-même serait décoloré avec elle. */
-  #chatHeader .callBtns .callIcon{filter:grayscale(1) brightness(1.8);display:flex;}
-  #chatHeader .callBtns #videoCallBtn{background:var(--accent);}
-  #chatHeader .callBtns #audioCallBtn{background:var(--success);}
-  #chatHeader .callBtns #videoCallBtn:hover{background:var(--accent2);}
-  #chatHeader .callBtns #audioCallBtn:hover{filter:brightness(1.1);}
+  /* Pilule regroupant les boutons d'appel vidéo/audio (icônes trait, sans
+     fond coloré individuel), comme sur les captures de référence fournies. */
+  #chatHeader .callBtns .callPill{display:flex;align-items:center;gap:2px;background:var(--panel2);border:1px solid var(--border);border-radius:999px;padding:2px;}
+  #chatHeader .callBtns .callPill button{background:transparent;color:var(--text);}
+  #chatHeader .callBtns .callPill button:hover{background:var(--border);}
+  #chatHeader .callBtns .callPill svg{width:19px;height:19px;}
   #messages{flex:1;overflow-y:auto;padding:16px 18px;display:flex;flex-direction:column;gap:10px;}
   .msgRow{display:flex;}
   .msgRow.mine{justify-content:flex-end;}
@@ -415,6 +411,11 @@
   .composerIconBtn{background:var(--panel2);border:none;color:var(--text);border-radius:50%;width:38px;height:38px;padding:0;cursor:pointer;font-size:17px;display:flex;align-items:center;justify-content:center;flex-shrink:0;line-height:1;}
   .composerIconBtn:hover{background:var(--border);}
   .composerIconBtn.recording{background:var(--danger);color:white;animation:recordPulse 1s infinite;}
+  /* Caméra/micro du composer : icônes trait seules, sans pastille de fond
+     visible, comme sur les captures de référence fournies. */
+  #cameraCaptureBtn, #voiceBtn{background:transparent;}
+  #cameraCaptureBtn:hover, #voiceBtn:hover{background:var(--border);}
+  #cameraCaptureBtn svg, #voiceBtn svg{width:21px;height:21px;}
   @keyframes recordPulse{0%{opacity:1;}50%{opacity:.55;}100%{opacity:1;}}
   #msgInputWrap{position:relative;flex:1;min-width:0;display:flex;align-items:center;}
   #msgInputWrap input[type="text"]{width:100%;box-sizing:border-box;padding:10px 34px 10px 14px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:calc(15px * var(--chat-font-scale));}
@@ -858,8 +859,10 @@
           </div>
           <div class="callBtns">
             <button id="chatSearchBtn" title="Rechercher dans la discussion"><span class="callIcon">🔍</span></button>
-            <button id="videoCallBtn" title="Appel vidéo"><span class="callIcon">🎥</span></button>
-            <button id="audioCallBtn" title="Appel audio"><span class="callIcon">📞</span></button>
+            <div class="callPill">
+              <button id="videoCallBtn" title="Appel vidéo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg></button>
+              <button id="audioCallBtn" title="Appel audio"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg></button>
+            </div>
           </div>
         </div>
         <!-- Recherche de texte à l'intérieur de la discussion ouverte (comme
@@ -897,8 +900,8 @@
             <span class="emojiIcon">🙂</span>
             <span id="recordingTime">00:00</span>
           </div>
-          <button class="composerIconBtn" id="cameraCaptureBtn" title="Prendre une photo">📷</button>
-          <button class="composerIconBtn" id="voiceBtn" title="Message vocal">🎤</button>
+          <button class="composerIconBtn" id="cameraCaptureBtn" title="Prendre une photo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg></button>
+          <button class="composerIconBtn" id="voiceBtn" title="Message vocal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg></button>
           <button id="sendBtn" title="Envoyer">➤</button>
         </div>
       </div>
@@ -4314,7 +4317,7 @@
     wantsSendRecording = true;
     recordStartTs = Date.now();
     $('voiceBtn').classList.add('recording');
-    $('voiceBtn').textContent = '⏹';
+    $('voiceBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"></rect></svg>';
     $('msgInputWrap').querySelector('.emojiIcon').style.visibility = 'hidden';
     $('recordingTime').style.display = 'inline';
     updateRecordingTime();
@@ -4341,7 +4344,7 @@
     clearInterval(recordTimerInterval);
     recordTimerInterval = null;
     $('voiceBtn').classList.remove('recording');
-    $('voiceBtn').textContent = '🎤';
+    $('voiceBtn').innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" y1="19" x2="12" y2="23"></line><line x1="8" y1="23" x2="16" y2="23"></line></svg>';
     $('msgInputWrap').querySelector('.emojiIcon').style.visibility = 'visible';
     $('recordingTime').style.display = 'none';
     $('recordingTime').textContent = '00:00';
