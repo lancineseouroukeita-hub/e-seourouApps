@@ -128,6 +128,7 @@
   .liText{min-width:0;}
   .liName{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .liSub{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:220px;}
+  .liPhone{font-weight:400;color:var(--muted);font-size:11.5px;}
   #userList{border-top:1px solid var(--border);}
 
   /* Écrans de premier niveau accessibles depuis la barre d'onglets du bas
@@ -530,8 +531,14 @@
         <button class="filterChip addFilterChip" id="addFilterBtn" title="Créer un filtre personnalisé">+</button>
       </div>
       <div id="convList"></div>
-      <div class="sideSection">Autres utilisateurs</div>
-      <div id="userList"></div>
+      <!-- Masqué pour l'instant : cette liste exposait tous les utilisateurs
+           inscrits (nom + numéro de téléphone) à n'importe qui, sans qu'aucun
+           lien ou discussion existe déjà avec eux. En attendant un vrai flux
+           "nouvelle discussion" (recherche par numéro, contacts, etc.), on ne
+           l'affiche plus. Les données restent chargées (voir loadUsers) car
+           elles servent toujours à composer un groupe/une communauté. -->
+      <div class="sideSection" style="display:none;">Autres utilisateurs</div>
+      <div id="userList" style="display:none;"></div>
     </div>
 
     <!-- Onglet "Appels" (barre du bas, mobile) : historique réel des appels
@@ -2162,8 +2169,16 @@
       const div = document.createElement('div');
       div.className = 'listItem' + (c.id === activeConversationId ? ' active' : '') + (unread ? ' unread' : '');
       div.dataset.convId = c.id;
+      // On affiche le numéro de téléphone à côté du nom pour les discussions
+      // 1-à-1 : deux comptes différents peuvent porter le même nom affiché
+      // (ex. plusieurs comptes de test "Lancine keita"), seul le numéro
+      // permet de les distinguer avec certitude — c'est déjà l'identifiant
+      // unique côté serveur (voir schema.prisma), on le rend juste visible ici.
+      const nameHtml = (!c.isGroup && other && other.phone)
+        ? `${escapeHtml(label)} <span class="liPhone">(${escapeHtml(other.phone)})</span>`
+        : escapeHtml(label);
       div.innerHTML = `${avatarDivHtml(label, !c.isGroup && other ? other.avatarUrl : null)}
-        <div class="liText"><div class="liName">${escapeHtml(label)}</div>
+        <div class="liText"><div class="liName">${nameHtml}</div>
         <div class="liSub">${c.lastMessage ? escapeHtml(c.lastMessage.content) : 'Aucun message'}</div></div>
         <div class="liMeta">
           <button class="favStar${isFav ? ' active' : ''}" data-conv-id="${c.id}" title="${isFav ? 'Retirer des favoris' : 'Ajouter aux favoris'}">${isFav ? '★' : '☆'}</button>
@@ -2245,10 +2260,11 @@
   // ferait un menu de discussions classique.
   $('sidebarMenuBtn').addEventListener('click', () => $('settingsBtn').click());
 
-  // "+" : pas de flux de création de discussion dédié pour l'instant, on
-  // amène simplement l'utilisateur vers la liste des autres utilisateurs.
+  // "+" : la liste "Autres utilisateurs" (qui exposait tout le monde) est
+  // masquée. En attendant un vrai flux de création de discussion (recherche
+  // par numéro de téléphone), on informe simplement la personne.
   $('newChatBtn').addEventListener('click', () => {
-    $('userList').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    alert('La recherche d\'un nouveau contact par numéro de téléphone arrive bientôt.\n\nEn attendant, une communauté ou un groupe peut être créé depuis l\'onglet Communautés.');
   });
 
   $('sidebarCameraBtn').addEventListener('click', () => {
