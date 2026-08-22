@@ -3862,6 +3862,15 @@
     if (e.key === 'Escape' && msgContextMenuOpen) closeMessageActionMenu();
   });
 
+  // Sur certains iPhone/PWA, la CSS "user-select:none" seule ne suffit pas
+  // toujours à empêcher le menu natif de sélection de texte (Copier/Chercher/
+  // Traduire) lors d'un appui long sur une bulle — on bloque donc aussi
+  // l'évènement "selectstart" en JS pour être certain que notre propre menu
+  // (ou l'action d'effacement de trace) se déclenche à la place.
+  document.addEventListener('selectstart', (e) => {
+    if (e.target.closest && e.target.closest('.bubble')) e.preventDefault();
+  });
+
   // Clic droit (PC) sur une bulle : ouvre le menu au lieu du menu contextuel
   // par défaut du navigateur.
   $('messages').addEventListener('contextmenu', (e) => {
