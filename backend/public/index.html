@@ -3458,9 +3458,6 @@
       const body = m.deleted
         ? `<div class="msgDeleted">🚫 Message supprimé${mine ? `<button class="eraseMsgBtn" data-id="${m.id}" title="Effacer définitivement cette trace">✕</button>` : ''}</div>`
         : renderMessageBody(m);
-      const deleteBtn = (mine && !m.deleted)
-        ? `<button class="deleteMsgBtn" data-id="${m.id}" title="Supprimer ce message">🗑️</button>`
-        : '';
       const ticks = (mine && !m.deleted)
         ? (() => { const read = isReadByOthers(m, conv); return `<span class="ticks${read ? ' read' : ''}">${read ? '✓✓' : '✓'}</span>`; })()
         : '';
@@ -3497,7 +3494,7 @@
       const forwardedLabel = (!m.deleted && m.forwarded) ? '<div class="forwardedLabel">↪️ Transféré</div>' : '';
       row.className += m.pinned ? ' pinnedRow' : '';
       row.innerHTML = `${actionsHtml}<div class="bubble">${forwardedLabel}${replyQuoteHtml}${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
-        ${body}${reactionsHtml}<div class="msgMeta">${deleteBtn}${editedLabel}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
+        ${body}${reactionsHtml}<div class="msgMeta">${editedLabel}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
       el.appendChild(row);
     });
     el.scrollTop = el.scrollHeight;
@@ -3631,31 +3628,23 @@
     typingTimeout = setTimeout(() => socket.emit('typing', { conversationId: activeConversationId, isTyping: false }), 1200);
   });
 
-  // Clic sur l'icône 🗑️ d'un de nos propres messages (texte, photo, fichier ou
-  // vocal) : demande confirmation puis supprime pour tout le monde. Écouteur
-  // unique posé sur le conteneur (délégation d'événement), car les messages
-  // sont entièrement reconstruits à chaque renderMessages().
-  $('messages').addEventListener('click', (e) => {
-    const btn = e.target.closest('.deleteMsgBtn');
-    if (!btn) return;
-    const messageId = btn.dataset.id;
-    if (!messageId) return;
-    const m = (messagesByConv[activeConversationId] || []).find((x) => x.id === messageId);
-    if (m) openDeleteMessageDialog(m);
-  });
-
-  // Clic sur le "✕" affiché sur un message déjà supprimé (bulle "🚫 Message
-  // supprimé") : efface définitivement cette trace de la conversation, pour
-  // tout le monde (contrairement à "Supprimer" ci-dessus qui garde une trace).
-  $('messages').addEventListener('click', (e) => {
-    const btn = e.target.closest('.eraseMsgBtn');
-    if (!btn) return;
-    const messageId = btn.dataset.id;
+  // Efface définitivement la trace d'un message déjà supprimé ("🚫 Message
+  // supprimé"), pour tout le monde (contrairement à "Supprimer" qui garde une
+  // trace). Utilisée à la fois par le bouton "✕", l'appui long et le clic
+  // droit sur la bulle de trace.
+  function eraseMessageTrace(messageId) {
     if (!messageId) return;
     if (!confirm('Effacer définitivement cette trace ? Elle disparaîtra complètement de la conversation, pour tout le monde.')) return;
     socket.emit('message:erase', { messageId }, (res) => {
       if (res && res.error) alert('Erreur : ' + res.error);
     });
+  }
+
+  // Clic sur le "✕" affiché sur un message déjà supprimé.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.eraseMsgBtn');
+    if (!btn) return;
+    eraseMessageTrace(btn.dataset.id);
   });
 
   // Clic sur "↩️" : prépare une réponse à ce message (bandeau au-dessus du composer).
@@ -3861,10 +3850,19 @@
   $('messages').addEventListener('contextmenu', (e) => {
     const bubble = e.target.closest('.bubble');
     const row = e.target.closest('.msgRow');
+    if (!bubble || !row) return;
     // "msgDeleted" est une classe posée sur le contenu à l'intérieur de la
     // bulle (voir renderMessages), pas sur .msgRow lui-même — vérifier avec
-    // .querySelector plutôt que row.classList.
-    if (!bubble || !row || bubble.querySelector('.msgDeleted')) return;
+    // .querySelector plutôt que row.classList. Sur une bulle déjà supprimée
+    // ("🚫 Message supprimé"), le clic droit efface directement la trace
+    // (uniquement si c'est notre propre message, seul cas où .eraseMsgBtn existe).
+    const eraseBtn = bubble.querySelector('.eraseMsgBtn');
+    if (bubble.querySelector('.msgDeleted')) {
+      if (!eraseBtn) return;
+      e.preventDefault();
+      eraseMessageTrace(eraseBtn.dataset.id);
+      return;
+    }
     e.preventDefault();
     openMessageActionMenu(bubble, row.dataset.id, e.clientX, e.clientY, false);
   });
@@ -3881,10 +3879,24 @@
   $('messages').addEventListener('touchstart', (e) => {
     const bubble = e.target.closest('.bubble');
     const row = e.target.closest('.msgRow');
+    if (!bubble || !row) return;
     // "msgDeleted" est une classe posée sur le contenu à l'intérieur de la
     // bulle (voir renderMessages), pas sur .msgRow lui-même — vérifier avec
-    // .querySelector plutôt que row.classList.
-    if (!bubble || !row || bubble.querySelector('.msgDeleted')) return;
+    // .querySelector plutôt que row.classList. Sur une bulle déjà supprimée
+    // ("🚫 Message supprimé"), l'appui long efface directement la trace
+    // (uniquement si c'est notre propre message, seul cas où .eraseMsgBtn existe).
+    const eraseBtn = bubble.querySelector('.eraseMsgBtn');
+    if (bubble.querySelector('.msgDeleted')) {
+      if (!eraseBtn) return;
+      const touch = e.touches[0];
+      msgLongPressStart = { x: touch.clientX, y: touch.clientY };
+      clearTimeout(msgLongPressTimer);
+      msgLongPressTimer = setTimeout(() => {
+        eraseMessageTrace(eraseBtn.dataset.id);
+        msgLongPressStart = null;
+      }, LONG_PRESS_MS);
+      return;
+    }
     const touch = e.touches[0];
     msgLongPressStart = { x: touch.clientX, y: touch.clientY };
     clearTimeout(msgLongPressTimer);
