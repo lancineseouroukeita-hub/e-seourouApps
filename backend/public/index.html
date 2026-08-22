@@ -621,6 +621,16 @@
   .chatThemeSwatch{width:30px;height:30px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;flex-shrink:0;background-size:cover;background-position:center;}
   .chatThemeSwatch.active{border-color:var(--text);box-shadow:0 0 0 1px var(--bg) inset;}
 
+  /* ---------- Contrôle parental (Paramètres) ---------- */
+  #parentalCodeDisplay{margin-top:10px;text-align:center;background:var(--panel2);border-radius:10px;padding:12px;}
+  #parentalCodeValue{font-size:28px;font-weight:700;letter-spacing:6px;color:var(--accent);}
+  #parentalCodeHint{font-size:11.5px;color:var(--muted);margin-top:6px;}
+  .parentalChildRow{padding:10px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;}
+  .parentalChildRow:last-child{margin-bottom:0;}
+  .parentalChildInfo{font-size:13.5px;margin-bottom:8px;}
+  .parentalChildInfo .muted{color:var(--muted);font-size:12px;}
+  .parentalChildRow select{width:100%;box-sizing:border-box;padding:7px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:12.5px;margin-bottom:8px;font-family:inherit;}
+
   /* ---------- Statuts : composition (texte/photo) ---------- */
   #statusComposerOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;z-index:120;padding:20px;}
   #statusComposerOverlay.show{display:flex;}
@@ -1180,6 +1190,41 @@
           <label style="display:block;font-size:11.5px;color:var(--muted);margin:2px 0 14px;">Personne ne verra plus si vous êtes en ligne ni l'heure de votre dernière connexion (vous continuez à voir celle des autres).</label>
           <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:8px;">Utilisateurs bloqués — ils ne peuvent plus vous envoyer de message ni vous appeler.</label>
           <div id="blockedUsersList"></div>
+        </section>
+
+        <!-- Contrôle parental : lier le compte d'un enfant à celui d'un
+             parent via un code temporaire (voir parental.controller.js),
+             puis restreindre qui peut l'ajouter à un groupe. Un même compte
+             peut à la fois superviser d'autres comptes ET être supervisé
+             (les trois blocs s'affichent/se masquent indépendamment selon
+             la situation, voir renderParentalStatus). -->
+        <section class="settingsSection" id="parentalSection">
+          <h3><span class="settingsIcon">🛡️</span>Contrôle parental</h3>
+
+          <div id="parentalSupervisedByBlock" style="display:none;">
+            <label style="display:block;font-size:12.5px;color:var(--muted);margin-bottom:8px;">Ce compte est supervisé par <strong id="parentalSupervisorName"></strong>.</label>
+            <button id="parentalUnlinkSelfBtn" style="width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);">Se délier</button>
+          </div>
+
+          <div id="parentalChildrenBlock" style="display:none;margin-top:14px;">
+            <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:8px;">Comptes que vous supervisez</label>
+            <div id="parentalChildrenList"></div>
+          </div>
+
+          <div id="parentalLinkBlock" style="margin-top:14px;">
+            <label style="display:block;font-size:12px;color:var(--muted);margin-bottom:8px;">Superviser un autre compte (ex: celui de votre enfant)</label>
+            <button id="parentalGenerateCodeBtn" style="width:100%;">Générer un code de liaison</button>
+            <div id="parentalCodeDisplay" style="display:none;">
+              <div id="parentalCodeValue"></div>
+              <div id="parentalCodeHint">Valable 10 minutes. Communiquez-le à l'autre personne : elle doit le saisir ci-dessous, sur son propre appareil.</div>
+            </div>
+
+            <label style="display:block;font-size:12px;color:var(--muted);margin:16px 0 8px;">J'ai reçu un code (mon compte sera supervisé)</label>
+            <input id="parentalCodeInput" type="text" inputmode="numeric" maxlength="6" placeholder="Code à 6 chiffres">
+            <button id="parentalLinkBtn" style="width:100%;margin-top:8px;">Confirmer la liaison</button>
+          </div>
+
+          <div class="settingsMsg" id="parentalMsg"></div>
         </section>
 
         <!-- Export/sauvegarde des discussions + gestion du stockage local
@@ -5672,6 +5717,10 @@
     $('deleteAccountPasswordInput').value = '';
     showSettingsMsg('settingsDeleteAccountMsg', '');
     refreshAdminSection();
+    showSettingsMsg('parentalMsg', '');
+    $('parentalCodeInput').value = '';
+    $('parentalCodeDisplay').style.display = 'none';
+    loadParentalStatus();
   }
 
   // ---------- Administration (visible uniquement pour un compte administrateur) ----------
@@ -5988,6 +6037,91 @@
     } catch (err) {
       toggle.checked = !desired; // annule visuellement si la requête a échoué
       alert('Erreur : ' + err.message);
+    }
+  });
+
+  // ---------- Contrôle parental ----------
+  const PARENTAL_RESTRICT_LABELS = {
+    everyone: 'Tout le monde peut l\'ajouter à un groupe',
+    contacts: 'Seulement ses contacts',
+    noone: 'Personne',
+  };
+  async function loadParentalStatus() {
+    try {
+      const data = await api('/api/parental/me');
+      renderParentalStatus(data);
+    } catch (err) {
+      showSettingsMsg('parentalMsg', err.message, true);
+    }
+  }
+  function renderParentalStatus(data) {
+    const supervisor = data.supervisor;
+    $('parentalSupervisedByBlock').style.display = supervisor ? '' : 'none';
+    if (supervisor) $('parentalSupervisorName').textContent = supervisor.name;
+
+    const children = data.supervisedUsers || [];
+    $('parentalChildrenBlock').style.display = children.length ? '' : 'none';
+    const list = $('parentalChildrenList');
+    list.innerHTML = '';
+    children.forEach((child) => {
+      const row = document.createElement('div');
+      row.className = 'parentalChildRow';
+      row.innerHTML = `
+        <div class="parentalChildInfo"><strong>${escapeHtml(child.name)}</strong><br><span class="muted">${escapeHtml(child.phone)}</span></div>
+        <select>
+          ${Object.keys(PARENTAL_RESTRICT_LABELS).map((v) => `<option value="${v}"${child.restrictGroupAdd === v ? ' selected' : ''}>${PARENTAL_RESTRICT_LABELS[v]}</option>`).join('')}
+        </select>
+        <button style="width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--border);">Délier ce compte</button>
+      `;
+      row.querySelector('select').addEventListener('change', async (e) => {
+        try {
+          await api(`/api/parental/child/${child.id}/restrictions`, { method: 'PATCH', body: JSON.stringify({ restrictGroupAdd: e.target.value }) });
+          showSettingsMsg('parentalMsg', 'Restriction mise à jour.');
+        } catch (err) {
+          showSettingsMsg('parentalMsg', err.message, true);
+        }
+      });
+      row.querySelector('button').addEventListener('click', async () => {
+        if (!confirm(`Délier le compte de ${child.name} ? Vous ne pourrez plus modifier ses restrictions.`)) return;
+        try {
+          await api('/api/parental/unlink', { method: 'POST', body: JSON.stringify({ childId: child.id }) });
+          loadParentalStatus();
+        } catch (err) {
+          showSettingsMsg('parentalMsg', err.message, true);
+        }
+      });
+      list.appendChild(row);
+    });
+  }
+  $('parentalGenerateCodeBtn').addEventListener('click', async () => {
+    try {
+      const data = await api('/api/parental/generate-code', { method: 'POST' });
+      $('parentalCodeValue').textContent = data.code;
+      $('parentalCodeDisplay').style.display = '';
+      showSettingsMsg('parentalMsg', '');
+    } catch (err) {
+      showSettingsMsg('parentalMsg', err.message, true);
+    }
+  });
+  $('parentalLinkBtn').addEventListener('click', async () => {
+    const code = $('parentalCodeInput').value.trim();
+    if (!code) return showSettingsMsg('parentalMsg', 'Entrez un code.', true);
+    try {
+      const data = await api('/api/parental/link', { method: 'POST', body: JSON.stringify({ code }) });
+      $('parentalCodeInput').value = '';
+      showSettingsMsg('parentalMsg', data.supervisor ? `Compte maintenant supervisé par ${data.supervisor.name}.` : 'Liaison effectuée.');
+      loadParentalStatus();
+    } catch (err) {
+      showSettingsMsg('parentalMsg', err.message, true);
+    }
+  });
+  $('parentalUnlinkSelfBtn').addEventListener('click', async () => {
+    if (!confirm('Se délier de votre superviseur ?')) return;
+    try {
+      await api('/api/parental/unlink', { method: 'POST', body: JSON.stringify({}) });
+      loadParentalStatus();
+    } catch (err) {
+      showSettingsMsg('parentalMsg', err.message, true);
     }
   });
 

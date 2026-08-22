@@ -133,6 +133,40 @@ async function createConversation(req, res) {
     }
   }
 
+  // Contrôle parental (Paramètres → Contrôle parental) : un compte enfant peut
+  // restreindre qui a le droit de l'ajouter à un groupe (restrictGroupAdd, voir
+  // schema.prisma / parental.controller.js). Uniquement pour les groupes — une
+  // conversation 1-à-1 n'est jamais concernée. Le superviseur d'un compte peut
+  // toujours l'ajouter, quelle que soit la restriction choisie.
+  if (isGroupConversation) {
+    const otherIds = allParticipantIds.filter((id) => id !== req.user.id);
+    const others = await prisma.user.findMany({
+      where: { id: { in: otherIds } },
+      select: { id: true, name: true, restrictGroupAdd: true, supervisorId: true },
+    });
+    for (const other of others) {
+      if (other.restrictGroupAdd === 'everyone') continue;
+      if (other.supervisorId === req.user.id) continue; // le superviseur peut toujours ajouter
+      if (other.restrictGroupAdd === 'noone') {
+        return res.status(403).json({ error: `${other.name} ne peut pas être ajouté(e) à un groupe.` });
+      }
+      if (other.restrictGroupAdd === 'contacts') {
+        const existingDm = await prisma.conversation.findFirst({
+          where: {
+            isGroup: false,
+            AND: [
+              { participants: { some: { userId: req.user.id } } },
+              { participants: { some: { userId: other.id } } },
+            ],
+          },
+        });
+        if (!existingDm) {
+          return res.status(403).json({ error: `${other.name} n'autorise que ses contacts à l'ajouter à un groupe.` });
+        }
+      }
+    }
+  }
+
   // Pour une conversation 1-à-1, on réutilise une conversation existante si elle existe déjà.
   if (!isGroupConversation) {
     const existing = await prisma.conversation.findFirst({

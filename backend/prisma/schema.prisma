@@ -44,6 +44,26 @@ model User {
   // manipulation ici serait plus grave qu'ailleurs.
   isAdmin Boolean @default(false)
 
+  // Contrôle parental (Paramètres → Contrôle parental) : un compte "enfant"
+  // peut être supervisé par un compte "parent" via cette relation réflexive.
+  // La liaison se fait par un code temporaire à usage unique (voir
+  // ParentLinkCode) plutôt qu'un scan QR/NFC. onDelete: SetNull (pas Cascade)
+  // sur supervisorId : si le compte parent est supprimé, l'enfant redevient
+  // simplement un compte normal non supervisé au lieu d'être supprimé avec lui.
+  // Un compte n'a qu'un seul superviseur à la fois, mais peut lui-même
+  // superviser plusieurs comptes (plusieurs enfants).
+  supervisorId    String?
+  supervisor      User?   @relation("Supervision", fields: [supervisorId], references: [id], onDelete: SetNull)
+  supervisedUsers User[]  @relation("Supervision")
+  // Qui peut m'ajouter à une conversation de groupe (vérifié dans
+  // createConversation) : "everyone" (par défaut, comportement inchangé),
+  // "contacts" (seulement quelqu'un avec qui j'ai déjà une conversation
+  // 1-à-1 existante), ou "noone" (jamais). Modifiable uniquement par le
+  // superviseur de ce compte (Contrôle parental) — pas par l'utilisateur
+  // lui-même, sans quoi la restriction n'en serait pas vraiment une.
+  restrictGroupAdd String @default("everyone")
+  parentLinkCodes  ParentLinkCode[]
+
   participations ConversationParticipant[]
   messages        Message[]
   callParticipations CallParticipant[]
@@ -78,6 +98,22 @@ model BlockedUser {
   blocked User @relation("BlockedRelation", fields: [blockedId], references: [id], onDelete: Cascade)
 
   @@unique([blockerId, blockedId])
+}
+
+// Code temporaire à 6 chiffres généré par un compte "parent" (Contrôle
+// parental) pour lier le compte d'un enfant au sien — même idée que OtpCode
+// (utils/otp.js) : code hashé nulle part ici volontairement (contrairement à
+// OtpCode) car il n'a besoin de protéger qu'une liaison entre deux comptes
+// déjà authentifiés, pas un accès non authentifié ; il expire vite (voir
+// parental.controller.js) et n'est utilisable qu'une fois (consumedAt).
+model ParentLinkCode {
+  id         String    @id @default(uuid())
+  code       String    @unique
+  parentId   String
+  parent     User      @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
 }
 
 model Conversation {
