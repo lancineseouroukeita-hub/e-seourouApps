@@ -497,15 +497,25 @@
   /* Call overlay */
   #callOverlay{position:fixed;inset:0;background:rgba(6,7,10,.95);display:none;flex-direction:column;z-index:100;}
   #callOverlay.show{display:flex;}
-  #callHeader{padding:14px 20px;color:var(--muted);font-size:13px;display:flex;justify-content:space-between;}
+  #callHeader{padding:14px 20px;color:var(--muted);font-size:13px;display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  #callHeaderInfo{display:flex;flex-direction:column;min-width:0;}
+  #callHeaderActions{display:flex;gap:10px;flex-shrink:0;}
+  #callHeaderActions button{width:34px;height:34px;border-radius:50%;border:none;font-size:15px;cursor:pointer;background:var(--panel2);color:white;display:flex;align-items:center;justify-content:center;}
   #videosGrid{flex:1;display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px;padding:0 20px;overflow:auto;align-content:start;}
   .videoTile{background:#000;border-radius:10px;overflow:hidden;position:relative;aspect-ratio:4/3;}
   .videoTile video{width:100%;height:100%;object-fit:cover;}
   .videoTile .label{position:absolute;bottom:6px;left:8px;font-size:12px;background:rgba(0,0,0,.55);padding:2px 8px;border-radius:10px;}
-  #callControls{padding:18px;display:flex;justify-content:center;gap:14px;}
+  #callControls{padding:18px;display:flex;justify-content:center;gap:14px;flex-wrap:wrap;}
   #callControls button{width:50px;height:50px;border-radius:50%;border:none;font-size:18px;cursor:pointer;background:var(--panel2);color:white;}
   #callControls button.hangup{background:var(--danger);}
   #callControls button.muted{background:var(--danger);}
+  #callControls button.active{background:var(--accent);}
+
+  /* Petite "pastille" flottante quand on quitte l'écran d'appel pour aller
+     discuter sans raccrocher (bouton 💬 ci-dessus) : rappelle que l'appel
+     continue en arrière-plan, et permet d'y revenir en un clic. */
+  #callMiniPill{position:fixed;top:14px;left:50%;transform:translateX(-50%);background:var(--accent);color:white;border:none;border-radius:20px;padding:8px 16px;font-size:12.5px;font-weight:600;display:none;align-items:center;gap:8px;cursor:pointer;z-index:99;box-shadow:0 6px 18px rgba(0,0,0,.35);}
+  #callMiniPill.show{display:flex;}
 
   /* ---------- Paramètres ---------- */
   #settingsBtn{background:var(--panel2);border:1px solid var(--border);font-size:15px;padding:5px 9px;}
@@ -679,17 +689,19 @@
   /* ---------- Communautés ---------- */
   .communityIcon{background:linear-gradient(135deg,#c98bf5,#a855f7);}
   #communitiesList .liSub{max-width:none;}
-  #communityComposerOverlay, #communityDetailOverlay, #communityAddMemberOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;}
-  #communityComposerOverlay.show, #communityDetailOverlay.show, #communityAddMemberOverlay.show{display:flex;}
+  #communityComposerOverlay, #communityDetailOverlay, #communityAddMemberOverlay, #callAddParticipantOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;}
+  #communityComposerOverlay.show, #communityDetailOverlay.show, #communityAddMemberOverlay.show, #callAddParticipantOverlay.show{display:flex;}
   /* Le détail d'une communauté peut rester ouvert "derrière" pendant qu'on
      crée un groupe ou qu'on ajoute un membre : ces deux-là doivent passer
      au-dessus (sinon les clics sont interceptés par l'écran du dessous). */
   #communityDetailOverlay{z-index:120;}
   #communityComposerOverlay, #communityAddMemberOverlay{z-index:125;}
-  #communityComposerCard, #communityDetailCard, #communityAddMemberCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
-  #communityComposerHeader, #communityDetailHeader, #communityAddMemberHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
-  #communityComposerHeader h2, #communityDetailHeader h2, #communityAddMemberHeader h2{margin:0;font-size:16px;}
-  #communityComposerHeader button, #communityDetailHeader button, #communityAddMemberHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #callAddParticipantOverlay{z-index:135;}
+  #communityComposerCard, #communityDetailCard, #communityAddMemberCard, #callAddParticipantCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #communityComposerHeader, #communityDetailHeader, #communityAddMemberHeader, #callAddParticipantHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #communityComposerHeader h2, #communityDetailHeader h2, #communityAddMemberHeader h2, #callAddParticipantHeader h2{margin:0;font-size:16px;}
+  #communityComposerHeader button, #communityDetailHeader button, #communityAddMemberHeader button, #callAddParticipantHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #callAddParticipantBody{padding:16px;overflow-y:auto;}
   #communityComposerBody, #communityDetailBody, #communityAddMemberBody{padding:16px;overflow-y:auto;}
   #communityNameInput, #communityDescInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;font-family:inherit;}
 
@@ -1110,14 +1122,38 @@
 
   <div id="callOverlay">
     <div id="callHeader">
-      <span id="callInfo">Appel en cours…</span>
-      <span id="callTimer">00:00</span>
+      <div id="callHeaderInfo">
+        <span id="callInfo">Appel en cours…</span>
+        <span id="callTimer">00:00</span>
+      </div>
+      <div id="callHeaderActions">
+        <button id="callAddParticipantBtn" title="Ajouter un participant">👤➕</button>
+        <button id="callOpenChatBtn" title="Discuter">💬</button>
+      </div>
     </div>
     <div id="videosGrid"></div>
     <div id="callControls">
-      <button id="toggleMicBtn" title="Micro">🎤</button>
       <button id="toggleCamBtn" title="Caméra">🎥</button>
+      <button id="toggleSpeakerBtn" title="Haut-parleur">🔊</button>
+      <button id="toggleMicBtn" title="Micro">🎤</button>
+      <button id="toggleScreenShareBtn" title="Partager l'écran">🖥️</button>
       <button class="hangup" id="hangupBtn" title="Raccrocher">☎</button>
+    </div>
+  </div>
+
+  <!-- Pastille flottante : appel toujours en cours, discussion ouverte par-dessus (voir #callOpenChatBtn). -->
+  <button id="callMiniPill" title="Revenir à l'appel">📞 <span id="callMiniPillTimer">00:00</span></button>
+
+  <!-- ---------- Appel en cours : ajouter un participant (parmi mes contacts) ---------- -->
+  <div id="callAddParticipantOverlay">
+    <div id="callAddParticipantCard">
+      <div id="callAddParticipantHeader">
+        <h2>Ajouter un participant</h2>
+        <button id="closeCallAddParticipantBtn" title="Fermer">✕</button>
+      </div>
+      <div id="callAddParticipantBody">
+        <div id="callAddParticipantList"></div>
+      </div>
     </div>
   </div>
 
@@ -1939,6 +1975,10 @@
   let callTimerInterval = null;
   let callBaseInfoText = '';
   let micEnabled = true, camEnabled = true;
+  let speakerOn = false;
+  let screenShareActive = false;
+  let cameraTrackBeforeShare = null; // piste caméra d'origine, remise en place quand on arrête le partage
+  let callPeerUserIds = {}; // socketId -> userId, des participants actuellement dans l'appel (pour l'écran "Ajouter un participant")
 
   // ---------- Sonnerie d'appel entrant ----------
   // Deux mécanismes en parallèle, pour maximiser les chances qu'au moins un
@@ -3364,6 +3404,7 @@
     socket.on('call:user-joined', async ({ callId, socketId, userId, name }) => {
       if (!currentCall || currentCall.callId !== callId) return;
       stopRingback(); // quelqu'un a décroché : fini d'attendre
+      callPeerUserIds[socketId] = userId;
       await createPeerConnection(socketId, name, true);
     });
 
@@ -5510,8 +5551,13 @@
       // Personne d'autre encore dans la room : c'est moi qui appelle et
       // personne n'a encore décroché — "retour d'appel" tant que ça sonne en
       // face (voir call:user-joined/call:declined plus bas, qui l'arrêtent).
-      if (!res.peers.length) startRingback();
+      // Le texte "Ça sonne…" reste visible même si le son de la tonalité est
+      // coupé par l'appareil (ex: iPhone en mode silencieux, qui bloque le son
+      // des pages web même quand l'app est installée) : on voit alors quand
+      // même que l'appel est bien parti, sans dépendre uniquement du son.
+      if (!res.peers.length) { startRingback(); updateCallInfoText('ça sonne…'); }
       for (const peer of res.peers) {
+        callPeerUserIds[peer.socketId] = peer.userId;
         await createPeerConnection(peer.socketId, peer.name, false);
       }
     });
@@ -5724,6 +5770,7 @@
     clearTimeout(disconnectTimers[socketId]);
     delete disconnectTimers[socketId];
     delete peerLastSeen[socketId];
+    delete callPeerUserIds[socketId];
     const tile = document.getElementById('tile-' + socketId);
     if (tile) tile.remove();
   }
@@ -5789,10 +5836,15 @@
     stopCallHeartbeat();
     if (currentCall) socket.emit('call:leave', { callId: currentCall.callId });
     Object.keys(peerConnections).forEach(removePeer);
+    if (cameraTrackBeforeShare) { cameraTrackBeforeShare.stop(); cameraTrackBeforeShare = null; }
     if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
     currentCall = null;
+    callPeerUserIds = {};
+    screenShareActive = false;
+    $('toggleScreenShareBtn').classList.remove('active');
     clearInterval(callTimerInterval);
     $('callOverlay').classList.remove('show');
+    $('callMiniPill').classList.remove('show');
     $('videosGrid').innerHTML = '';
   }
 
@@ -5807,6 +5859,164 @@
     camEnabled = !camEnabled;
     localStream.getVideoTracks().forEach((t) => t.enabled = camEnabled);
     $('toggleCamBtn').classList.toggle('muted', !camEnabled);
+  });
+
+  // ---------- Haut-parleur ----------
+  // Bascule la sortie audio des flux distants entre l'écouteur (par défaut) et
+  // le haut-parleur. Repose sur HTMLMediaElement.setSinkId(), qui n'existe
+  // que sur certains navigateurs (Chrome desktop/Android essentiellement) —
+  // pas sur Safari/iOS. Sans cette API, impossible de choisir la sortie audio
+  // depuis une page web : on le signale alors clairement plutôt que de laisser
+  // croire que le bouton ne fait rien.
+  async function toggleSpeaker() {
+    const supported = typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype.setSinkId;
+    if (!supported) {
+      alert('Le choix du haut-parleur n\'est pas proposé par ce navigateur (courant sur iPhone/Safari). Utilisez le bouton haut-parleur du téléphone lui-même pendant l\'appel.');
+      return;
+    }
+    speakerOn = !speakerOn;
+    $('toggleSpeakerBtn').classList.toggle('active', speakerOn);
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const outputs = devices.filter((d) => d.kind === 'audiooutput');
+      // Heuristique : sur Android Chrome, la sortie "haut-parleur" contient
+      // souvent ce mot dans son libellé ; à défaut, on retombe sur "default".
+      const speakerDevice = outputs.find((d) => /speaker|haut-parleur/i.test(d.label));
+      const sinkId = speakerOn ? (speakerDevice ? speakerDevice.id : '') : 'default';
+      document.querySelectorAll('#videosGrid video').forEach((v) => {
+        v.setSinkId(sinkId).catch((err) => console.warn('setSinkId a échoué :', err));
+      });
+    } catch (err) {
+      console.warn('Impossible de changer la sortie audio :', err);
+    }
+  }
+  $('toggleSpeakerBtn').addEventListener('click', toggleSpeaker);
+
+  // ---------- Partage d'écran ----------
+  // Remplace la piste vidéo envoyée aux autres participants par le flux de
+  // partage d'écran (getDisplayMedia), sans renégocier toute la connexion
+  // (RTCRtpSender.replaceTrack). Non disponible sur navigateurs mobiles
+  // (notamment Safari/iOS) : on le signale plutôt que d'échouer en silence.
+  async function toggleScreenShare() {
+    if (!currentCall) return;
+    if (screenShareActive) return stopScreenShare();
+
+    if (currentCall.type !== 'video') {
+      alert('Le partage d\'écran n\'est possible que pendant un appel vidéo.');
+      return;
+    }
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      alert('Le partage d\'écran n\'est pas disponible sur ce navigateur/appareil (non pris en charge sur iPhone).');
+      return;
+    }
+    try {
+      const screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      const screenTrack = screenStream.getVideoTracks()[0];
+      cameraTrackBeforeShare = localStream.getVideoTracks()[0] || null;
+
+      Object.values(peerConnections).forEach((pc) => {
+        const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+        if (sender) sender.replaceTrack(screenTrack);
+      });
+      if (cameraTrackBeforeShare) localStream.removeTrack(cameraTrackBeforeShare);
+      localStream.addTrack(screenTrack);
+      const localVideoEl = document.querySelector('#tile-local video');
+      if (localVideoEl) localVideoEl.srcObject = localStream;
+
+      screenShareActive = true;
+      $('toggleScreenShareBtn').classList.add('active');
+
+      // L'utilisateur peut arrêter le partage depuis le contrôle natif du
+      // navigateur (pas seulement notre bouton) : on doit réagir aussi à ça.
+      screenTrack.addEventListener('ended', () => { if (screenShareActive) stopScreenShare(); });
+    } catch (err) {
+      console.warn('Partage d\'écran annulé/impossible :', err);
+    }
+  }
+
+  function stopScreenShare() {
+    const currentVideoTrack = localStream && localStream.getVideoTracks()[0];
+    if (currentVideoTrack) {
+      Object.values(peerConnections).forEach((pc) => {
+        const sender = pc.getSenders().find((s) => s.track && s.track.kind === 'video');
+        if (sender && cameraTrackBeforeShare) sender.replaceTrack(cameraTrackBeforeShare);
+      });
+      localStream.removeTrack(currentVideoTrack);
+      currentVideoTrack.stop();
+    }
+    if (cameraTrackBeforeShare) {
+      localStream.addTrack(cameraTrackBeforeShare);
+      const localVideoEl = document.querySelector('#tile-local video');
+      if (localVideoEl) localVideoEl.srcObject = localStream;
+      cameraTrackBeforeShare = null;
+    }
+    screenShareActive = false;
+    $('toggleScreenShareBtn').classList.remove('active');
+  }
+  $('toggleScreenShareBtn').addEventListener('click', toggleScreenShare);
+
+  // ---------- Discuter pendant l'appel (façon WhatsApp) ----------
+  // Masque l'écran d'appel (l'appel continue en arrière-plan, rien n'est
+  // coupé) et ouvre la discussion correspondante ; une pastille flottante
+  // reste affichée pour revenir à l'écran d'appel en un clic.
+  $('callOpenChatBtn').addEventListener('click', () => {
+    if (!currentCall) return;
+    $('callOverlay').classList.remove('show');
+    $('callMiniPill').classList.add('show');
+    openConversation(currentCall.conversationId);
+  });
+  $('callMiniPill').addEventListener('click', () => {
+    if (!currentCall) return;
+    $('callMiniPill').classList.remove('show');
+    $('callOverlay').classList.add('show');
+  });
+  // Le petit chronomètre de la pastille reprend celui de l'appel (même
+  // intervalle #callTimer, voir openCallOverlay) pour rester synchronisé.
+  setInterval(() => {
+    if ($('callMiniPill').classList.contains('show')) {
+      $('callMiniPillTimer').textContent = $('callTimer').textContent;
+    }
+  }, 1000);
+
+  // ---------- Ajouter un participant à un appel en cours ----------
+  // Invite quelqu'un (parmi mes contacts) à rejoindre l'appel déjà en cours,
+  // qu'il s'agisse d'un appel à deux (devient alors un appel de groupe
+  // improvisé) ou d'un appel de groupe existant. Le serveur (voir
+  // signaling.js, "call:invite") l'ajoute d'abord comme participant de la
+  // conversation si besoin, puis lui envoie une notification d'appel entrant
+  // pour CE MÊME appel (callId inchangé) : à l'acceptation, il rejoint
+  // directement la même room WebRTC que tout le monde.
+  async function openCallAddParticipant() {
+    if (!currentCall) return;
+    try { await loadContacts(); } catch (e) { /* tant pis, liste déjà en mémoire */ }
+    const invitedIds = new Set(Object.values(callPeerUserIds));
+    invitedIds.add(me.id);
+    const candidates = contactAccounts().filter((u) => !invitedIds.has(u.id));
+    const el = $('callAddParticipantList');
+    el.innerHTML = '';
+    if (!candidates.length) {
+      el.innerHTML = `<div class="comingSoon">Aucun contact à ajouter pour l'instant.</div>`;
+    } else {
+      candidates.forEach((u) => {
+        const row = document.createElement('div');
+        row.className = 'listItem';
+        row.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl)}<div class="liText"><div class="liName">${escapeHtml(u.name)}</div></div>`;
+        row.addEventListener('click', () => {
+          socket.emit('call:invite', { callId: currentCall.callId, conversationId: currentCall.conversationId, targetUserId: u.id });
+          closeCallAddParticipant();
+        });
+        el.appendChild(row);
+      });
+    }
+    $('callAddParticipantOverlay').classList.add('show');
+  }
+  function closeCallAddParticipant() {
+    $('callAddParticipantOverlay').classList.remove('show');
+  }
+  $('callAddParticipantBtn').addEventListener('click', openCallAddParticipant);
+  $('closeCallAddParticipantBtn').addEventListener('click', closeCallAddParticipant);
+  $('callAddParticipantOverlay').addEventListener('click', (e) => {
+    if (e.target === $('callAddParticipantOverlay')) closeCallAddParticipant();
   });
 
   // ---------- Photo de profil ----------

@@ -1,5 +1,6 @@
 ﻿const prisma = require('../config/prisma');
 const { roomName } = require('./chat');
+const { userRoomName } = require('../utils/rooms');
 const { sendPushToUser } = require('../utils/push');
 const { isBlockedBetween } = require('../utils/blocking');
 
@@ -189,6 +190,57 @@ function registerSignalingHandlers(io, socket) {
   socket.on('call:decline', ({ callId }) => {
     if (!callId) return;
     io.to(callRoomName(callId)).emit('call:declined', { callId, userId });
+  });
+
+  // Invite quelqu'un à rejoindre un appel DÉJÀ en cours (bouton "Ajouter un
+  // participant" côté client) : l'ajoute d'abord comme participant de la
+  // conversation si besoin (sinon call:join le refuserait), puis lui envoie
+  // une invitation d'appel entrant pour ce MÊME callId — à l'acceptation, il
+  // rejoint directement la même room WebRTC que tout le monde. Seul quelqu'un
+  // déjà dans l'appel peut inviter (vérifié via activeCalls, pas juste "est
+  // participant de la conversation").
+  socket.on('call:invite', async ({ callId, conversationId, targetUserId }) => {
+    if (!callId || !conversationId || !targetUserId) return;
+    try {
+      const room = activeCalls.get(callId);
+      if (!room || !room.has(socket.id)) return;
+
+      const call = await prisma.call.findUnique({ where: { id: callId } });
+      if (!call) return;
+
+      const alreadyParticipant = await prisma.conversationParticipant.findUnique({
+        where: { conversationId_userId: { conversationId, userId: targetUserId } },
+      });
+      if (!alreadyParticipant) {
+        await prisma.conversationParticipant.create({ data: { conversationId, userId: targetUserId } });
+
+        // Un appel à deux qui accueille un troisième participant devient de
+        // fait un appel de groupe : on le reflète sur la conversation elle-même,
+        // sinon l'interface continuerait d'afficher le nom de l'ancien
+        // correspondant unique au lieu de "Groupe".
+        const participantCount = await prisma.conversationParticipant.count({ where: { conversationId } });
+        if (participantCount > 2) {
+          await prisma.conversation.update({ where: { id: conversationId }, data: { isGroup: true } }).catch(() => null);
+        }
+      }
+
+      io.to(userRoomName(targetUserId)).emit('call:incoming', {
+        callId,
+        conversationId,
+        type: call.type,
+        from: { id: userId, name: userName },
+      });
+
+      sendPushToUser(targetUserId, {
+        title: call.type === 'video' ? 'Appel vidéo entrant' : 'Appel audio entrant',
+        body: userName,
+        tag: 'call:' + conversationId,
+        requireInteraction: true,
+        data: { type: 'call', conversationId },
+      }).catch((err) => console.error('push notify (call:invite) error:', err));
+    } catch (err) {
+      console.error('call:invite error:', err);
+    }
   });
 
   // Raccrochage volontaire (bouton "Raccrocher") : immédiat, jamais retardé.
