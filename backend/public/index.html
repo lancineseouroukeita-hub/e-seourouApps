@@ -5837,8 +5837,13 @@
   }
 
   // ---------- Administration (visible uniquement pour un compte administrateur) ----------
+  // Désactivée côté interface sur demande : plus personne ne voit cette
+  // section dans Paramètres, quel que soit son compte. L'API /api/admin/*
+  // reste inchangée côté serveur (toujours gardée par requireAdmin) ; pour
+  // réactiver l'écran plus tard, il suffit de remettre la ligne
+  // "Boolean(me && me.isAdmin)" ci-dessous.
   function refreshAdminSection() {
-    const isAdmin = Boolean(me && me.isAdmin);
+    const isAdmin = false; // désactivé — voir commentaire ci-dessus
     $('adminSection').style.display = isAdmin ? 'block' : 'none';
     if (!isAdmin) return;
     $('adminUserSearchInput').value = '';
