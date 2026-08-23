@@ -5948,7 +5948,7 @@
   async function toggleSpeaker() {
     const supported = typeof HTMLMediaElement !== 'undefined' && HTMLMediaElement.prototype.setSinkId;
     if (!supported) {
-      alert('Le choix du haut-parleur n\'est pas proposé par ce navigateur (courant sur iPhone/Safari). Utilisez le bouton haut-parleur du téléphone lui-même pendant l\'appel.');
+      alert('Le haut-parleur ne peut pas être activé depuis le navigateur sur iPhone : c\'est une limitation de Safari (même WhatsApp Web y est soumis), pas de seourouApps. En général, le son passe déjà par le haut-parleur principal pendant l\'appel dans Safari. Sinon, essayez un casque ou une enceinte Bluetooth. Ce réglage sera pleinement disponible dans la version app du Store.');
       return;
     }
     speakerOn = !speakerOn;
