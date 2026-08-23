@@ -693,6 +693,31 @@
   #communityComposerBody, #communityDetailBody, #communityAddMemberBody{padding:16px;overflow-y:auto;}
   #communityNameInput, #communityDescInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;font-family:inherit;}
 
+  /* Écran d'introduction avant de créer une communauté (façon WhatsApp) :
+     une simple carte illustrée, pas de formulaire — "Démarrer" ouvre ensuite
+     le vrai formulaire (#communityComposerOverlay). */
+  #communityIntroOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:126;}
+  #communityIntroOverlay.show{display:flex;}
+  #communityIntroCard{position:relative;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:380px;max-width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 12px 40px rgba(0,0,0,.5);padding:28px 22px 22px;text-align:center;}
+  #closeCommunityIntroBtn{position:absolute;top:12px;right:12px;background:var(--panel2);border:none;color:var(--muted);width:30px;height:30px;border-radius:50%;font-size:15px;cursor:pointer;}
+  #communityIntroIllustration{display:grid;grid-template-columns:1fr 1fr;gap:10px;background:var(--panel2);border-radius:16px;padding:22px;margin:0 auto 18px;width:180px;font-size:32px;}
+  #communityIntroCard h2{margin:0 0 10px;font-size:19px;}
+  #communityIntroCard p{margin:0 0 14px;font-size:13.5px;color:var(--muted);line-height:1.5;}
+  #communityIntroCard .linkBtn{display:block;width:100%;background:none;border:none;color:var(--accent);font-size:13.5px;font-weight:600;cursor:pointer;margin-bottom:16px;padding:4px;}
+  #communityIntroCard .linkBtn:hover{text-decoration:underline;}
+  #communityIntroStartBtn{width:100%;background:var(--accent);border:none;color:white;border-radius:24px;padding:12px 14px;cursor:pointer;font-size:15px;font-weight:700;}
+  #communityIntroStartBtn:hover{background:var(--accent2);}
+
+  /* ---------- Communautés : liste (aperçu par communauté, façon WhatsApp) ---------- */
+  .communityListSection{margin-bottom:14px;}
+  .communityListHeader{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px 2px;}
+  .communityListName{font-size:16.5px;font-weight:700;}
+  .communityListSeeAll{flex-shrink:0;background:var(--panel2);border:none;color:var(--text);border-radius:16px;padding:6px 14px;font-size:12.5px;font-weight:600;cursor:pointer;text-decoration:underline;}
+  .communityPreviewRow .liSub{max-width:none;}
+  .communityPreviewMeta{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex-shrink:0;margin-left:6px;}
+  .communityPreviewDate{font-size:11px;color:var(--muted);white-space:nowrap;}
+  .communityPinIcon{font-size:11px;}
+
   /* ---------- Transfert de message : modale de sélection des discussions ---------- */
   #forwardOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;z-index:125;}
   #forwardOverlay.show{display:flex;}
@@ -1350,6 +1375,22 @@
       <div id="statusViewerTapRight"></div>
     </div>
     <div id="statusViewerViewsRow" style="display:none;"></div>
+  </div>
+
+  <!-- ---------- Communautés : introduction avant création, façon WhatsApp ----------
+       Uniquement pour une NOUVELLE communauté (pas pour "Nouveau groupe" dans
+       une communauté existante, voir addCommunityBtn/openCommunityIntro). -->
+  <div id="communityIntroOverlay">
+    <div id="communityIntroCard">
+      <button id="closeCommunityIntroBtn" title="Fermer">✕</button>
+      <div id="communityIntroIllustration">
+        <span>👥</span><span>📝</span><span>📣</span><span>🍎</span>
+      </div>
+      <h2>Créer une nouvelle communauté</h2>
+      <p>Rassemblez vos voisins, un groupe scolaire ou autres. Créez des groupes en fonction de sujets spécifiques pour les membres et, en tant qu'admin, envoyez en toute facilité vos annonces.</p>
+      <button id="communityIntroExamplesBtn" class="linkBtn">Voir des exemples de communautés</button>
+      <button id="communityIntroStartBtn">Démarrer</button>
+    </div>
   </div>
 
   <!-- ---------- Communautés : création (ou nouveau groupe) ---------- -->
@@ -2105,6 +2146,20 @@
     return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
   }
 
+  // Date/heure façon WhatsApp pour un aperçu (liste des communautés) : l'heure
+  // si c'est aujourd'hui, le jour de la semaine si c'était dans les 6 derniers
+  // jours, sinon la date complète.
+  function formatPreviewDate(iso) {
+    const d = new Date(iso);
+    const now = new Date();
+    const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    const diffDays = Math.round((startOfToday - startOfDate) / 86400000);
+    if (diffDays <= 0) return fmtTime(d);
+    if (diffDays < 7) return d.toLocaleDateString('fr-FR', { weekday: 'long' });
+    return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+
   async function api(path, opts = {}) {
     const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
     if (token) headers['Authorization'] = 'Bearer ' + token;
@@ -2801,6 +2856,12 @@
     }
   }
 
+  // Façon WhatsApp : chaque communauté est un bloc avec son nom + "Voir tout"
+  // en en-tête, suivi d'un aperçu de ses groupes (Annonces toujours en
+  // premier, épinglée) avec le dernier message et sa date — pas juste une
+  // ligne "N groupes · M membres" comme avant. Le texte/date de chaque aperçu
+  // vient de la conversation déjà chargée (voir loadConversations) : pas de
+  // nouvel appel réseau, on réutilise ce qu'on a déjà pour la liste Discussions.
   function renderCommunitiesList() {
     const el = $('communitiesList');
     el.innerHTML = '';
@@ -2809,14 +2870,37 @@
       return;
     }
     communitiesData.forEach((c) => {
-      const row = document.createElement('div');
-      row.className = 'listItem';
-      row.innerHTML = `
-        <div class="avatar communityIcon">${escapeHtml(initials(c.name))}</div>
-        <div class="liText"><div class="liName">${escapeHtml(c.name)}</div><div class="liSub">${c.groups.length} groupe${c.groups.length > 1 ? 's' : ''} · ${c.memberCount} membre${c.memberCount > 1 ? 's' : ''}</div></div>
-      `;
-      row.addEventListener('click', () => openCommunityDetail(c.id));
-      el.appendChild(row);
+      const section = document.createElement('div');
+      section.className = 'communityListSection';
+
+      const header = document.createElement('div');
+      header.className = 'communityListHeader';
+      header.innerHTML = `<div class="communityListName">${escapeHtml(c.name)}</div><button class="communityListSeeAll">Voir tout</button>`;
+      header.querySelector('.communityListSeeAll').addEventListener('click', () => openCommunityDetail(c.id));
+      section.appendChild(header);
+
+      const orderedGroups = [...c.groups].sort((a, b) => (b.isAnnouncement ? 1 : 0) - (a.isAnnouncement ? 1 : 0));
+      orderedGroups.slice(0, 3).forEach((g) => {
+        const conv = conversations.find((x) => x.id === g.conversationId);
+        const preview = conv && conv.lastMessage
+          ? escapeHtml(conv.lastMessage.content)
+          : (g.isAnnouncement ? 'Aucune annonce pour l\'instant.' : 'Aucun message pour l\'instant.');
+        const dateLabel = conv && conv.lastMessage ? formatPreviewDate(conv.lastMessage.createdAt) : '';
+        const row = document.createElement('div');
+        row.className = 'listItem communityPreviewRow';
+        row.innerHTML = `
+          <div class="avatar communityIcon">${g.isAnnouncement ? '📢' : escapeHtml(initials(g.name || c.name))}</div>
+          <div class="liText"><div class="liName">${escapeHtml(g.name || c.name)}</div><div class="liSub">${preview}</div></div>
+          <div class="communityPreviewMeta">
+            ${dateLabel ? `<span class="communityPreviewDate">${escapeHtml(dateLabel)}</span>` : ''}
+            ${g.isAnnouncement ? '<span class="communityPinIcon">📌</span>' : ''}
+          </div>
+        `;
+        row.addEventListener('click', () => openCommunityConversation(g.conversationId));
+        section.appendChild(row);
+      });
+
+      el.appendChild(section);
     });
   }
 
@@ -2881,7 +2965,31 @@
     $('communityComposerOverlay').classList.remove('show');
   }
 
-  $('addCommunityBtn').addEventListener('click', openCommunityComposer);
+  // ----- Introduction avant création (façon WhatsApp) -----
+  // Le "+" ouvre d'abord cet écran d'explication, "Démarrer" seulement ouvre
+  // ensuite le vrai formulaire. Ne s'applique qu'à une NOUVELLE communauté :
+  // "Nouveau groupe" (dans une communauté existante, voir addCommunityGroupBtn)
+  // va toujours directement au formulaire, pas besoin de le réexpliquer.
+  function openCommunityIntro() {
+    $('communityIntroOverlay').classList.add('show');
+  }
+  function closeCommunityIntro() {
+    $('communityIntroOverlay').classList.remove('show');
+  }
+
+  $('addCommunityBtn').addEventListener('click', openCommunityIntro);
+  $('closeCommunityIntroBtn').addEventListener('click', closeCommunityIntro);
+  $('communityIntroOverlay').addEventListener('click', (e) => {
+    if (e.target === $('communityIntroOverlay')) closeCommunityIntro();
+  });
+  $('communityIntroStartBtn').addEventListener('click', () => {
+    closeCommunityIntro();
+    openCommunityComposer();
+  });
+  $('communityIntroExamplesBtn').addEventListener('click', () => {
+    alert('Exemples de communautés : bientôt disponible.');
+  });
+
   $('closeCommunityComposerBtn').addEventListener('click', closeCommunityComposer);
   $('communityComposerOverlay').addEventListener('click', (e) => {
     if (e.target === $('communityComposerOverlay')) closeCommunityComposer();

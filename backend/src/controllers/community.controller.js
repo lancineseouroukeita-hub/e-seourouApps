@@ -170,6 +170,9 @@ async function addCommunityMember(req, res) {
     const role = await myRole(communityId, userId);
     if (role !== 'admin') return res.status(403).json({ error: 'Seuls les admins peuvent ajouter des membres.' });
 
+    const newUser = await prisma.user.findUnique({ where: { id: newUserId }, select: { name: true } });
+    if (!newUser) return res.status(404).json({ error: 'Utilisateur introuvable.' });
+
     await prisma.communityMember.upsert({
       where: { communityId_userId: { communityId, userId: newUserId } },
       update: {},
@@ -182,6 +185,20 @@ async function addCommunityMember(req, res) {
         where: { conversationId_userId: { conversationId: announcement.id, userId: newUserId } },
         update: {},
         create: { conversationId: announcement.id, userId: newUserId },
+      });
+
+      // Petit message "système" (comme WhatsApp) : sert d'aperçu dans la liste
+      // des communautés (voir renderCommunitiesList côté client) même avant le
+      // premier vrai message envoyé, et laisse une trace de qui a ajouté qui.
+      // type "system" : previewLabel (conversation.controller.js) l'affiche
+      // tel quel, comme n'importe quel texte, pas besoin d'y toucher.
+      await prisma.message.create({
+        data: {
+          conversationId: announcement.id,
+          senderId: userId,
+          type: 'system',
+          content: `${req.user.name} a ajouté ${newUser.name} au groupe.`,
+        },
       });
 
       // Le nouveau membre doit voir apparaître le groupe d'annonces dans ses
@@ -214,6 +231,8 @@ async function removeCommunityMember(req, res) {
       return res.status(403).json({ error: 'Seuls les admins peuvent retirer d\'autres membres.' });
     }
 
+    const removedUser = await prisma.user.findUnique({ where: { id: memberUserId }, select: { name: true } });
+
     await prisma.communityMember.delete({
       where: { communityId_userId: { communityId, userId: memberUserId } },
     }).catch(() => null);
@@ -230,6 +249,25 @@ async function removeCommunityMember(req, res) {
       await prisma.conversationParticipant.deleteMany({
         where: { conversationId: { in: communityConversations.map((c) => c.id) }, userId: memberUserId },
       });
+    }
+
+    // Petit message "système" (comme pour l'ajout ci-dessus) : posté APRÈS
+    // avoir retiré tout le monde des conversations, donc uniquement visible
+    // par ceux qui restent — la personne retirée ne le voit jamais.
+    if (removedUser) {
+      const announcement = await prisma.conversation.findFirst({ where: { communityId, isAnnouncement: true } });
+      if (announcement) {
+        await prisma.message.create({
+          data: {
+            conversationId: announcement.id,
+            senderId: userId,
+            type: 'system',
+            content: memberUserId === userId
+              ? `${removedUser.name} a quitté le groupe.`
+              : `${req.user.name} a retiré ${removedUser.name} du groupe.`,
+          },
+        });
+      }
     }
     return res.json({ ok: true });
   } catch (err) {
