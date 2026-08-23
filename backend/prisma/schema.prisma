@@ -83,6 +83,11 @@ model User {
   // Messages que j'ai choisi de "supprimer pour moi seulement" (menu d'appui
   // long) : masqués uniquement de mon côté, voir Message.hiddenFor.
   hiddenMessages MessageHiddenForUser[]
+  // Mon répertoire de contacts (voir modèle Contact ci-dessous) : numéros
+  // importés depuis mon téléphone ou ajoutés à la main. Détermine qui
+  // apparaît dans "Nouvelle discussion" et dans le sélecteur de membres d'un
+  // groupe/communauté — jamais tous les comptes de l'appli, comme WhatsApp.
+  contacts Contact[]
 }
 
 // Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
@@ -114,6 +119,27 @@ model ParentLinkCode {
   expiresAt  DateTime
   consumedAt DateTime?
   createdAt  DateTime  @default(now())
+}
+
+// Répertoire personnel de contacts (écran "Nouvelle discussion", sélecteur de
+// membres d'un groupe/communauté) : comme WhatsApp, on ne voit dans sa liste
+// que les personnes dont on a le numéro — importé depuis le répertoire du
+// téléphone via le Contact Picker du navigateur, ou ajouté à la main (voir
+// contact.controller.js). Le numéro est stocké normalisé (voir
+// utils/phone.js) ; la correspondance avec un compte existant sur l'appli se
+// fait par comparaison de numéro À LA LECTURE (pas de copie ici), pour qu'un
+// contact apparaisse automatiquement dès qu'il crée son compte plus tard,
+// sans avoir besoin de le réimporter.
+model Contact {
+  id        String   @id @default(uuid())
+  ownerId   String
+  owner     User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  phone     String   // numéro normalisé (ex: "+224621000000")
+  label     String?  // nom tel qu'il apparaît dans le répertoire du téléphone, ou saisi à la main
+  createdAt DateTime @default(now())
+
+  @@unique([ownerId, phone])
+  @@index([phone])
 }
 
 model Conversation {

@@ -716,6 +716,9 @@
   #newChatHeader h2{margin:0;font-size:16px;}
   #newChatHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
   #newChatBody{padding:16px;overflow-y:auto;}
+  #newChatActions{margin:-4px 0 8px;border-bottom:1px solid var(--border);padding-bottom:4px;}
+  .newChatActionRow{margin:0 -16px;padding:9px 16px;}
+  .newChatActionIcon{background:var(--panel2);font-size:16px;}
   #newChatSearchInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:8px;font-family:inherit;}
   #newChatList .listItem{cursor:pointer;}
   #newChatEmpty{padding:16px;text-align:center;color:var(--muted);font-size:13px;}
@@ -1415,7 +1418,21 @@
         <button id="closeNewChatBtn" title="Fermer">✕</button>
       </div>
       <div id="newChatBody">
-        <input id="newChatSearchInput" type="text" placeholder="Rechercher par nom ou numéro">
+        <!-- Comme WhatsApp : impossible de parcourir tous les comptes de
+             l'appli. Il faut soit importer ses contacts du téléphone (Contact
+             Picker du navigateur), soit connaître et taper le numéro de la
+             personne — voir importPhoneContacts()/addContactByPhonePrompt(). -->
+        <div id="newChatActions">
+          <div class="listItem newChatActionRow" id="importContactsBtn">
+            <div class="avatar newChatActionIcon">📇</div>
+            <div class="liText"><div class="liName">Importer mes contacts</div><div class="liSub">Depuis le répertoire de votre téléphone</div></div>
+          </div>
+          <div class="listItem newChatActionRow" id="addContactByPhoneBtn">
+            <div class="avatar newChatActionIcon">➕</div>
+            <div class="liText"><div class="liName">Ajouter un contact</div><div class="liSub">Par numéro de téléphone</div></div>
+          </div>
+        </div>
+        <input id="newChatSearchInput" type="text" placeholder="Rechercher parmi mes contacts">
         <div id="newChatList"></div>
       </div>
     </div>
@@ -1657,6 +1674,15 @@
   let socket = null;
   let conversations = [];
   let users = [];
+  // Mon répertoire de contacts (voir loadContacts/contactAccounts plus bas) :
+  // numéros importés depuis mon téléphone ou ajoutés à la main, chacun avec
+  // (s'il existe) le compte de l'appli correspondant. Contrairement à "users"
+  // (tous les comptes, gardé en interne pour retrouver les infos de quelqu'un
+  // avec qui je discute déjà — voir toggleBlockUser plus bas), c'est CETTE
+  // liste qui pilote "Nouvelle discussion" et la composition d'un
+  // groupe/communauté : comme WhatsApp, je ne dois voir que les personnes
+  // dont j'ai le numéro.
+  let contacts = [];
   let activeConversationId = null;
   let messagesByConv = {}; // conversationId -> [messages]
   // Si l'app a été ouverte depuis une notification (clic sur "nouveau message"/"appel
@@ -2227,6 +2253,7 @@
     // (liste des utilisateurs, discussions déjà envoyées) doit rester utilisable.
     try { connectSocket(); } catch (err) { console.error('connectSocket a échoué :', err); setStatus(false, 'Connexion temps réel indisponible'); }
     loadUsers();
+    loadContacts();
     loadConversations();
     setupPushNotifications();
     clearNotificationsAndBadge();
@@ -2236,7 +2263,7 @@
   $('logoutBtn').addEventListener('click', () => {
     if (socket) socket.disconnect();
     token = null; me = null; activeConversationId = null;
-    conversations = []; users = []; messagesByConv = {};
+    conversations = []; users = []; contacts = []; messagesByConv = {};
     // lockedChatsUnlocked est propre à la personne connectée : sans ça, un
     // autre compte connecté ensuite sur ce même appareil verrait directement
     // ses "Discussions verrouillées" sans jamais redemander de mot de passe.
@@ -2712,12 +2739,19 @@
 
   // ----- Composition (création de communauté OU nouveau groupe dans une communauté) -----
   async function renderMemberPicker() {
-    // On recharge la liste des utilisateurs à chaque ouverture (et pas une
-    // seule fois à la connexion) pour inclure les comptes créés depuis.
-    try { await loadUsers(); } catch (e) { /* tant pis, on affiche la liste déjà en mémoire */ }
+    // On recharge mes contacts à chaque ouverture (et pas une seule fois à la
+    // connexion) pour inclure ceux importés/ajoutés depuis. Comme WhatsApp, on
+    // ne peut composer un groupe/une communauté qu'avec ses propres contacts,
+    // pas avec n'importe quel compte de l'appli (voir contactAccounts()).
+    try { await loadContacts(); } catch (e) { /* tant pis, on affiche la liste déjà en mémoire */ }
     const el = $('communityMemberPicker');
     el.innerHTML = '';
-    users.forEach((u) => {
+    const accounts = contactAccounts();
+    if (!accounts.length) {
+      el.innerHTML = '<div class="emptyHint">Aucun de vos contacts n\'utilise encore l\'application. Ajoutez-en depuis "Nouvelle discussion".</div>';
+      return;
+    }
+    accounts.forEach((u) => {
       const row = document.createElement('label');
       row.className = 'memberPickerRow';
       const checked = communityComposerSelected.has(u.id);
@@ -3170,6 +3204,81 @@
       users = data.users;
       renderUserList();
     } catch (err) { console.error(err); }
+  }
+
+  // ---------- Contacts (répertoire personnel, comme WhatsApp) ----------
+  async function loadContacts() {
+    try {
+      const data = await api('/api/contacts');
+      contacts = data.contacts;
+    } catch (err) { console.error(err); }
+  }
+
+  // Comptes de l'application correspondant à mes contacts enregistrés
+  // (importés du téléphone ou ajoutés à la main) : c'est cette liste — jamais
+  // tous les comptes de l'appli — qui alimente "Nouvelle discussion" et la
+  // composition d'un groupe/communauté. Si je n'ai pas le numéro de
+  // quelqu'un, il ne doit apparaître nulle part ici, même s'il utilise
+  // l'application.
+  function contactAccounts() {
+    return contacts.filter((c) => c.matchedUser).map((c) => c.matchedUser);
+  }
+
+  // Importe des contacts depuis le répertoire du téléphone via le Contact
+  // Picker du navigateur (API standard, disponible sur Chrome Android — pas
+  // encore sur iOS Safari ni sur desktop). C'est l'équivalent le plus proche,
+  // pour une PWA, de la synchronisation automatique des contacts de WhatsApp
+  // (une vraie appli native peut lire tout le répertoire sans interaction ;
+  // un navigateur ne peut qu'ouvrir ce sélecteur natif et récupérer
+  // uniquement ce que la personne choisit explicitement d'y partager).
+  async function importPhoneContacts() {
+    if (!('contacts' in navigator) || !('ContactsManager' in window)) {
+      alert('Votre navigateur ne permet pas d\'importer automatiquement les contacts du téléphone (disponible sur Chrome Android). Utilisez "Ajouter un contact" pour ajouter un numéro à la main.');
+      return;
+    }
+    try {
+      const picked = await navigator.contacts.select(['name', 'tel'], { multiple: true });
+      if (!picked || !picked.length) return;
+      const payload = picked
+        .map((p) => ({ name: (p.name && p.name[0]) || '', phones: Array.isArray(p.tel) ? p.tel : [] }))
+        .filter((p) => p.phones.length);
+      if (!payload.length) {
+        alert('Aucun numéro de téléphone trouvé dans la sélection.');
+        return;
+      }
+      const data = await api('/api/contacts/import', { method: 'POST', body: JSON.stringify({ contacts: payload }) });
+      contacts = data.contacts;
+      renderNewChatList($('newChatSearchInput').value);
+      alert(`${data.imported} numéro(s) importé(s) dans vos contacts.`);
+    } catch (err) {
+      if (err && err.name === 'AbortError') return; // sélection annulée par la personne
+      console.error(err);
+      alert('Erreur lors de l\'import des contacts : ' + err.message);
+    }
+  }
+
+  // Ajoute un contact à la main en tapant son numéro : cas où je connais le
+  // numéro de quelqu'un sans l'avoir dans le répertoire de mon téléphone, ou
+  // pas d'accès au Contact Picker sur ce navigateur/appareil (voir
+  // importPhoneContacts ci-dessus). Comme pour "addFilterBtn" plus haut, on
+  // reste sur un simple prompt() plutôt qu'un nouveau petit formulaire dédié.
+  async function addContactByPhonePrompt() {
+    const phone = (prompt('Numéro de téléphone du contact (avec l\'indicatif, ex: +224621000000) :') || '').trim();
+    if (!phone) return;
+    const name = (prompt('Nom pour ce contact (facultatif) :') || '').trim();
+    try {
+      const data = await api('/api/contacts', { method: 'POST', body: JSON.stringify({ phone, name: name || undefined }) });
+      const idx = contacts.findIndex((c) => c.id === data.contact.id);
+      if (idx >= 0) contacts[idx] = data.contact; else contacts.unshift(data.contact);
+      renderNewChatList($('newChatSearchInput').value);
+      if (data.contact.matchedUser) {
+        alert('Contact ajouté : ' + data.contact.matchedUser.name);
+      } else {
+        alert('Contact enregistré. Il n\'a pas encore de compte sur l\'application — il apparaîtra ici automatiquement dès qu\'il s\'inscrira avec ce numéro.');
+      }
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
   }
 
   async function loadConversations() {
@@ -3882,22 +3991,24 @@
   $('sidebarMenuDevices').addEventListener('click', () => { closeSidebarMenu(); alert('Appareils connectés : bientôt disponible.'); });
   $('sidebarMenuSettings').addEventListener('click', () => { closeSidebarMenu(); $('settingsBtn').click(); });
 
-  // "+" : ouvre l'écran "Nouvelle discussion" (recherche parmi les comptes
-  // déjà créés sur l'appli, par nom ou numéro de téléphone) — remplace
-  // l'ancien message "arrive bientôt". La liste "Autres utilisateurs" pleine
-  // largeur (#userList, réglages) reste masquée par ailleurs : ici on affiche
-  // la même liste, mais dans une fenêtre de recherche dédiée.
+  // "+" : ouvre l'écran "Nouvelle discussion" (recherche parmi MES contacts
+  // qui utilisent déjà l'appli, par nom ou numéro) — jamais parmi tous les
+  // comptes créés sur l'appli, exactement comme WhatsApp : si je n'ai pas le
+  // numéro de quelqu'un dans mes contacts (importés ou ajoutés à la main), je
+  // ne dois pas le voir ici, même s'il utilise l'application (voir
+  // contactAccounts(), importPhoneContacts(), addContactByPhonePrompt()).
   function renderNewChatList(filterText) {
     const el = $('newChatList');
     const q = (filterText || '').trim().toLowerCase();
-    const filtered = !q ? users : users.filter((u) =>
+    const accounts = contactAccounts();
+    const filtered = !q ? accounts : accounts.filter((u) =>
       (u.name || '').toLowerCase().includes(q) || (u.phone || '').toLowerCase().includes(q)
     );
     el.innerHTML = '';
     if (!filtered.length) {
-      el.innerHTML = `<div id="newChatEmpty">${users.length
+      el.innerHTML = `<div id="newChatEmpty">${accounts.length
         ? 'Aucun contact ne correspond à cette recherche.'
-        : 'Personne d\'autre n\'a encore créé de compte sur l\'application.<br>Partagez le lien de l\'appli pour que d\'autres puissent s\'inscrire.'}</div>`;
+        : 'Aucun de vos contacts n\'utilise encore l\'application.<br>Importez vos contacts ou ajoutez un numéro ci-dessus pour commencer.'}</div>`;
       return;
     }
     filtered.forEach((u) => {
@@ -3914,9 +4025,9 @@
     $('newChatSearchInput').value = '';
     $('newChatList').innerHTML = '<div id="newChatEmpty">Chargement…</div>';
     $('newChatOverlay').classList.add('show');
-    // On recharge la liste à chaque ouverture pour inclure les comptes créés
-    // depuis la dernière connexion (comme pour renderMemberPicker).
-    try { await loadUsers(); } catch (e) { /* tant pis, on affiche la liste déjà en mémoire */ }
+    // On recharge mes contacts à chaque ouverture pour inclure ceux
+    // importés/ajoutés depuis la dernière connexion (comme pour renderMemberPicker).
+    try { await loadContacts(); } catch (e) { /* tant pis, on affiche la liste déjà en mémoire */ }
     renderNewChatList('');
     setTimeout(() => $('newChatSearchInput').focus(), 50);
   }
@@ -3929,6 +4040,8 @@
   $('closeNewChatBtn').addEventListener('click', closeNewChat);
   $('newChatOverlay').addEventListener('click', (e) => { if (e.target === $('newChatOverlay')) closeNewChat(); });
   $('newChatSearchInput').addEventListener('input', (e) => renderNewChatList(e.target.value));
+  $('importContactsBtn').addEventListener('click', importPhoneContacts);
+  $('addContactByPhoneBtn').addEventListener('click', addContactByPhonePrompt);
 
   $('sidebarCameraBtn').addEventListener('click', () => {
     if (!activeConversationId) return alert('Ouvrez une discussion avant d\'envoyer une photo.');

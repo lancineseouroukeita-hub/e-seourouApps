@@ -3,20 +3,9 @@ const prisma = require('../config/prisma');
 const { signToken } = require('../utils/jwt');
 const { createAndSendOtp, verifyOtp } = require('../utils/otp');
 const { isAdminPhone } = require('../utils/adminPhones');
-
-// Retire les espaces/tirets/parenthèses/points pour que "+224 621 00 00 00",
-// "+224-621-00-00-00" et "+224 (621) 00.00.00" soient reconnus comme le même
-// numéro à l'inscription comme à la connexion. Convertit aussi le préfixe
-// international "00" en "+" (ex: "00224621000000" -> "+224621000000"), sinon
-// ces deux écritures créeraient deux comptes distincts pour le même numéro.
-function normalizePhone(raw) {
-  let phone = String(raw || '').trim().replace(/[\s\-().]/g, '');
-  if (phone.startsWith('00')) phone = '+' + phone.slice(2);
-  return phone;
-}
-
-// Numéro international ou local, chiffres uniquement (+ optionnel en tête).
-const PHONE_REGEX = /^\+?[0-9]{6,15}$/;
+// normalizePhone/PHONE_REGEX vivent maintenant dans utils/phone.js (partagé
+// avec contact.controller.js), comportement inchangé.
+const { normalizePhone, PHONE_REGEX } = require('../utils/phone');
 
 function toPublicUser(user) {
   return {
