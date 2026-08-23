@@ -26,6 +26,20 @@ function getOrCreateCallRoom(callId) {
   return activeCalls.get(callId);
 }
 
+// Vrai si cet utilisateur est déjà présent (room Socket.io active) dans un
+// appel — quel qu'il soit — au moment où on vérifie. Utilisé uniquement pour
+// détecter "occupé" avant de créer un NOUVEL appel 1-à-1 (voir call:join) :
+// à ce stade, aucune room n'existe encore pour cet appel, donc parcourir
+// activeCalls entièrement ne peut pas se confondre avec lui-même.
+function isUserInAnotherCall(targetUserId) {
+  for (const room of activeCalls.values()) {
+    for (const info of room.values()) {
+      if (info.userId === targetUserId) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Signalisation WebRTC en topologie "mesh" : chaque participant établit une connexion
  * peer-to-peer directe avec chacun des autres participants. Adapté aux appels 1-à-1 et
@@ -51,19 +65,30 @@ function registerSignalingHandlers(io, socket) {
       // interdit de démarrer/rejoindre l'appel dans les deux sens.
       const conv = await prisma.conversation.findUnique({
         where: { id: conversationId },
-        include: { participants: { select: { userId: true } } },
+        include: { participants: { select: { userId: true, user: { select: { name: true } } } } },
       });
       if (!conv) return callback && callback({ error: 'Conversation introuvable.' });
-      if (!conv.isGroup) {
-        const other = conv.participants.find((p) => p.userId !== userId);
-        if (other && await isBlockedBetween(userId, other.userId)) {
-          return callback && callback({ error: 'Impossible d\'appeler : utilisateur bloqué.' });
-        }
+      const other = !conv.isGroup ? conv.participants.find((p) => p.userId !== userId) : null;
+      if (other && await isBlockedBetween(userId, other.userId)) {
+        return callback && callback({ error: 'Impossible d\'appeler : utilisateur bloqué.' });
       }
 
       let call = callId ? await prisma.call.findUnique({ where: { id: callId } }) : null;
 
       if (!call) {
+        // Appel 1-à-1 : si le correspondant est déjà dans un AUTRE appel actif
+        // (occupé ailleurs), on ne le fait pas sonner dans le vide — on le dit
+        // tout de suite à l'appelant (voir "busy" côté client : tonalité
+        // "occupé" au lieu de la sonnerie de retour d'appel), comme un vrai
+        // réseau téléphonique. Ne s'applique qu'à la CRÉATION d'un nouvel
+        // appel 1-à-1 : pour un appel de groupe, un seul membre occupé ne doit
+        // pas empêcher les autres de répondre.
+        if (other && isUserInAnotherCall(other.userId)) {
+          return callback && callback({
+            error: `${other.user.name} est déjà en communication.`,
+            busy: true,
+          });
+        }
         call = await prisma.call.create({
           data: { conversationId, type: type || 'video' },
         });
@@ -153,6 +178,17 @@ function registerSignalingHandlers(io, socket) {
   socket.on('call:ping', ({ callId }) => {
     if (!callId) return;
     socket.to(callRoomName(callId)).emit('call:peer-ping', { callId, socketId: socket.id });
+  });
+
+  // Refus explicite d'un appel entrant (bouton "Refuser") : contrairement à
+  // call:leave, on n'a jamais rejoint la room de cet appel (pas de
+  // room.set/socket.join pour quelqu'un qui refuse), donc call:user-left ne
+  // serait jamais émis pour ce cas — sans ce signal dédié, l'appelant
+  // entendrait sa sonnerie de retour d'appel indéfiniment au lieu de savoir
+  // que l'appel a été refusé.
+  socket.on('call:decline', ({ callId }) => {
+    if (!callId) return;
+    io.to(callRoomName(callId)).emit('call:declined', { callId, userId });
   });
 
   // Raccrochage volontaire (bouton "Raccrocher") : immédiat, jamais retardé.

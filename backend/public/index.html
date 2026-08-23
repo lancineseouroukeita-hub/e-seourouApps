@@ -2003,6 +2003,87 @@
     if (ringtoneAudioEl) { ringtoneAudioEl.pause(); ringtoneAudioEl.currentTime = 0; }
   }
 
+  // ---------- Tonalités côté appelant : retour d'appel + occupé ----------
+  // Contrairement à la sonnerie d'appel ENTRANT ci-dessus (pour la personne
+  // qui reçoit l'appel), ces deux tonalités jouent chez l'APPELANT, comme un
+  // vrai réseau téléphonique : entièrement générées (Web Audio, pas de
+  // fichier), on réutilise le même AudioContext (ringAudioCtx) que la
+  // sonnerie d'appel entrant.
+  //  - "Retour d'appel" (ringback) : cadence lente (1,5 s de tonalité / 3,5 s
+  //    de silence) — indique que l'appel est bien arrivé chez le
+  //    correspondant et que ça sonne chez lui. Démarre dès que l'appel est
+  //    créé côté serveur sans qu'aucun autre participant ne soit encore
+  //    présent (voir joinCallRoom), s'arrête dès que quelqu'un décroche
+  //    (call:user-joined), refuse (call:declined) ou qu'on raccroche.
+  //  - "Occupé" : cadence rapide (0,5 s / 0,5 s), le signal universel de
+  //    ligne occupée — jouée quand le serveur répond que le correspondant est
+  //    déjà en communication ailleurs (voir call:join, réponse busy=true).
+  let ringbackIntervalId = null;
+  let busyToneIntervalId = null;
+  let busyOverlayTimeoutId = null;
+
+  function ensureRingAudioCtx() {
+    if (!ringAudioCtx) {
+      try { ringAudioCtx = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) { /* ignore */ }
+    }
+    if (ringAudioCtx && ringAudioCtx.state === 'suspended') ringAudioCtx.resume().catch(() => { /* ignore */ });
+    return ringAudioCtx;
+  }
+
+  // Joue une ou deux fréquences ensemble (tonalité téléphonique classique)
+  // pendant `durationSecs`, avec une courte montée/descente en volume pour
+  // éviter le "clic" d'un son qui démarre/s'arrête brutalement.
+  function playTone(freqs, durationSecs) {
+    const ctx = ensureRingAudioCtx();
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    freqs.forEach((freq) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0, now);
+      gain.gain.linearRampToValueAtTime(0.18, now + 0.02);
+      gain.gain.linearRampToValueAtTime(0.18, Math.max(now + 0.02, now + durationSecs - 0.05));
+      gain.gain.linearRampToValueAtTime(0, now + durationSecs);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + durationSecs + 0.02);
+    });
+  }
+
+  function startRingback() {
+    stopRingback();
+    stopBusyTone();
+    const cycle = () => playTone([425, 480], 1.5);
+    cycle();
+    ringbackIntervalId = setInterval(cycle, 5000);
+  }
+
+  function stopRingback() {
+    if (ringbackIntervalId) { clearInterval(ringbackIntervalId); ringbackIntervalId = null; }
+  }
+
+  // S'arrête toute seule après quelques cycles (comme une vraie tonalité
+  // "occupé", qui ne sonne pas indéfiniment) — voir showBusyOverlay, qui
+  // referme l'écran d'appel au même moment.
+  function startBusyTone() {
+    stopRingback();
+    stopBusyTone();
+    let cycles = 0;
+    const cycle = () => {
+      playTone([425], 0.5);
+      cycles++;
+      if (cycles >= 4) stopBusyTone();
+    };
+    cycle();
+    busyToneIntervalId = setInterval(cycle, 1000);
+  }
+
+  function stopBusyTone() {
+    if (busyToneIntervalId) { clearInterval(busyToneIntervalId); busyToneIntervalId = null; }
+  }
+
   // ---------- Helpers ----------
   const $ = (id) => document.getElementById(id);
 
@@ -3174,7 +3255,20 @@
 
     socket.on('call:user-joined', async ({ callId, socketId, userId, name }) => {
       if (!currentCall || currentCall.callId !== callId) return;
+      stopRingback(); // quelqu'un a décroché : fini d'attendre
       await createPeerConnection(socketId, name, true);
+    });
+
+    // Le correspondant a explicitement refusé l'appel (bouton "Refuser" chez
+    // lui, voir call:decline) : on arrête le retour d'appel et on referme,
+    // plutôt que de continuer à sonner dans le vide indéfiniment.
+    socket.on('call:declined', ({ callId }) => {
+      if (!currentCall || currentCall.callId !== callId) return;
+      stopRingback();
+      updateCallInfoText('appel refusé');
+      setTimeout(() => {
+        if (currentCall && currentCall.callId === callId) hangup();
+      }, 1200);
     });
 
     socket.on('call:signal', async ({ from, signal }) => {
@@ -5289,14 +5383,55 @@
 
   function joinCallRoom(conversationId, callId, type) {
     socket.emit('call:join', { conversationId, callId, type }, async (res) => {
-      if (res && res.error) { alert('Erreur appel: ' + res.error); return; }
+      // "Occupé" : le correspondant est déjà en communication ailleurs (voir
+      // signaling.js call:join) — on ne rejoint aucun appel, juste une
+      // tonalité "occupé" le temps de le comprendre, comme un vrai téléphone.
+      if (res && res.busy) {
+        releaseLocalStream();
+        showBusyOverlay(res.error);
+        return;
+      }
+      if (res && res.error) {
+        releaseLocalStream();
+        alert('Erreur appel: ' + res.error);
+        return;
+      }
       currentCall = { callId: res.callId, conversationId, type };
       openCallOverlay(type);
       addLocalVideoTile();
+      // Personne d'autre encore dans la room : c'est moi qui appelle et
+      // personne n'a encore décroché — "retour d'appel" tant que ça sonne en
+      // face (voir call:user-joined/call:declined plus bas, qui l'arrêtent).
+      if (!res.peers.length) startRingback();
       for (const peer of res.peers) {
         await createPeerConnection(peer.socketId, peer.name, false);
       }
     });
+  }
+
+  // Libère la caméra/le micro déjà obtenus (getUserMedia, voir startCall)
+  // quand l'appel ne va finalement pas avoir lieu (occupé, erreur serveur) :
+  // sans ça, la diode de la caméra pouvait rester allumée pour rien.
+  function releaseLocalStream() {
+    if (localStream) { localStream.getTracks().forEach((t) => t.stop()); localStream = null; }
+  }
+
+  // Bref écran "Occupé" : réutilise l'overlay d'appel (juste le texte de
+  // statut, pas de grille vidéo/connexion pair-à-pair) le temps que la
+  // tonalité "occupé" se termine, puis se referme tout seul.
+  function showBusyOverlay(message) {
+    clearTimeout(busyOverlayTimeoutId);
+    $('incomingCall').classList.remove('show');
+    $('callOverlay').classList.add('show');
+    $('videosGrid').innerHTML = '';
+    clearInterval(callTimerInterval);
+    $('callTimer').textContent = '';
+    callBaseInfoText = 'Occupé';
+    updateCallInfoText(message || 'la personne est déjà en communication');
+    startBusyTone();
+    busyOverlayTimeoutId = setTimeout(() => {
+      $('callOverlay').classList.remove('show');
+    }, 3600);
   }
 
   // Reprise après reconnexion du socket pendant un appel en cours (voir
@@ -5529,6 +5664,10 @@
 
   $('rejectCallBtn').addEventListener('click', () => {
     stopRingtone();
+    // Prévient l'appelant tout de suite (voir call:decline côté serveur) :
+    // sans ça, il n'aurait aucun moyen de savoir que j'ai refusé et
+    // continuerait d'entendre son retour d'appel indéfiniment.
+    if (pendingIncomingCall) socket.emit('call:decline', { callId: pendingIncomingCall.callId });
     $('incomingCall').classList.remove('show');
     pendingIncomingCall = null;
   });
@@ -5537,6 +5676,8 @@
 
   function hangup() {
     stopRingtone();
+    stopRingback();
+    stopBusyTone();
     stopCallHeartbeat();
     if (currentCall) socket.emit('call:leave', { callId: currentCall.callId });
     Object.keys(peerConnections).forEach(removePeer);
