@@ -763,6 +763,8 @@
   .communitySmallAddBtn{margin-left:auto;background:var(--accent);border:none;color:white;width:22px;height:22px;border-radius:50%;font-size:14px;cursor:pointer;line-height:1;padding:0;}
   #communityAnnouncementRow .listItem, #communityGroupsList .listItem, #communityMembersList .listItem{padding:8px 4px;}
   .communityMemberRole{font-size:11px;color:var(--muted);background:var(--panel2);border-radius:8px;padding:2px 8px;flex-shrink:0;}
+  .communityRemoveMemberBtn{flex-shrink:0;background:none;border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:5px 9px;font-size:11.5px;cursor:pointer;margin-left:6px;}
+  .communityRemoveMemberBtn:hover{background:var(--danger);color:white;}
   .dangerFullBtn{width:100%;background:none;border:1px solid var(--danger);color:var(--danger);border-radius:6px;padding:10px 14px;cursor:pointer;font-size:14px;margin-top:6px;}
   .dangerFullBtn:hover{background:var(--danger);color:white;}
 
@@ -2898,7 +2900,26 @@
     c.members.forEach((m) => {
       const row = document.createElement('div');
       row.className = 'listItem';
-      row.innerHTML = `${avatarDivHtml(m.name, m.avatarUrl)}<div class="liText"><div class="liName">${escapeHtml(m.name)}</div></div><span class="communityMemberRole">${m.role === 'admin' ? 'Admin' : 'Membre'}</span>`;
+      // Comme WhatsApp : seul un admin peut retirer un AUTRE membre (se
+      // retirer soi-même passe par "Quitter la communauté" plus bas, jamais
+      // par ce bouton — voir aussi community.controller.js removeCommunityMember,
+      // qui refuse déjà ce cas côté serveur).
+      const canRemove = c.myRole === 'admin' && m.id !== me.id;
+      row.innerHTML = `${avatarDivHtml(m.name, m.avatarUrl)}<div class="liText"><div class="liName">${escapeHtml(m.name)}</div></div><span class="communityMemberRole">${m.role === 'admin' ? 'Admin' : 'Membre'}</span>${canRemove ? `<button class="communityRemoveMemberBtn" data-user-id="${m.id}">Retirer</button>` : ''}`;
+      if (canRemove) {
+        row.querySelector('.communityRemoveMemberBtn').addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm(`Retirer ${m.name} de cette communauté ?`)) return;
+          try {
+            await api('/api/communities/' + currentCommunityDetailId + '/members/' + m.id, { method: 'DELETE' });
+            const data = await api('/api/communities/' + currentCommunityDetailId);
+            communitiesData = communitiesData.map((x) => (x.id === data.community.id ? data.community : x));
+            renderCommunityDetail(data.community);
+          } catch (err) {
+            alert('Erreur : ' + err.message);
+          }
+        });
+      }
       membersList.appendChild(row);
     });
   }
@@ -2924,14 +2945,21 @@
   });
 
   // ----- Ajout d'un membre existant à la communauté -----
-  function openCommunityAddMember() {
+  // Comme pour "Nouvelle discussion" et la création de groupe/communauté :
+  // on ne propose que MES contacts (contactAccounts()), jamais tous les
+  // comptes de l'appli — sinon un admin pourrait ajouter n'importe qui,
+  // même quelqu'un dont il n'a pas le numéro.
+  async function openCommunityAddMember() {
+    try { await loadContacts(); } catch (e) { /* tant pis, on affiche la liste déjà en mémoire */ }
     const c = communitiesData.find((x) => x.id === currentCommunityDetailId);
     const memberIds = new Set(c ? c.members.map((m) => m.id) : []);
-    const candidates = users.filter((u) => !memberIds.has(u.id));
+    const candidates = contactAccounts().filter((u) => !memberIds.has(u.id));
     const el = $('communityAddMemberList');
     el.innerHTML = '';
     if (!candidates.length) {
-      el.innerHTML = '<div class="comingSoon">Tout le monde est déjà membre.</div>';
+      el.innerHTML = `<div class="comingSoon">${contactAccounts().length
+        ? 'Tout le monde parmi vos contacts est déjà membre.'
+        : 'Aucun de vos contacts n\'utilise encore l\'application. Ajoutez-en depuis "Nouvelle discussion".'}</div>`;
     } else {
       candidates.forEach((u) => {
         const row = document.createElement('div');

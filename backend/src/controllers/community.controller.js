@@ -200,7 +200,9 @@ async function addCommunityMember(req, res) {
 }
 
 // Retire un membre de la communauté : un admin peut retirer n'importe qui
-// (sauf lui-même s'il est seul admin), ou un membre peut se retirer lui-même.
+// (sauf lui-même s'il est seul admin), ou un membre peut se retirer lui-même
+// (bouton "Quitter la communauté" côté client, jamais le bouton "Retirer" —
+// réservé aux admins, masqué sur sa propre ligne).
 async function removeCommunityMember(req, res) {
   const userId = req.user.id;
   const { communityId, memberUserId } = req.params;
@@ -216,9 +218,18 @@ async function removeCommunityMember(req, res) {
       where: { communityId_userId: { communityId, userId: memberUserId } },
     }).catch(() => null);
 
-    const announcement = await prisma.conversation.findFirst({ where: { communityId, isAnnouncement: true } });
-    if (announcement) {
-      await prisma.conversationParticipant.deleteMany({ where: { conversationId: announcement.id, userId: memberUserId } });
+    // Le retire aussi de TOUS les groupes de cette communauté (pas seulement
+    // le groupe d'annonces) : sans ça, quelqu'un retiré de la communauté
+    // restait quand même membre de ses groupes normaux, et pouvait continuer
+    // à y écrire — ce qui viderait "suppression par un admin" de son sens.
+    const communityConversations = await prisma.conversation.findMany({
+      where: { communityId },
+      select: { id: true },
+    });
+    if (communityConversations.length) {
+      await prisma.conversationParticipant.deleteMany({
+        where: { conversationId: { in: communityConversations.map((c) => c.id) }, userId: memberUserId },
+      });
     }
     return res.json({ ok: true });
   } catch (err) {
