@@ -2024,6 +2024,7 @@
   let screenShareActive = false;
   let cameraTrackBeforeShare = null; // piste caméra d'origine, remise en place quand on arrête le partage
   let callPeerUserIds = {}; // socketId -> userId, des participants actuellement dans l'appel (pour l'écran "Ajouter un participant")
+  let callAttemptSeq = 0; // voir joinCallRoom : invalide une réponse serveur arrivée en retard (ex: après un raccrochage entre-temps)
 
   // ---------- Sonnerie d'appel entrant ----------
   // Deux mécanismes en parallèle, pour maximiser les chances qu'au moins un
@@ -5572,27 +5573,57 @@
       alert('Impossible d\'accéder à la caméra/micro : ' + err.message);
       return;
     }
+    // Ouvre l'écran d'appel et démarre "Ça sonne…" TOUT DE SUITE, sans
+    // attendre la réponse du serveur : sur un vrai téléphone, la tonalité de
+    // retour d'appel démarre dès qu'on compose, pas seulement une fois que le
+    // serveur a confirmé (aller-retour réseau + écritures en base) — sinon
+    // l'appelant percevait plusieurs secondes de silence/écran figé avant que
+    // quoi que ce soit ne s'affiche, même quand l'appel se déroule normalement.
+    // (Si jamais le serveur répond "occupé"/erreur, on annule proprement ce
+    // début optimiste — voir joinCallRoom ci-dessous.)
+    openCallOverlay(type);
+    addLocalVideoTile();
+    startRingback();
+    updateCallInfoText('ça sonne…');
     joinCallRoom(activeConversationId, null, type);
   }
 
   function joinCallRoom(conversationId, callId, type) {
+    // Identifiant de cette tentative précise : si un raccrochage (ou une
+    // nouvelle tentative d'appel) survient avant que le serveur ait répondu,
+    // callAttemptSeq aura déjà changé à ce moment-là — la réponse tardive est
+    // alors ignorée au lieu de rouvrir/relancer un appel qu'on a déjà quitté.
+    const myAttempt = ++callAttemptSeq;
     socket.emit('call:join', { conversationId, callId, type }, async (res) => {
+      if (myAttempt !== callAttemptSeq) return;
       // "Occupé" : le correspondant est déjà en communication ailleurs (voir
-      // signaling.js call:join) — on ne rejoint aucun appel, juste une
-      // tonalité "occupé" le temps de le comprendre, comme un vrai téléphone.
+      // signaling.js call:join) — on annule l'écran d'appel ouvert de façon
+      // optimiste (voir startCall) et on joue juste la tonalité "occupé" à la
+      // place, comme un vrai téléphone.
       if (res && res.busy) {
         releaseLocalStream();
+        stopRingback();
+        clearInterval(callTimerInterval);
+        $('callOverlay').classList.remove('show');
         showBusyOverlay(res.error);
         return;
       }
       if (res && res.error) {
         releaseLocalStream();
+        stopRingback();
+        clearInterval(callTimerInterval);
+        $('callOverlay').classList.remove('show');
         alert('Erreur appel: ' + res.error);
         return;
       }
       currentCall = { callId: res.callId, conversationId, type };
-      openCallOverlay(type);
-      addLocalVideoTile();
+      // Cas d'un appel ACCEPTÉ (bouton "Répondre") : l'écran n'a pas encore
+      // été ouvert de façon optimiste comme pour un appel qu'on lance
+      // soi-même (voir startCall) — on l'ouvre donc ici.
+      if (!$('callOverlay').classList.contains('show')) {
+        openCallOverlay(type);
+        addLocalVideoTile();
+      }
       // Personne d'autre encore dans la room : c'est moi qui appelle et
       // personne n'a encore décroché — "retour d'appel" tant que ça sonne en
       // face (voir call:user-joined/call:declined plus bas, qui l'arrêtent).
@@ -5875,6 +5906,7 @@
   $('hangupBtn').addEventListener('click', hangup);
 
   function hangup() {
+    callAttemptSeq++; // invalide toute réponse "call:join" encore en vol pour cette tentative
     stopRingtone();
     stopRingback();
     stopBusyTone();
