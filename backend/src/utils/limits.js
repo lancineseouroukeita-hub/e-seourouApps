@@ -26,8 +26,17 @@ const MAX_VIDEO_BASE64_LENGTH = Math.ceil((MAX_VIDEO_BYTES * 4) / 3) + 1024;
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 const MAX_PHOTO_BASE64_LENGTH = Math.ceil((MAX_PHOTO_BYTES * 4) / 3) + 1024;
 
+// Taille max d'un son "Clips" (avant encodage) : 8 Mo, largement suffisant
+// pour un morceau court compressé (voir schema.prisma, modèle Sound et champ
+// Video.personalSoundData) — que ce soit un son de la bibliothèque partagée
+// (ajouté par un administrateur) ou un son personnel importé par l'auteur
+// pour sa propre publication.
+const MAX_SOUND_BYTES = 8 * 1024 * 1024;
+const MAX_SOUND_BASE64_LENGTH = Math.ceil((MAX_SOUND_BYTES * 4) / 3) + 1024;
+
 module.exports = {
   MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_BASE64_LENGTH,
   MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH,
   MAX_PHOTO_BYTES, MAX_PHOTO_BASE64_LENGTH,
+  MAX_SOUND_BYTES, MAX_SOUND_BASE64_LENGTH,
 };

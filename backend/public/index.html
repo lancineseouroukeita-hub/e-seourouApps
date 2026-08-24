@@ -477,9 +477,24 @@
   /* Pièces jointes dans les bulles de message */
   .msgCaption{margin-top:4px;}
   .msgImage{max-width:240px;max-height:240px;border-radius:10px;display:block;margin-top:2px;object-fit:cover;cursor:pointer;}
-  .msgVoice{display:flex;align-items:center;gap:8px;}
-  .msgVoice audio{max-width:220px;height:34px;}
-  .voiceDuration{font-size:11px;color:var(--muted);}
+  /* Lecteur vocal personnalisé (bouton lecture + "onde sonore" + vitesse),
+     à la place du <audio controls> natif du navigateur (trop différent d'une
+     bulle WhatsApp) — voir renderMessageBody, voiceWaveHeights, et les
+     gestionnaires délégués sur #messages plus bas (clic lecture/vitesse/onde). */
+  .msgVoice{display:flex;align-items:center;gap:7px;}
+  .msgVoice audio{display:none;}
+  .voicePlayBtn{background:var(--border);border:none;color:inherit;cursor:pointer;padding:0;width:30px;height:30px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .voicePlayBtn svg{width:14px;height:14px;}
+  .msgRow.mine .voicePlayBtn{background:rgba(255,255,255,.22);}
+  .voiceWave{position:relative;width:108px;height:24px;display:flex;align-items:center;overflow:hidden;cursor:pointer;flex-shrink:0;}
+  .voiceBars, .voiceBarsProgress{display:flex;align-items:center;gap:2px;height:100%;position:absolute;top:0;left:0;}
+  .voiceBarsProgress{width:0%;overflow:hidden;}
+  .voiceBar{width:2.5px;border-radius:1px;background:currentColor;opacity:.4;flex-shrink:0;}
+  .voiceBarsProgress .voiceBar{opacity:1;}
+  .voiceDuration{font-size:11px;color:var(--muted);min-width:30px;font-variant-numeric:tabular-nums;flex-shrink:0;}
+  .msgRow.mine .voiceDuration{color:rgba(255,255,255,.85);}
+  .voiceSpeedBtn{background:var(--border);border:none;color:inherit;font-size:10.5px;font-weight:600;border-radius:10px;padding:3px 6px;cursor:pointer;flex-shrink:0;}
+  .msgRow.mine .voiceSpeedBtn{background:rgba(255,255,255,.22);}
   .msgFile{display:flex;align-items:center;gap:8px;text-decoration:none;color:inherit;background:rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;margin-top:2px;}
   .fileIcon{font-size:20px;}
   .fileInfo{display:flex;flex-direction:column;min-width:0;}
@@ -4729,6 +4744,12 @@
       row.innerHTML = `${actionsHtml}<div class="bubble">${forwardedLabel}${replyQuoteHtml}${!mine ? `<div class="sender">${escapeHtml(m.sender?.name || '')}</div>` : ''}
         ${body}${reactionsHtml}<div class="msgMeta">${editedLabel}<div class="time">${fmtTime(m.createdAt)}</div>${ticks}</div></div>`;
       el.appendChild(row);
+      // Les événements de l'élément <audio> (play/pause/timeupdate/ended) ne
+      // remontent pas dans le DOM (contrairement aux clics) : impossible de
+      // les capter par délégation sur #messages comme le reste des boutons
+      // de bulle — on les branche donc directement ici, à chaque insertion
+      // d'une nouvelle bulle vocale (voir wireVoicePlayer).
+      if (!m.deleted && m.type === 'voice') wireVoicePlayer(row);
     });
     el.scrollTop = el.scrollHeight;
     renderPinnedBanner();
@@ -4793,8 +4814,23 @@
 
     if (type === 'voice' && att && att.data) {
       const url = attachmentDataUrl(att, 'audio/webm');
-      const dur = att.duration ? `<span class="voiceDuration">${formatDuration(att.duration)}</span>` : '';
-      return `<div class="msgVoice"><audio controls src="${url}"></audio>${dur}</div>`;
+      // "Onde sonore" décorative (pas une vraie analyse d'amplitude audio,
+      // juste un aspect visuel stable pour CE message précis, voir
+      // voiceWaveHeights) — dupliquée dans deux calques : celui du dessous
+      // (fond, toujours visible en sourdine) et celui du dessus (progression,
+      // révélé en largeur au fil de la lecture, voir syncVoicePlayer).
+      const heights = voiceWaveHeights(m.id, 24);
+      const barsHtml = heights.map((h) => `<span class="voiceBar" style="height:${h.toFixed(1)}px"></span>`).join('');
+      return `<div class="msgVoice" data-msg-id="${m.id}" data-total="${att.duration || 0}">
+        <button class="voicePlayBtn" type="button" title="Écouter">${VOICE_PLAY_SVG}</button>
+        <div class="voiceWave">
+          <div class="voiceBars">${barsHtml}</div>
+          <div class="voiceBarsProgress">${barsHtml}</div>
+        </div>
+        <span class="voiceDuration">${formatDuration(att.duration || 0)}</span>
+        <button class="voiceSpeedBtn" type="button" data-rate="1" title="Vitesse de lecture">1×</button>
+        <audio class="voiceAudio" preload="none" src="${url}"></audio>
+      </div>`;
     }
 
     if (type === 'file' && att && att.data) {
@@ -4820,9 +4856,121 @@
 
   function formatDuration(secs) {
     const m = Math.floor(secs / 60);
-    const s = secs % 60;
+    const s = Math.floor(secs % 60);
     return m + ':' + String(s).padStart(2, '0');
   }
+
+  // Icônes du lecteur vocal personnalisé (voir renderMessageBody, plus bas).
+  const VOICE_PLAY_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><polygon points="6 4 20 12 6 20"></polygon></svg>';
+  const VOICE_PAUSE_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><rect x="5" y="4" width="5" height="16" rx="1"></rect><rect x="14" y="4" width="5" height="16" rx="1"></rect></svg>';
+
+  // Génère une même série de hauteurs de barres à chaque affichage d'un même
+  // message vocal (dérivées de son id, jamais de Math.random() — sinon
+  // l'onde "sauterait" visuellement à chaque nouveau rendu de la liste, par
+  // exemple en tapant dans le composer). Purement décoratif : ce n'est PAS
+  // une vraie analyse de l'amplitude du fichier audio (ça demanderait de le
+  // décoder entièrement côté client juste pour dessiner une bulle).
+  function voiceWaveHeights(seed, count) {
+    let h = 0;
+    for (let i = 0; i < String(seed).length; i++) h = (h * 31 + String(seed).charCodeAt(i)) >>> 0;
+    const heights = [];
+    for (let i = 0; i < count; i++) {
+      h = (Math.imul(h, 1103515245) + 12345) >>> 0;
+      heights.push(6 + (h % 1000) / 1000 * 16); // entre 6 et 22px
+    }
+    return heights;
+  }
+
+  function formatVoiceTime(secs) {
+    return formatDuration(Math.max(0, Math.round(secs)));
+  }
+
+  // Un seul message vocal joue à la fois dans toute l'application (comme
+  // WhatsApp) : démarrer celui-ci met en pause tous les autres déjà en
+  // cours, même dans une autre conversation déjà affichée en arrière-plan.
+  function pauseOtherVoicePlayers(exceptAudio) {
+    document.querySelectorAll('.voiceAudio').forEach((a) => {
+      if (a !== exceptAudio && !a.paused) a.pause();
+    });
+  }
+
+  // Branche les événements propres à CETTE bulle vocale (play/pause/
+  // timeupdate/ended, qui ne remontent pas dans le DOM) : icône lecture/
+  // pause, remplissage de l'onde au fil de la lecture, et compteur de temps
+  // (affiche le temps écoulé pendant la lecture, revient à la durée totale
+  // une fois la lecture terminée).
+  function wireVoicePlayer(row) {
+    const wrap = row.querySelector('.msgVoice');
+    if (!wrap) return;
+    const audio = wrap.querySelector('.voiceAudio');
+    const playBtn = wrap.querySelector('.voicePlayBtn');
+    const progress = wrap.querySelector('.voiceBarsProgress');
+    const durationEl = wrap.querySelector('.voiceDuration');
+    const totalSecs = parseFloat(wrap.dataset.total || '0');
+    if (!audio || !playBtn || !progress || !durationEl) return;
+
+    audio.addEventListener('play', () => {
+      pauseOtherVoicePlayers(audio);
+      playBtn.innerHTML = VOICE_PAUSE_SVG;
+    });
+    audio.addEventListener('pause', () => { playBtn.innerHTML = VOICE_PLAY_SVG; });
+    audio.addEventListener('timeupdate', () => {
+      // audio.duration peut valoir Infinity pour un blob webm enregistré via
+      // MediaRecorder tant que la lecture n'a pas assez progressé (bug connu
+      // de Chrome) — on retombe alors sur la durée mesurée à l'enregistrement
+      // (totalSecs) plutôt que de laisser la barre ne jamais avancer.
+      const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : totalSecs;
+      const frac = dur > 0 ? Math.min(1, audio.currentTime / dur) : 0;
+      progress.style.width = (frac * 100) + '%';
+      durationEl.textContent = formatVoiceTime(audio.currentTime);
+    });
+    audio.addEventListener('ended', () => {
+      playBtn.innerHTML = VOICE_PLAY_SVG;
+      progress.style.width = '0%';
+      durationEl.textContent = formatVoiceTime(totalSecs);
+    });
+  }
+
+  // Clic sur le bouton lecture/pause d'un message vocal.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.voicePlayBtn');
+    if (!btn) return;
+    const audio = btn.closest('.msgVoice')?.querySelector('.voiceAudio');
+    if (!audio) return;
+    if (audio.paused) audio.play().catch(() => {}); else audio.pause();
+  });
+
+  // Clic sur "1×" : fait défiler les vitesses de lecture 1× → 1.5× → 2× → 1×,
+  // comme WhatsApp.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.voiceSpeedBtn');
+    if (!btn) return;
+    const audio = btn.closest('.msgVoice')?.querySelector('.voiceAudio');
+    if (!audio) return;
+    const rates = [1, 1.5, 2];
+    const currentIndex = rates.indexOf(parseFloat(btn.dataset.rate || '1'));
+    const next = rates[(currentIndex + 1) % rates.length];
+    audio.playbackRate = next;
+    btn.dataset.rate = String(next);
+    btn.textContent = String(next) + '×';
+  });
+
+  // Clic n'importe où sur l'onde : avance la lecture au point correspondant
+  // (comme faire glisser le curseur d'un lecteur audio classique).
+  $('messages').addEventListener('click', (e) => {
+    const wave = e.target.closest('.voiceWave');
+    if (!wave) return;
+    const wrap = wave.closest('.msgVoice');
+    const audio = wrap?.querySelector('.voiceAudio');
+    if (!audio) return;
+    const totalSecs = parseFloat(wrap.dataset.total || '0');
+    const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : totalSecs;
+    if (!dur) return;
+    const rect = wave.getBoundingClientRect();
+    const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+    audio.currentTime = frac * dur;
+    wave.querySelector('.voiceBarsProgress').style.width = (frac * 100) + '%';
+  });
 
   // Aperçu texte utilisé dans la liste des conversations quand un message
   // arrive en temps réel (miroir de previewLabel() côté serveur).

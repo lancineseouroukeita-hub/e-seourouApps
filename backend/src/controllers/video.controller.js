@@ -1,6 +1,9 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
-const { MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH, MAX_PHOTO_BYTES, MAX_PHOTO_BASE64_LENGTH } = require('../utils/limits');
+const {
+  MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH, MAX_PHOTO_BYTES, MAX_PHOTO_BASE64_LENGTH,
+  MAX_SOUND_BYTES, MAX_SOUND_BASE64_LENGTH,
+} = require('../utils/limits');
 
 // Nombre de vidéos renvoyées par page du fil (voir listVideos) : assez pour
 // remplir l'écran sans recharger une page trop lourde d'un coup — chaque
@@ -26,6 +29,17 @@ function serializeVideo(video, currentUserId, followingSet) {
     thumbnailData: video.thumbnailData || null,
     thumbnailMime: video.thumbnailMime || null,
     duration: video.duration || null,
+    // Son ajouté à la publication ("Ajouter un son") — au plus un des deux :
+    // soit un son de la bibliothèque partagée (juste id/nom ici ; le contenu
+    // audio se récupère à la demande via GET /api/sounds/:id, voir
+    // sound.controller.js et videos.html, getSoundBlobUrl), soit un son
+    // personnel propre à cette publication (contenu inclus directement,
+    // comme videoData). Ni l'un ni l'autre : la vidéo garde sa bande son
+    // d'origine, comme avant cette fonctionnalité.
+    sound: video.sound ? { id: video.sound.id, name: video.sound.name } : null,
+    personalSoundData: video.personalSoundData || null,
+    personalSoundMime: video.personalSoundMime || null,
+    personalSoundName: video.personalSoundName || null,
     createdAt: video.createdAt,
     author: toPublicUser(video.author),
     likesCount: video._count ? video._count.likes : (video.likes ? video.likes.length : 0),
@@ -73,6 +87,7 @@ async function listVideos(req, res) {
       take: FEED_PAGE_SIZE,
       include: {
         author: true,
+        sound: { select: { id: true, name: true } },
         likes: { where: { userId: req.user.id } },
         saves: { where: { userId: req.user.id } },
         _count: { select: { likes: true, comments: true, saves: true } },
@@ -97,6 +112,7 @@ async function listMyVideos(req, res) {
     orderBy: { createdAt: 'desc' },
     include: {
       author: true,
+      sound: { select: { id: true, name: true } },
       likes: { where: { userId: req.user.id } },
       saves: { where: { userId: req.user.id } },
       _count: { select: { likes: true, comments: true, saves: true } },
@@ -137,7 +153,7 @@ async function createVideo(req, res) {
       return res.status(201).json({ video: serializeVideo(video, req.user.id) });
     }
 
-    const { videoData, videoMime, duration, thumbnailData, thumbnailMime } = req.body;
+    const { videoData, videoMime, duration, thumbnailData, thumbnailMime, soundId, personalSoundData, personalSoundMime, personalSoundName } = req.body;
 
     if (!videoData || typeof videoData !== 'string') {
       return res.status(400).json({ error: 'videoData est requis.' });
@@ -147,6 +163,29 @@ async function createVideo(req, res) {
     }
     if (videoData.length > MAX_VIDEO_BASE64_LENGTH) {
       return res.status(400).json({ error: `Vidéo trop volumineuse (${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} Mo maximum).` });
+    }
+
+    // "Ajouter un son" : au plus une des deux options, jamais les deux à la
+    // fois (soundId prioritaire s'il est fourni — voir schema.prisma, modèle
+    // Video). Un soundId qui ne correspond à aucun son existant est ignoré
+    // silencieusement plutôt que de faire échouer toute la publication.
+    let finalSoundId = null;
+    let finalPersonalSoundData = null;
+    let finalPersonalSoundMime = null;
+    let finalPersonalSoundName = null;
+    if (soundId && typeof soundId === 'string') {
+      const sound = await prisma.sound.findUnique({ where: { id: soundId } });
+      if (sound) finalSoundId = sound.id;
+    } else if (personalSoundData && typeof personalSoundData === 'string') {
+      if (!personalSoundMime || typeof personalSoundMime !== 'string' || !personalSoundMime.startsWith('audio/')) {
+        return res.status(400).json({ error: 'personalSoundMime doit être un type audio valide.' });
+      }
+      if (personalSoundData.length > MAX_SOUND_BASE64_LENGTH) {
+        return res.status(400).json({ error: `Son trop volumineux (${Math.round(MAX_SOUND_BYTES / (1024 * 1024))} Mo maximum).` });
+      }
+      finalPersonalSoundData = personalSoundData;
+      finalPersonalSoundMime = personalSoundMime;
+      finalPersonalSoundName = (personalSoundName && typeof personalSoundName === 'string') ? personalSoundName.trim().slice(0, 80) : null;
     }
 
     const video = await prisma.video.create({
@@ -159,8 +198,12 @@ async function createVideo(req, res) {
         duration: Number.isFinite(duration) ? Math.round(duration) : null,
         thumbnailData: (thumbnailData && typeof thumbnailData === 'string') ? thumbnailData : null,
         thumbnailMime: (thumbnailMime && typeof thumbnailMime === 'string') ? thumbnailMime : null,
+        soundId: finalSoundId,
+        personalSoundData: finalPersonalSoundData,
+        personalSoundMime: finalPersonalSoundMime,
+        personalSoundName: finalPersonalSoundName,
       },
-      include: { author: true, likes: true },
+      include: { author: true, sound: { select: { id: true, name: true } }, likes: true },
     });
 
     return res.status(201).json({ video: serializeVideo(video, req.user.id) });

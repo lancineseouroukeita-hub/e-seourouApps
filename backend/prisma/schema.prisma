@@ -103,6 +103,10 @@ model User {
   // est direct (pas de demande à accepter) — voir modèle Follow ci-dessous.
   following Follow[] @relation("Following")
   followers Follow[] @relation("Followers")
+  // Sons de la bibliothèque partagée "Clips" (bouton "Ajouter un son") que
+  // j'ai ajoutés — réservé aux administrateurs, voir modèle Sound ci-dessous
+  // et middleware/auth.js, requireAdmin.
+  addedSounds Sound[]
 }
 
 // Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
@@ -482,10 +486,47 @@ model Video {
   duration      Int?     // durée en secondes (mesurée côté client, juste indicative) — uniquement pour une vidéo
   createdAt     DateTime @default(now())
 
+  // Son ajouté à la publication ("Ajouter un son", comme TikTok) — deux
+  // options mutuellement exclusives (voir video.controller.js, createVideo) :
+  // soundId pointe vers la bibliothèque partagée (voir modèle Sound
+  // ci-dessous, alimentée uniquement par un administrateur), OU
+  // personalSoundData contient un son/musique personnel importé par l'auteur
+  // lui-même juste pour cette publication (pas ajouté à la bibliothèque
+  // partagée). Aucun des deux : la vidéo garde simplement sa propre bande son
+  // d'origine (comportement inchangé, "son original").
+  soundId           String?
+  sound             Sound?  @relation(fields: [soundId], references: [id], onDelete: SetNull)
+  personalSoundData String? // son personnel encodé en base64
+  personalSoundMime String?
+  personalSoundName String? // nom affiché (ex: nom du fichier importé)
+
   author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
   likes    VideoLike[]
   saves    VideoSave[]
   comments VideoComment[]
+
+  @@index([createdAt])
+}
+
+// Son de la bibliothèque partagée "Clips" (bouton "Ajouter un son" façon
+// TikTok) : volontairement alimentée UNIQUEMENT par un administrateur (voir
+// requireAdmin, middleware/auth.js) plutôt qu'ouverte à tout le monde — une
+// bibliothèque de musiques accessible à tous pose un vrai risque de droits
+// d'auteur si elle contient des morceaux commerciaux ; à n'alimenter qu'avec
+// des sons libres de droits ou créés/achetés avec une licence adaptée. Un son
+// personnel importé par un utilisateur juste pour SA publication (pas ajouté
+// ici) est stocké directement sur Video, voir ci-dessus.
+model Sound {
+  id        String   @id @default(uuid())
+  name      String
+  audioData String   // contenu audio encodé en base64
+  audioMime String   // ex: "audio/mpeg", "audio/mp4"
+  duration  Int?     // durée en secondes, indicative
+  addedById String
+  createdAt DateTime @default(now())
+
+  addedBy User    @relation(fields: [addedById], references: [id], onDelete: Cascade)
+  videos  Video[]
 
   @@index([createdAt])
 }

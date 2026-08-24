@@ -74,6 +74,10 @@
   #feed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scroll-behavior:smooth;}
   .clip{position:relative;height:100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;display:flex;align-items:center;justify-content:center;background:#000;}
   .clip video,.clip img{width:100%;height:100%;object-fit:contain;background:#000;}
+  /* Élément <audio> du son ajouté (voir renderClip, hasAttachedSound) : jamais
+     de contrôles visibles, purement fonctionnel (lecture pilotée en JS, en
+     phase avec la vidéo — voir setupObserver, attachSoundToClip). */
+  .clip audio.clipAudio{display:none;}
   .clip .clipOverlay{position:absolute;left:0;right:0;bottom:0;padding:16px 76px 90px 16px;background:linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));pointer-events:none;}
   .clip .clipAuthor{font-weight:700;font-size:14.5px;margin-bottom:4px;}
   .clip .clipCaption{font-size:13.5px;color:#e8e8ea;white-space:pre-wrap;word-break:break-word;}
@@ -192,6 +196,39 @@
   #cameraShutterInner{width:56px;height:56px;border-radius:50%;background:var(--accent);transition:border-radius 0.15s, width 0.15s, height 0.15s;display:block;}
   #cameraShutterBtn.recording #cameraShutterInner{width:28px;height:28px;border-radius:8px;}
   .cameraControlsSpacer{width:42px;height:42px;}
+  /* Pastille "Ajouter un son" (façon TikTok) : masquée pendant l'enregistrement
+     (comme sur TikTok), voir la logique de #cameraShutterBtn plus bas. */
+  .cameraSoundPill{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.55);border:none;color:white;padding:7px 14px;border-radius:16px;font-size:12.5px;display:flex;align-items:center;gap:6px;cursor:pointer;max-width:230px;}
+  .cameraSoundPill.hidden{display:none;}
+  #cameraSoundLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* ---------- Sélecteur de son ("Ajouter un son") ---------- */
+  #soundPickerOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;justify-content:center;z-index:31;}
+  #soundPickerOverlay.hidden{display:none;}
+  #soundPickerPanel{width:100%;max-width:480px;max-height:72vh;background:var(--panel);border-radius:16px 16px 0 0;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom, 0);}
+  #soundPickerPanel .screenHeader{padding:14px 16px;border-bottom:1px solid var(--border);}
+  .soundPickerImportRow{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13.5px;}
+  .soundPickerImportRow:hover{background:var(--panel2);}
+  .soundPickerImportRow.hidden{display:none;}
+  .soundPickerImportIcon{font-size:16px;}
+  #soundPickerList{flex:1;overflow-y:auto;padding:4px 0;}
+  .soundPickerRow{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid rgba(255,255,255,0.05);}
+  .soundPickerRow.noneRow{cursor:pointer;}
+  .soundPickerRow.noneRow:hover{background:var(--panel2);}
+  .soundPickerPreviewBtn{width:30px;height:30px;flex-shrink:0;border-radius:50%;border:none;background:var(--panel2);color:var(--text);cursor:pointer;font-size:12px;}
+  .soundPickerPreviewBtn.playing{background:var(--accent);color:white;}
+  .soundPickerRowName{flex:1;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .soundPickerChooseBtn{padding:6px 12px;border-radius:14px;border:1px solid var(--accent);background:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
+  .soundPickerDeleteBtn{background:none;border:none;font-size:14px;cursor:pointer;flex-shrink:0;opacity:0.7;}
+  .soundPickerDeleteBtn:hover{opacity:1;}
+
+  /* ---------- Nom du son sous la légende, dans le bas de l'écran (voir
+     renderClip) : élément normal du flux de .clipOverlay, pas de
+     positionnement absolu séparé — s'empile naturellement sous la légende,
+     quelle que soit sa hauteur. ---------- */
+  .clip .clipSoundLabel{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:12px;color:#e8e8ea;pointer-events:none;max-width:calc(100% - 4px);}
+  .clip .clipSoundLabel svg{width:12px;height:12px;flex-shrink:0;}
+  .clip .clipSoundLabel .clipSoundText{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
   /* ---------- Modale de publication (légende + aperçu) ---------- */
   #uploadOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:30;padding:20px;}
@@ -309,6 +346,11 @@
       <button id="cameraFlipBtn" type="button" title="Retourner la caméra">🔄</button>
     </div>
     <div id="cameraTimer" class="hidden">00:00</div>
+    <!-- Masqué pendant l'enregistrement (comme cameraTimer, mais en sens
+         inverse) — voir cameraShutterBtn plus bas. -->
+    <button id="cameraSoundBtn" type="button" class="cameraSoundPill">
+      <span aria-hidden="true">🎵</span><span id="cameraSoundLabel">Ajouter un son</span>
+    </button>
     <div id="cameraBottomBar">
       <div class="cameraModeRow">
         <button class="cameraModeBtn active" data-mode="video" type="button">Vidéo</button>
@@ -325,6 +367,27 @@
        bouton "Choisir le fichier" visible séparément, voir la discussion avec
        Lancine ("+" doit ouvrir directement la caméra, comme TikTok). -->
   <input id="videoFileInput" type="file" accept="video/*,image/*" style="display:none">
+
+  <!-- ---------- Sélecteur de son ("Ajouter un son", comme TikTok) ---------- -->
+  <div id="soundPickerOverlay" class="hidden">
+    <div id="soundPickerPanel">
+      <div class="screenHeader">Ajouter un son</div>
+      <label class="soundPickerImportRow">
+        <span class="soundPickerImportIcon">📁</span>
+        <span>Importer un son personnel (juste pour cette publication)</span>
+        <input id="soundPersonalInput" type="file" accept="audio/*" style="display:none">
+      </label>
+      <!-- Visible seulement pour un administrateur (voir openSoundPicker) —
+           la bibliothèque partagée n'est alimentable que par ce biais, pour
+           des raisons de droits d'auteur (voir sound.controller.js). -->
+      <label id="soundAdminAddRow" class="soundPickerImportRow hidden">
+        <span class="soundPickerImportIcon">➕</span>
+        <span>Ajouter un son à la bibliothèque (admin)</span>
+        <input id="soundAdminAddInput" type="file" accept="audio/*" style="display:none">
+      </label>
+      <div id="soundPickerList"></div>
+    </div>
+  </div>
 
   <!-- ---------- Publier une vidéo/photo (légende + aperçu, après capture ou choix dans la galerie) ---------- -->
   <div id="uploadOverlay" class="hidden">
@@ -366,6 +429,13 @@
   let pendingUploadFile = null;
   let pendingUploadKind = 'video'; // 'video' | 'photo'
   let pendingThumbnail = null; // { data, mime } ou null — vidéo uniquement
+  // Son choisi sur l'écran caméra ("Ajouter un son") pour la PROCHAINE
+  // publication, remis à null après publication ou annulation (voir
+  // closeUploadOverlay) : soit { type:'library', id, name } (bibliothèque
+  // partagée, voir openSoundPicker), soit { type:'personal', file, name }
+  // (fichier importé juste pour cette publication), soit null (aucun son
+  // ajouté — la vidéo garde sa bande son d'origine).
+  let pendingSoundChoice = null;
 
   // Le son démarre coupé (obligatoire pour que la LECTURE AUTOMATIQUE au
   // défilement soit autorisée par le navigateur, comme pour toute lecture
@@ -431,6 +501,33 @@
     container.querySelectorAll('video').forEach((videoEl) => {
       if (videoEl.src && videoEl.src.startsWith('blob:')) URL.revokeObjectURL(videoEl.src);
     });
+    container.querySelectorAll('audio.clipAudio').forEach((audioEl) => {
+      // Un son de la bibliothèque partagée (voir soundBlobUrlCache ci-dessous)
+      // est réutilisé par d'autres vidéos : on ne révoque JAMAIS son URL ici,
+      // seulement celle d'un son PERSONNEL propre à cette vidéo précise (voir
+      // attachSoundToClip, qui marque data-curated="1" dans le cas partagé).
+      if (audioEl.dataset.curated !== '1' && audioEl.src && audioEl.src.startsWith('blob:')) {
+        URL.revokeObjectURL(audioEl.src);
+      }
+    });
+  }
+
+  // Cache des blob URLs des sons de la bibliothèque partagée (voir modèle
+  // Sound côté serveur) : un même son est souvent réutilisé par plusieurs
+  // vidéos — on ne le télécharge/convertit qu'une seule fois par session,
+  // et son URL n'est JAMAIS révoquée (voir revokeClipBlobUrls ci-dessus).
+  const soundBlobUrlCache = new Map();
+  async function getSoundBlobUrl(soundId) {
+    if (soundBlobUrlCache.has(soundId)) return soundBlobUrlCache.get(soundId);
+    try {
+      const data = await api('/api/sounds/' + soundId);
+      const url = base64ToBlobUrl(data.sound.audioData, data.sound.audioMime || 'audio/mpeg');
+      if (url) soundBlobUrlCache.set(soundId, url);
+      return url;
+    } catch (err) {
+      console.error('getSoundBlobUrl error:', err);
+      return null;
+    }
   }
 
   // ---------- Sélecteur d'indicatif (drapeau + code pays) ----------
@@ -776,7 +873,14 @@
   // le son" est un réglage global de l'appli, pas propre à chaque vidéo.
   function setGlobalSound(enabled) {
     globalSoundEnabled = enabled;
-    document.querySelectorAll('.clip video').forEach((video) => { video.muted = !enabled; });
+    // Un clip avec un son ajouté (voir renderClip, hasAttachedSound) garde sa
+    // vidéo TOUJOURS muette — c'est l'élément <audio> séparé qui suit ce
+    // réglage dans ce cas, jamais la vidéo elle-même.
+    document.querySelectorAll('.clip').forEach((clipEl) => {
+      const video = clipEl.querySelector('video');
+      const audio = clipEl.querySelector('.clipAudio');
+      if (audio) audio.muted = !enabled; else if (video) video.muted = !enabled;
+    });
     document.querySelectorAll('.clip .muteBtn .discVolumeBadge').forEach((badge) => { badge.innerHTML = enabled ? VOLUME_ON_SVG : VOLUME_OFF_SVG; });
   }
 
@@ -786,6 +890,7 @@
       entries.forEach((entry) => {
         const video = entry.target.querySelector('video');
         if (!video) return;
+        const audio = entry.target.querySelector('.clipAudio');
         if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
           // Le navigateur peut refuser une lecture automatique AVEC le son
           // (déclenchée par le défilement, pas par un clic direct) même si
@@ -795,8 +900,13 @@
             video.muted = true;
             video.play().catch(() => {});
           });
+          if (audio && audio.src) {
+            try { audio.currentTime = video.currentTime; } catch (err) { /* ignoré */ }
+            audio.play().catch(() => {});
+          }
         } else {
           video.pause();
+          if (audio) audio.pause();
         }
       });
     }, { root: $('feed'), threshold: [0, 0.6, 1] });
@@ -841,6 +951,38 @@
     }
   }
 
+  // Pose la source réelle de l'élément <audio> d'un clip (voir renderClip,
+  // hasAttachedSound) une fois insérée dans le DOM — séparé de renderClip
+  // parce qu'un son de bibliothèque partagée se récupère à la demande
+  // (asynchrone, voir getSoundBlobUrl), alors qu'un son personnel est déjà
+  // disponible immédiatement (inclus dans v.personalSoundData).
+  async function attachSoundToClip(v, el) {
+    const audioEl = el.querySelector('.clipAudio');
+    if (!audioEl) return;
+    let blobUrl = null;
+    if (v.personalSoundData) {
+      blobUrl = base64ToBlobUrl(v.personalSoundData, v.personalSoundMime || 'audio/mpeg');
+    } else if (v.sound && v.sound.id) {
+      blobUrl = await getSoundBlobUrl(v.sound.id);
+      // Marque cet <audio> comme utilisant un son PARTAGÉ (voir
+      // revokeClipBlobUrls, qui ne révoque jamais ces URLs-là, réutilisées
+      // par d'autres clips).
+      audioEl.dataset.curated = '1';
+    }
+    if (!blobUrl) return;
+    audioEl.src = blobUrl;
+    audioEl.muted = !globalSoundEnabled;
+    const videoEl = el.querySelector('video');
+    // Le son d'un clip de bibliothèque se récupère à la demande (asynchrone) :
+    // si la vidéo est déjà en train de jouer au moment où il arrive (clip déjà
+    // visible à l'écran), on démarre l'audio tout de suite plutôt que
+    // d'attendre le prochain passage de l'observer.
+    if (videoEl && !videoEl.paused) {
+      try { audioEl.currentTime = videoEl.currentTime; } catch (err) { /* ignoré */ }
+      audioEl.play().catch(() => {});
+    }
+  }
+
   function renderClip(v) {
     const el = document.createElement('div');
     el.className = 'clip';
@@ -864,8 +1006,20 @@
     const COMMENT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"></path><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"></circle></svg>';
     const SAVE_SVG = '<svg class="saveIconSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>';
     const SHARE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 4 20 9 15 14"></polyline><path d="M4 20v-6a4 4 0 0 1 4-4h12"></path></svg>';
+    const MUSIC_NOTE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>';
+    // "Ajouter un son" (voir openSoundPicker) : au plus une des deux options
+    // côté serveur, soundId prioritaire (voir createVideo) — donc ici aussi,
+    // v.sound (bibliothèque partagée) prioritaire sur v.personalSoundName.
+    const soundName = !isPhoto ? (v.sound ? v.sound.name : (v.personalSoundName || null)) : null;
+    // Élément <audio> séparé de la vidéo (toujours muette dans ce cas — voir
+    // plus bas) quand un son a été ajouté : sinon la bande son d'origine de la
+    // vidéo jouerait EN PLUS du son choisi. Absent pour une photo, et absent
+    // aussi quand aucun son n'a été ajouté (la vidéo garde alors sa propre
+    // bande son, comme avant cette fonctionnalité — voir plus bas).
+    const hasAttachedSound = !isPhoto && !!(v.sound || v.personalSoundData);
     el.innerHTML = `
       ${mediaHtml}
+      ${hasAttachedSound ? '<audio class="clipAudio" loop preload="none"></audio>' : ''}
       ${isMine ? `<button class="clipDeleteBtn" title="Supprimer cette ${isPhoto ? 'photo' : 'vidéo'}">🗑️</button>` : ''}
       <div class="clipSide">
         ${(!isMine && v.author) ? `
@@ -901,15 +1055,23 @@
       <div class="clipOverlay">
         <div class="clipAuthor">${escapeHtml(v.author ? v.author.name : '—')}</div>
         ${v.caption ? `<div class="clipCaption">${escapeHtml(v.caption)}</div>` : ''}
+        ${soundName ? `<div class="clipSoundLabel">${MUSIC_NOTE_SVG}<span class="clipSoundText">${escapeHtml(soundName)}</span></div>` : ''}
       </div>
     `;
     const videoEl = el.querySelector('video');
     if (videoEl) {
       const blobUrl = base64ToBlobUrl(v.videoData, v.videoMime);
       if (blobUrl) videoEl.src = blobUrl;
-      // Reflète l'état du son partagé par tout le fil (voir globalSoundEnabled) —
-      // pas "muet à chaque nouvelle vidéo" comme avant.
-      videoEl.muted = !globalSoundEnabled;
+      const audioEl = hasAttachedSound ? el.querySelector('.clipAudio') : null;
+      // Quand un son a été ajouté, la vidéo reste TOUJOURS muette (voir plus
+      // haut) : c'est l'élément <audio> séparé qui porte le son, et lui seul
+      // suit le réglage global (globalSoundEnabled) — sinon la bande son
+      // d'origine de la vidéo se mélangerait au son choisi.
+      videoEl.muted = hasAttachedSound ? true : !globalSoundEnabled;
+      if (audioEl) {
+        audioEl.muted = !globalSoundEnabled;
+        attachSoundToClip(v, el);
+      }
       const muteBtn = el.querySelector('.muteBtn');
       muteBtn.querySelector('.discVolumeBadge').innerHTML = globalSoundEnabled ? VOLUME_ON_SVG : VOLUME_OFF_SVG;
       muteBtn.addEventListener('click', (e) => {
@@ -917,7 +1079,13 @@
         setGlobalSound(!globalSoundEnabled);
       });
       videoEl.addEventListener('click', () => {
-        if (videoEl.paused) videoEl.play().catch(() => {}); else videoEl.pause();
+        if (videoEl.paused) {
+          videoEl.play().catch(() => {});
+          if (audioEl && audioEl.src) audioEl.play().catch(() => {});
+        } else {
+          videoEl.pause();
+          if (audioEl) audioEl.pause();
+        }
       });
     }
     el.querySelector('.likeBtn').addEventListener('click', () => toggleLike(v, el));
@@ -1116,6 +1284,11 @@
     $('uploadPreviewImage').src = '';
     pendingUploadFile = null;
     pendingThumbnail = null;
+    // Que ce soit après une publication réussie ou une annulation, le son
+    // choisi (voir pendingSoundChoice, cameraSoundBtn) ne doit pas rester
+    // accroché à une PROCHAINE publication sans rapport.
+    pendingSoundChoice = null;
+    updateCameraSoundLabel();
     $('videoFileInput').value = '';
     $('uploadPreviewWrap').classList.remove('show', 'kind-video', 'kind-photo');
     $('publishBtn').disabled = true;
@@ -1226,6 +1399,9 @@
   function setCameraMode(mode) {
     cameraMode = mode;
     document.querySelectorAll('.cameraModeBtn').forEach((btn) => btn.classList.toggle('active', btn.dataset.mode === mode));
+    // "Ajouter un son" n'a de sens que pour une vidéo (une photo "Clips" n'a
+    // pas de disque/bande son, voir renderClip) — masqué en mode Photo.
+    $('cameraSoundBtn').classList.toggle('hidden', mode === 'photo');
   }
 
   async function openCameraScreen() {
@@ -1255,6 +1431,7 @@
     cameraTimerInterval = null;
     $('cameraTimer').classList.add('hidden');
     $('cameraShutterBtn').classList.remove('recording');
+    $('cameraSoundBtn').classList.toggle('hidden', cameraMode === 'photo');
   }
 
   $('navUploadBtn').addEventListener('click', openCameraScreen);
@@ -1274,6 +1451,148 @@
     if (cameraMode === 'photo') capturePhotoFromCamera();
     else if (!cameraRecording) startCameraRecording();
     else stopCameraRecording();
+  });
+
+  // ---------- "Ajouter un son" (comme TikTok) ----------
+  let curatedSounds = null; // cache de GET /api/sounds pour cette session
+  let soundPreviewAudio = null; // aperçu joué DANS le sélecteur (distinct des vidéos du fil)
+
+  function updateCameraSoundLabel() {
+    $('cameraSoundLabel').textContent = pendingSoundChoice ? pendingSoundChoice.name : 'Ajouter un son';
+  }
+
+  function stopSoundPreview() {
+    if (soundPreviewAudio) { soundPreviewAudio.pause(); soundPreviewAudio = null; }
+    document.querySelectorAll('.soundPickerPreviewBtn.playing').forEach((b) => b.classList.remove('playing'));
+  }
+
+  function closeSoundPicker() {
+    stopSoundPreview();
+    $('soundPickerOverlay').classList.add('hidden');
+  }
+
+  function renderSoundPickerList() {
+    const list = $('soundPickerList');
+    list.innerHTML = '';
+
+    const noneRow = document.createElement('button');
+    noneRow.type = 'button';
+    noneRow.className = 'soundPickerRow noneRow';
+    noneRow.innerHTML = '<span class="soundPickerRowName">Aucun son (garder le son original)</span>';
+    noneRow.addEventListener('click', () => {
+      pendingSoundChoice = null;
+      updateCameraSoundLabel();
+      closeSoundPicker();
+    });
+    list.appendChild(noneRow);
+
+    if (!curatedSounds.length) {
+      const empty = document.createElement('div');
+      empty.className = 'screenEmpty';
+      empty.textContent = "Aucun son dans la bibliothèque pour l'instant.";
+      list.appendChild(empty);
+    }
+
+    curatedSounds.forEach((s) => {
+      const row = document.createElement('div');
+      row.className = 'soundPickerRow';
+      row.innerHTML = `
+        <button type="button" class="soundPickerPreviewBtn" title="Écouter">▶</button>
+        <span class="soundPickerRowName">${escapeHtml(s.name)}</span>
+        <button type="button" class="soundPickerChooseBtn">Choisir</button>
+        ${(me && me.isAdmin) ? `<button type="button" class="soundPickerDeleteBtn" title="Supprimer">🗑️</button>` : ''}
+      `;
+      row.querySelector('.soundPickerPreviewBtn').addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+        const wasPlaying = btn.classList.contains('playing');
+        stopSoundPreview();
+        if (wasPlaying) return;
+        const url = await getSoundBlobUrl(s.id);
+        if (!url) return;
+        soundPreviewAudio = new Audio(url);
+        soundPreviewAudio.play().catch(() => {});
+        btn.classList.add('playing');
+        soundPreviewAudio.addEventListener('ended', () => btn.classList.remove('playing'));
+      });
+      row.querySelector('.soundPickerChooseBtn').addEventListener('click', () => {
+        pendingSoundChoice = { type: 'library', id: s.id, name: s.name };
+        updateCameraSoundLabel();
+        closeSoundPicker();
+      });
+      const delBtn = row.querySelector('.soundPickerDeleteBtn');
+      if (delBtn) {
+        delBtn.addEventListener('click', async (e) => {
+          e.stopPropagation();
+          if (!confirm(`Supprimer le son "${s.name}" de la bibliothèque partagée ?`)) return;
+          try {
+            await api('/api/sounds/' + s.id, { method: 'DELETE' });
+            curatedSounds = curatedSounds.filter((x) => x.id !== s.id);
+            renderSoundPickerList();
+          } catch (err) {
+            alert('Erreur : ' + err.message);
+          }
+        });
+      }
+      list.appendChild(row);
+    });
+  }
+
+  async function openSoundPicker() {
+    $('soundAdminAddRow').classList.toggle('hidden', !(me && me.isAdmin));
+    $('soundPickerOverlay').classList.remove('hidden');
+    $('soundPickerList').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      if (!curatedSounds) {
+        const data = await api('/api/sounds');
+        curatedSounds = data.sounds;
+      }
+      renderSoundPickerList();
+    } catch (err) {
+      $('soundPickerList').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  $('cameraSoundBtn').addEventListener('click', openSoundPicker);
+  $('soundPickerOverlay').addEventListener('click', (e) => { if (e.target === $('soundPickerOverlay')) closeSoundPicker(); });
+
+  // Son personnel importé juste pour CETTE publication (pas ajouté à la
+  // bibliothèque partagée) — voir createVideo, champ personalSoundData.
+  $('soundPersonalInput').addEventListener('change', () => {
+    const file = $('soundPersonalInput').files[0];
+    $('soundPersonalInput').value = '';
+    if (!file) return;
+    pendingSoundChoice = {
+      type: 'personal',
+      file,
+      name: (file.name || 'Son personnel').replace(/\.[^.]+$/, '').slice(0, 60) || 'Son personnel',
+    };
+    updateCameraSoundLabel();
+    closeSoundPicker();
+  });
+
+  // Ajout à la bibliothèque partagée — réservé aux administrateurs côté
+  // serveur (voir requireAdmin) ; la ligne n'est même affichée que pour eux
+  // (voir openSoundPicker), mais le serveur revérifie de toute façon.
+  $('soundAdminAddInput').addEventListener('change', async () => {
+    const file = $('soundAdminAddInput').files[0];
+    $('soundAdminAddInput').value = '';
+    if (!file) return;
+    const defaultName = (file.name || '').replace(/\.[^.]+$/, '');
+    const name = prompt('Nom du son (visible par tout le monde) :', defaultName);
+    if (!name || !name.trim()) return;
+    try {
+      const audioData = await blobToBase64(file);
+      const data = await api('/api/sounds', {
+        method: 'POST',
+        body: JSON.stringify({ name: name.trim(), audioData, audioMime: file.type || 'audio/mpeg' }),
+      });
+      curatedSounds = null; // force un rechargement de la liste
+      await openSoundPicker();
+      alert(`Son "${data.sound.name}" ajouté à la bibliothèque.`);
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
   });
 
   // Prend une photo instantanée du flux de la caméra (une image, pas un
@@ -1318,6 +1637,9 @@
     $('cameraShutterBtn').classList.add('recording');
     $('cameraTimer').textContent = '00:00';
     $('cameraTimer').classList.remove('hidden');
+    // Masquée pendant l'enregistrement, comme sur TikTok (voir closeCameraScreen
+    // pour la réafficher une fois l'enregistrement terminé).
+    $('cameraSoundBtn').classList.add('hidden');
     cameraTimerInterval = setInterval(() => {
       const secs = Math.floor((Date.now() - cameraStartTs) / 1000);
       $('cameraTimer').textContent = String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0');
@@ -1391,6 +1713,16 @@
           body.thumbnailData = pendingThumbnail.data;
           body.thumbnailMime = pendingThumbnail.mime;
         }
+        // "Ajouter un son" (voir openSoundPicker) — seulement pour une vidéo
+        // (jamais une photo, voir setCameraMode) : au plus une des deux
+        // options, le serveur revérifie de toute façon (voir createVideo).
+        if (pendingSoundChoice && pendingSoundChoice.type === 'library') {
+          body.soundId = pendingSoundChoice.id;
+        } else if (pendingSoundChoice && pendingSoundChoice.type === 'personal') {
+          body.personalSoundData = await blobToBase64(pendingSoundChoice.file);
+          body.personalSoundMime = pendingSoundChoice.file.type || 'audio/mpeg';
+          body.personalSoundName = pendingSoundChoice.name;
+        }
       }
       const data = await api('/api/videos', { method: 'POST', body: JSON.stringify(body) });
       closeUploadOverlay();
@@ -1414,11 +1746,16 @@
       // attendre l'observer.
       const newVideoEl = newClipEl.querySelector('video');
       if (newVideoEl) {
-        newVideoEl.muted = !globalSoundEnabled;
+        // Pas de newVideoEl.muted = !globalSoundEnabled ici : renderClip a
+        // déjà posé le bon état juste au-dessus (la vidéo reste TOUJOURS
+        // muette si un son a été ajouté, voir hasAttachedSound) — l'écraser
+        // ici referait jouer la bande son d'origine EN PLUS du son choisi.
         newVideoEl.play().catch(() => {
           newVideoEl.muted = true;
           newVideoEl.play().catch(() => {});
         });
+        const newAudioEl = newClipEl.querySelector('.clipAudio');
+        if (newAudioEl && newAudioEl.src) newAudioEl.play().catch(() => {});
       }
     } catch (err) {
       $('uploadMsg').textContent = err.message;

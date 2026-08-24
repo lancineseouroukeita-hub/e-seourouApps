@@ -18,6 +18,7 @@ const contactRoutes = require('./routes/contact.routes');
 const deviceRoutes = require('./routes/device.routes');
 const videoRoutes = require('./routes/video.routes');
 const followRoutes = require('./routes/follow.routes');
+const soundRoutes = require('./routes/sound.routes');
 const { setupSocket } = require('./sockets');
 const prisma = require('./config/prisma');
 
@@ -66,6 +67,7 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/devices', deviceRoutes);
 app.use('/api/videos', videoRoutes);
 app.use('/api/follows', followRoutes);
+app.use('/api/sounds', soundRoutes);
 
 // Sert l'application web (testeur/PWA) : le dossier public/ contient index.html,
 // le manifest PWA, le service worker et les icônes. Comme c'est servi par ce même
