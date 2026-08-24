@@ -105,8 +105,25 @@ async function listConversations(req, res) {
     orderBy: { createdAt: 'desc' },
   });
 
+  // Une discussion 1-à-1 peut devenir "orpheline" si l'autre personne a
+  // supprimé son compte (voir Administration) : il ne reste alors plus que
+  // moi comme participant. Il ne faut jamais l'afficher — WhatsApp ne montre
+  // jamais votre propre nom/photo comme interlocuteur — donc on l'exclut de
+  // la réponse et on la supprime définitivement au passage (comme
+  // leaveConversation quand plus personne n'y participe), pour ne pas avoir à
+  // refaire ce tri à chaque chargement.
+  const valid = [];
+  const orphanedIds = [];
+  for (const c of conversations) {
+    if (!c.isGroup && c.participants.length < 2) orphanedIds.push(c.id);
+    else valid.push(c);
+  }
+  if (orphanedIds.length) {
+    prisma.conversation.deleteMany({ where: { id: { in: orphanedIds } } }).catch(() => null);
+  }
+
   return res.json({
-    conversations: conversations.map((c) => serializeConversation(c, req.user.id)),
+    conversations: valid.map((c) => serializeConversation(c, req.user.id)),
   });
 }
 
@@ -120,6 +137,15 @@ async function createConversation(req, res) {
 
   const allParticipantIds = Array.from(new Set([req.user.id, ...participantIds]));
   const isGroupConversation = Boolean(isGroup) || allParticipantIds.length > 2;
+
+  // Si participantIds ne contenait que mon propre id (ou était vide une fois
+  // dédupliqué avec moi-même), on se retrouverait avec une conversation 1-à-1
+  // dont je serais l'unique participant — et l'écran afficherait alors MON
+  // PROPRE nom/photo comme interlocuteur, ce qui n'existe jamais dans
+  // WhatsApp. On refuse ce cas plutôt que de le laisser passer.
+  if (!isGroupConversation && allParticipantIds.length < 2) {
+    return res.status(400).json({ error: 'Vous ne pouvez pas démarrer une conversation avec vous-même.' });
+  }
 
   // Comme pour l'envoi de message/les appels (voir sockets/chat.js,
   // signaling.js) : impossible de démarrer une conversation 1-à-1 avec

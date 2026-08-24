@@ -1540,7 +1540,7 @@
   <div id="newChatOverlay">
     <div id="newChatCard">
       <div id="newChatHeader">
-        <h2>Nouvelle discussion</h2>
+        <h2 id="newChatTitle">Nouvelle discussion</h2>
         <button id="closeNewChatBtn" title="Fermer">✕</button>
       </div>
       <div id="newChatBody">
@@ -3794,8 +3794,14 @@
   }
 
   function convLabel(c) {
-    const other = c.participants.find((p) => p.id !== me.id) || c.participants[0];
-    return c.isGroup ? (c.name || 'Groupe') : (other ? other.name : '—');
+    // Ne JAMAIS retomber sur c.participants[0] : dans une discussion 1-à-1
+    // "orpheline" (l'autre personne a supprimé son compte, voir
+    // Administration), le seul participant restant serait moi-même — on
+    // afficherait alors mon propre nom comme interlocuteur, ce qui n'arrive
+    // jamais dans WhatsApp. Le serveur nettoie normalement ces discussions
+    // (voir listConversations côté backend), ce repli est juste une sécurité.
+    const other = c.participants.find((p) => p.id !== me.id);
+    return c.isGroup ? (c.name || 'Groupe') : (other ? other.name : 'Compte supprimé');
   }
 
   // Insère les chips de filtres personnalisés (créés via le "+") juste avant
@@ -3924,7 +3930,7 @@
     }
 
     list.forEach((c) => {
-      const other = c.participants.find((p) => p.id !== me.id) || c.participants[0];
+      const other = c.participants.find((p) => p.id !== me.id);
       const label = convLabel(c);
       const unread = isConvUnread(c);
       const isFav = favoriteConvIds.has(c.id);
@@ -4015,7 +4021,7 @@
     closeReactionPicker();
     const label = convLabel(c);
     const isFav = favoriteConvIds.has(c.id);
-    const other = !c.isGroup ? (c.participants.find((p) => p.id !== me.id) || c.participants[0]) : null;
+    const other = !c.isGroup ? c.participants.find((p) => p.id !== me.id) : null;
     // `users` (chargé à la connexion pour composer un groupe/une communauté,
     // voir loadUsers) est la seule source qui connaît déjà l'état "bloqué" —
     // les participants d'une conversation ne le portent pas eux-mêmes.
@@ -4472,12 +4478,28 @@
       row.className = 'listItem';
       row.innerHTML = `${avatarDivHtml(u.name, u.avatarUrl, '', u.online)}
         <div class="liText"><div class="liName">${escapeHtml(u.name)}</div><div class="liSub">${u.online ? 'en ligne' : escapeHtml(u.phone)}</div></div>`;
-      row.addEventListener('click', () => { closeNewChat(); startConversationWith(u.id); });
+      row.addEventListener('click', () => {
+        // Photo prise depuis l'icône appareil photo de la liste des
+        // discussions (pas de discussion ouverte encore) : on choisit
+        // maintenant le destinataire, PUIS on ouvre sa discussion avec la
+        // photo déjà en pièce jointe en attente — voir sidebarCameraBtn plus
+        // bas. Sinon (cas normal), on ouvre juste la discussion. Lu AVANT
+        // closeNewChat(), qui remet pendingCameraFileForPicker à null.
+        const file = pendingCameraFileForPicker;
+        closeNewChat();
+        if (file) {
+          startConversationWith(u.id).then(() => handlePickedFile(file));
+        } else {
+          startConversationWith(u.id);
+        }
+      });
       el.appendChild(row);
     });
   }
 
   async function openNewChat() {
+    $('newChatTitle').textContent = 'Nouvelle discussion';
+    $('newChatActions').style.display = '';
     $('newChatSearchInput').value = '';
     $('newChatList').innerHTML = '<div id="newChatEmpty">Chargement…</div>';
     $('newChatOverlay').classList.add('show');
@@ -4490,6 +4512,30 @@
 
   function closeNewChat() {
     $('newChatOverlay').classList.remove('show');
+    // Fermé sans avoir choisi de destinataire (✕ ou clic à l'extérieur) :
+    // n'attache la photo à personne la prochaine fois que cet écran s'ouvre.
+    pendingCameraFileForPicker = null;
+    $('newChatActions').style.display = '';
+  }
+
+  // Photo prise avec l'icône appareil photo en haut de la liste des
+  // discussions (comme WhatsApp) : pas de discussion ouverte à ce moment-là,
+  // donc on capture d'abord, puis on réutilise cet écran "Nouvelle
+  // discussion" pour choisir à qui l'envoyer — voir renderNewChatList
+  // ci-dessus, qui vérifie pendingCameraFileForPicker à chaque clic sur un
+  // contact. Les actions rapides (Nouveau groupe, etc.) n'ont pas de sens
+  // pour envoyer une photo : masquées dans ce mode.
+  let pendingCameraFileForPicker = null;
+  async function openRecipientPickerForCameraFile(file) {
+    pendingCameraFileForPicker = file;
+    $('newChatTitle').textContent = 'Envoyer la photo à…';
+    $('newChatActions').style.display = 'none';
+    $('newChatSearchInput').value = '';
+    $('newChatList').innerHTML = '<div id="newChatEmpty">Chargement…</div>';
+    $('newChatOverlay').classList.add('show');
+    try { await loadContacts(); } catch (e) { /* tant pis, on affiche la liste déjà en mémoire */ }
+    renderNewChatList('');
+    setTimeout(() => $('newChatSearchInput').focus(), 50);
   }
 
   $('newChatBtn').addEventListener('click', openNewChat);
@@ -4513,8 +4559,15 @@
     alert('Messages de diffusion : bientôt disponible.');
   });
 
+  // Icône appareil photo en haut de la liste des discussions (comme
+  // WhatsApp) : capture directement, PUIS demande à qui l'envoyer — on ne
+  // bloque plus avec "Ouvrez une discussion avant d'envoyer une photo.".
+  // cameraFromSidebar distingue ce cas de l'icône caméra DANS une discussion
+  // déjà ouverte (menu pièce jointe), qui continue d'attacher directement au
+  // composeur de cette discussion — même <input> partagé, voir plus bas.
+  let cameraFromSidebar = false;
   $('sidebarCameraBtn').addEventListener('click', () => {
-    if (!activeConversationId) return alert('Ouvrez une discussion avant d\'envoyer une photo.');
+    cameraFromSidebar = true;
     $('cameraInput').click();
   });
 
@@ -4558,8 +4611,8 @@
     }
 
     const conv = conversations.find((c) => c.id === convId);
-    const other = conv.participants.find((p) => p.id !== me.id) || conv.participants[0];
-    const label = conv.isGroup ? (conv.name || 'Groupe') : (other ? other.name : '—');
+    const other = conv.participants.find((p) => p.id !== me.id);
+    const label = conv.isGroup ? (conv.name || 'Groupe') : (other ? other.name : 'Compte supprimé');
     const avatarUrl = !conv.isGroup && other ? other.avatarUrl : null;
     $('chatTitle').textContent = label;
     $('chatAvatar').className = 'avatar' + (avatarUrl ? ' avatarPhoto' : '');
@@ -5384,7 +5437,7 @@
     }
     conversations.forEach((c) => {
       const label = convLabel(c);
-      const other = c.participants.find((p) => p.id !== me.id) || c.participants[0];
+      const other = c.participants.find((p) => p.id !== me.id);
       const row = document.createElement('label');
       row.className = 'listItem forwardRow';
       row.innerHTML = `<input type="checkbox" class="forwardCheckbox" data-conv-id="${c.id}">
@@ -5590,6 +5643,12 @@
   $('cameraInput').addEventListener('change', () => {
     const file = $('cameraInput').files[0];
     $('cameraInput').value = '';
+    if (!file) { cameraFromSidebar = false; return; }
+    if (cameraFromSidebar) {
+      cameraFromSidebar = false;
+      openRecipientPickerForCameraFile(file);
+      return;
+    }
     handlePickedFile(file);
   });
 
