@@ -314,6 +314,114 @@
   #topBar{padding-left:54px;}
   .screenHeader{padding-left:54px;}
   .profileTopBar{padding-left:54px;}
+
+  /* ---------- Écrans secondaires du menu ☰ (Solde, Studio de création,
+     Promouvoir, Centre des activités, Vidéos hors ligne, Ton code QR,
+     Paramètres) : chacun recouvre tout l'écran par-dessus le Profil, avec
+     son propre bouton retour — z-index au-dessus de la nav du bas (15) et du
+     bouton retour vers seourouApps (16), en dessous du menu ☰/de la feuille
+     de partage (30) qui peuvent s'ouvrir depuis le Profil directement. ---------- */
+  .subScreen{position:fixed;inset:0;background:var(--bg);z-index:20;display:none;overflow-y:auto;}
+  .subScreen.show{display:block;}
+  .subScreenHeader{position:sticky;top:0;background:var(--bg);display:flex;align-items:center;gap:10px;padding:14px 16px 12px;padding-top:calc(14px + env(safe-area-inset-top, 0));border-bottom:1px solid var(--border);z-index:1;}
+  .subScreenBackBtn{background:none;border:none;color:var(--text);font-size:21px;line-height:1;cursor:pointer;padding:2px 6px 2px 0;}
+  .subScreenTitle{font-weight:800;font-size:16.5px;}
+
+  /* Solde */
+  .walletBalanceCard{margin:18px 16px;padding:22px;border-radius:16px;background:linear-gradient(135deg,#25d4e0,var(--accent));text-align:center;}
+  .walletBalanceNum{font-size:32px;font-weight:800;color:white;line-height:1.1;}
+  .walletBalanceLabel{color:rgba(255,255,255,0.9);font-size:12.5px;margin-top:4px;}
+  .walletSectionLabel{padding:6px 16px;font-size:12px;color:var(--muted);font-weight:600;}
+  .walletTxRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:11px 16px;border-bottom:1px solid var(--border);}
+  .walletTxLabel{font-size:13px;}
+  .walletTxDate{font-size:11px;color:var(--muted);margin-top:2px;}
+  .walletTxAmount{font-size:14px;font-weight:700;flex-shrink:0;}
+  .walletTxAmount.positive{color:#3ddc84;}
+  .walletTxAmount.negative{color:var(--accent);}
+
+  /* Studio de création (statistiques) */
+  .studioStatsGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;padding:16px;}
+  .studioStatCard{background:var(--panel);border-radius:12px;padding:14px;text-align:center;}
+  .studioStatNum{font-size:21px;font-weight:800;}
+  .studioStatLabel{font-size:11px;color:var(--muted);margin-top:2px;}
+  .studioSectionLabel{padding:10px 16px 4px;font-size:12px;color:var(--muted);font-weight:600;}
+  .studioChart{display:flex;align-items:flex-end;gap:8px;height:110px;padding:20px 16px 26px;position:relative;}
+  .studioChartBar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;}
+  .studioChartBarFill{width:100%;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px;}
+  .studioChartBarNum{font-size:10px;color:var(--muted);margin-bottom:2px;}
+  .studioChartBarLabel{font-size:9.5px;color:var(--muted);margin-top:4px;}
+  .studioVideoRow{display:flex;gap:10px;padding:9px 16px;align-items:center;border-bottom:1px solid var(--border);}
+  .studioVideoThumb{width:40px;height:53px;border-radius:6px;background:#000;overflow:hidden;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:16px;}
+  .studioVideoThumb img{width:100%;height:100%;object-fit:cover;}
+  .studioVideoInfo{flex:1;min-width:0;}
+  .studioVideoCaption{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .studioVideoMeta{font-size:11px;color:var(--muted);margin-top:2px;}
+  .studioBoostedTag{display:inline-flex;align-items:center;gap:3px;font-size:10.5px;color:var(--accent);margin-left:6px;}
+
+  /* Promouvoir */
+  .boostIntro{padding:6px 16px 14px;font-size:12.5px;color:var(--muted);line-height:1.5;}
+  .boostBtn{padding:7px 14px;border-radius:8px;border:none;background:var(--accent);color:white;font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
+  .boostBtn:disabled{opacity:0.5;cursor:default;}
+  .boostActiveLabel{font-size:11px;color:#3ddc84;font-weight:600;flex-shrink:0;}
+
+  /* Centre des activités */
+  .activityRow{display:flex;gap:10px;padding:12px 16px;align-items:center;border-bottom:1px solid var(--border);}
+  .activityIcon{width:34px;height:34px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:15px;overflow:hidden;}
+  .activityIcon img{width:100%;height:100%;object-fit:cover;}
+  .activityText{font-size:13px;flex:1;min-width:0;line-height:1.4;}
+  .activityText b{font-weight:700;}
+  .activityTime{font-size:10.5px;color:var(--muted);flex-shrink:0;white-space:nowrap;}
+
+  /* Vidéos hors ligne */
+  .offlineRow{display:flex;gap:10px;padding:10px 16px;align-items:center;border-bottom:1px solid var(--border);}
+  .downloadBtn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:12px;cursor:pointer;flex-shrink:0;}
+  .downloadBtn.done{border-color:#3ddc84;color:#3ddc84;}
+
+  /* Ton code QR */
+  .qrCanvasWrap{display:flex;flex-direction:column;align-items:center;padding:30px 24px 20px;}
+  #qrCanvas{background:white;padding:14px;border-radius:14px;max-width:100%;}
+  .qrLinkText{margin-top:16px;font-size:11.5px;color:var(--muted);word-break:break-all;text-align:center;}
+  .qrCopyBtn{margin-top:14px;padding:9px 18px;border-radius:20px;border:1px solid var(--accent);background:none;color:var(--accent);font-size:13px;font-weight:600;cursor:pointer;}
+
+  /* Paramètres et confidentialité */
+  .settingsRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);}
+  .settingsRowLabel{font-size:13.5px;}
+  .settingsRowHint{font-size:11px;color:var(--muted);margin-top:2px;}
+  .toggleSwitch{position:relative;width:44px;height:26px;flex-shrink:0;}
+  .toggleSwitch input{opacity:0;width:0;height:0;}
+  .toggleSwitchTrack{position:absolute;inset:0;background:var(--panel2);border-radius:13px;cursor:pointer;transition:background 0.15s;}
+  .toggleSwitchTrack::before{content:'';position:absolute;left:3px;top:3px;width:20px;height:20px;border-radius:50%;background:white;transition:transform 0.15s;}
+  .toggleSwitch input:checked + .toggleSwitchTrack{background:var(--accent);}
+  .toggleSwitch input:checked + .toggleSwitchTrack::before{transform:translateX(18px);}
+  .settingsBlockedRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 16px;}
+  .settingsUnblockBtn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text);font-size:12px;cursor:pointer;}
+  .settingsFullLink{display:block;margin:16px;padding:12px;border-radius:10px;background:var(--panel2);color:var(--text);text-align:center;font-size:13px;text-decoration:none;}
+
+  /* ---------- Menu ☰ (tiroir latéral, comme la capture TikTok) ---------- */
+  .menuOverlay{position:fixed;inset:0;z-index:30;display:flex;justify-content:flex-end;background:rgba(0,0,0,0.4);}
+  .menuOverlay.hidden{display:none;}
+  .menuPanel{width:80%;max-width:340px;height:100%;background:#141414;overflow-y:auto;padding-top:calc(16px + env(safe-area-inset-top, 0));padding-bottom:calc(16px + env(safe-area-inset-bottom, 0));}
+  .menuSectionLabel{padding:14px 18px 6px;font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.02em;}
+  .menuRow{display:flex;align-items:center;gap:14px;width:100%;padding:12px 18px;background:none;border:none;color:var(--text);font-size:14.5px;font-weight:600;cursor:pointer;text-align:left;}
+  .menuRow:active{background:rgba(255,255,255,0.05);}
+  .menuRowIcon{width:22px;flex-shrink:0;display:flex;align-items:center;justify-content:center;}
+  .menuRowIcon svg{width:20px;height:20px;}
+  .menuDivider{height:1px;background:var(--border);margin:8px 18px;}
+
+  /* ---------- Feuille de partage "Envoyer à" ---------- */
+  #shareSheetOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;justify-content:center;z-index:30;}
+  #shareSheetOverlay.hidden{display:none;}
+  #shareSheetPanel{width:100%;max-width:480px;max-height:75vh;background:var(--panel);border-radius:16px 16px 0 0;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom, 0);}
+  .shareSheetHead{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--border);font-weight:700;font-size:15px;}
+  .shareSheetCloseBtn{background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;}
+  .shareSheetContacts{display:flex;gap:14px;overflow-x:auto;padding:14px 16px;}
+  .shareContactItem{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;width:56px;cursor:pointer;background:none;border:none;color:var(--text);}
+  .shareContactAvatar{width:48px;height:48px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;overflow:hidden;font-size:18px;}
+  .shareContactAvatar img{width:100%;height:100%;object-fit:cover;}
+  .shareContactName{font-size:10.5px;max-width:56px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .shareSheetActions{display:flex;padding:8px 6px 18px;overflow-x:auto;}
+  .shareActionBtn{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:none;color:var(--text);font-size:11px;flex-shrink:0;width:76px;cursor:pointer;}
+  .shareActionIcon{width:46px;height:46px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:19px;}
 </style>
 </head>
 <body>
@@ -1636,15 +1744,16 @@
   // douceur sur un appareil qui ne peut pas atteindre cette résolution,
   // plutôt que de faire échouer complètement l'accès à la caméra.
   const CAMERA_IDEAL_WIDTH = 720;
-  // Sans contrainte de hauteur, certains appareils renvoient un flux au
-  // format "paysage" par défaut (ex: 720x480) même filmé en tenant le
-  // téléphone à la verticale — une fois affiché en plein écran (voir .clip
-  // video, en "cover" comme TikTok), ça obligeait à rogner énormément le
-  // haut/bas de l'image. On demande donc explicitement un format portrait
-  // 9:16 (comme une vidéo TikTok), toujours en "ideal" pour dégrader en
-  // douceur sur un appareil qui ne peut pas exactement l'atteindre.
-  const CAMERA_IDEAL_HEIGHT = Math.round(CAMERA_IDEAL_WIDTH * 16 / 9);
-
+  // Une contrainte de hauteur/ratio "portrait 9:16" avait été ajoutée ici
+  // pour éviter des bandes noires à la lecture — mais sur certains
+  // téléphones (constaté), le navigateur satisfait cette contrainte en
+  // ROGNANT fortement l'image du capteur (zoom numérique très serré sur le
+  // visage) plutôt qu'en choisissant simplement un autre mode de résolution.
+  // Comme .clip video est maintenant en "object-fit:cover" (recadrage
+  // automatique à la LECTURE, quel que soit le format filmé — voir plus
+  // haut), cette contrainte n'est plus nécessaire pour éviter les bandes
+  // noires, et on la retire pour retrouver un cadrage normal à
+  // l'enregistrement : seule la largeur reste limitée (poids du fichier).
   async function startCameraStream() {
     if (cameraStream) { cameraStream.getTracks().forEach((t) => t.stop()); cameraStream = null; }
     try {
@@ -1652,8 +1761,6 @@
         video: {
           facingMode: cameraFacingMode,
           width: { ideal: CAMERA_IDEAL_WIDTH },
-          height: { ideal: CAMERA_IDEAL_HEIGHT },
-          aspectRatio: { ideal: 9 / 16 },
         },
         audio: true,
       });
