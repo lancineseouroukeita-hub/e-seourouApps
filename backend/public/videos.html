@@ -858,27 +858,37 @@
   //    DE CARACTÈRES (l'intégralité du base64 dans une seule URL) — certains
   //    navigateurs mobiles limitent la longueur d'URL/URI qu'ils acceptent,
   //    même pour fetch().
-  // 3) Solution actuelle : atob() (décodage natif, rapide, PAS la boucle
-  //    manuelle lente du (1)) pour obtenir les octets bruts, puis un
-  //    Uint8Array rempli par blocs, puis new Blob([bytes]) directement —
-  //    aucune chaîne "URI" géante n'est jamais construite, donc aucune limite
-  //    de longueur d'URL ne peut s'appliquer, quelle que soit la taille du
-  //    fichier. atob() lui-même est une fonction native du navigateur (pas
-  //    une boucle JS), donc rapide même sur un gros fichier.
-  function base64ToBytes(base64) {
-    const binary = atob(base64);
-    const len = binary.length;
-    const bytes = new Uint8Array(len);
-    // Rempli par blocs plutôt qu'en un seul passage naïf : même résultat,
-    // mais évite de bloquer le thread principal d'un coup sur un très gros
-    // fichier (perceptible comme un gel de l'interface le temps de la
-    // conversion).
-    const CHUNK = 262144; // 256 Ko à la fois
-    for (let offset = 0; offset < len; offset += CHUNK) {
-      const end = Math.min(offset + CHUNK, len);
-      for (let i = offset; i < end; i += 1) bytes[i] = binary.charCodeAt(i);
+  // 3) atob() (décodage natif) appelé UNE SEULE FOIS sur la chaîne ENTIÈRE
+  //    (jusqu'à ~33 Mo de caractères pour une vidéo de 25 Mo), puis un
+  //    Uint8Array rempli par blocs (juste pour ne pas geler l'interface,
+  //    mais la conversion elle-même restait un seul atob() géant) : la
+  //    "conversion échouée" est réapparue quand même sur un appareil réel
+  //    — donc CE gros appel unique à atob() est probablement lui-même le
+  //    point de blocage sur certains iPhone (avant même d'arriver au
+  //    remplissage par blocs), pas seulement l'ancienne histoire de data-URI.
+  // 4) Solution actuelle : atob() appelé plusieurs fois, sur des MORCEAUX du
+  //    texte base64 (jamais la chaîne entière en un seul appel) — chaque
+  //    morceau de 4 caractères se décode en 3 octets de façon totalement
+  //    indépendante des autres (c'est la définition même du base64), donc
+  //    découper en tranches alignées sur des multiples de 4 caractères donne
+  //    exactement le même résultat, sans jamais demander au moteur JS de
+  //    décoder ~33 Mo de texte en un seul appel natif. new Blob() accepte
+  //    directement un tableau de plusieurs Uint8Array et les recolle lui-même
+  //    à la construction — pas besoin de les fusionner nous-mêmes avant.
+  function base64ToBytesChunks(base64) {
+    // Multiple de 4 (obligatoire pour que chaque tranche reste un base64
+    // valide et se décode isolément sans erreur), proche de 256 Ko.
+    const CHUNK_CHARS = 262144;
+    const chunks = [];
+    for (let offset = 0; offset < base64.length; offset += CHUNK_CHARS) {
+      const slice = base64.slice(offset, offset + CHUNK_CHARS);
+      const binary = atob(slice);
+      const len = binary.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i += 1) bytes[i] = binary.charCodeAt(i);
+      chunks.push(bytes);
     }
-    return bytes;
+    return chunks;
   }
 
   // Le "codecs=..." que certains navigateurs annoncent pour une vidéo qu'ils
@@ -899,17 +909,25 @@
     return idx === -1 ? mime : mime.slice(0, idx).trim();
   }
 
+  // Dernier message d'erreur réel rencontré par base64ToBlobUrl (voir
+  // attachVideoSrc, qui l'affiche dans le détail visible du message
+  // "conversion échouée" à la place d'un simple libellé générique) — pour
+  // enfin voir, si ça se reproduit, la VRAIE raison (ex: nom exact de
+  // l'exception JS) plutôt que de deviner à distance.
+  let lastBlobConversionError = null;
+
   // Fonction ASYNCHRONE (même si son corps est maintenant surtout
   // synchrone) : voir attachVideoSrc/attachSoundToClip/getSoundBlobUrl pour
   // les appels (await/.then) — gardé async pour que ces appelants n'aient
   // rien à changer si l'implémentation évolue encore.
   async function base64ToBlobUrl(base64, mime) {
     try {
-      const bytes = base64ToBytes(base64);
-      const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
+      const chunks = base64ToBytesChunks(base64);
+      const blob = new Blob(chunks, { type: mime || 'application/octet-stream' });
       return URL.createObjectURL(blob);
     } catch (err) {
       console.error('base64ToBlobUrl error:', err);
+      lastBlobConversionError = (err && (err.name ? err.name + ': ' : '') + (err.message || String(err))) || 'erreur inconnue';
       return null;
     }
   }
@@ -939,7 +957,7 @@
       const errEl = el.querySelector('.clipPlaybackError');
       if (errEl) {
         errEl.classList.remove('hidden');
-        errEl.querySelector('.clipPlaybackErrorDetail').textContent = `(conversion échouée — ${v.videoMime || 'format inconnu'})`;
+        errEl.querySelector('.clipPlaybackErrorDetail').textContent = `(conversion échouée — ${v.videoMime || 'format inconnu'}${lastBlobConversionError ? ' — ' + lastBlobConversionError : ''})`;
       }
       return;
     }
