@@ -112,6 +112,13 @@
   .muteBtn .discVolumeBadge svg{width:13px;height:13px;}
   @keyframes discSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
   .clip .clipDeleteBtn{position:absolute;top:14px;left:14px;background:rgba(30,30,30,0.55);border:none;color:#ff8a8a;width:36px;height:36px;border-radius:50%;font-size:15px;cursor:pointer;}
+  /* Message affiché à la place de la vidéo quand ELLE échoue à se décoder sur
+     cet appareil (voir renderClip, l'écouteur "error" du <video>) — plutôt
+     que de laisser la vidéo figée, silencieuse, sur son "poster" sans aucune
+     explication (ce qui ressemble exactement à une photo). */
+  .clip .clipPlaybackError{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:0 40px;color:#e8e8ea;font-size:14px;line-height:1.5;background:#000;}
+  .clip .clipPlaybackError.hidden{display:none;}
+  .clip .clipPlaybackErrorDetail{display:block;margin-top:6px;font-size:11.5px;color:var(--muted);}
 
   #topBar{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 14px 0;z-index:5;pointer-events:none;}
   /* Onglets "Suivis" / "Pour toi" (comme TikTok) — filtrent le fil entre les
@@ -495,18 +502,65 @@
   // <video src> se bloque silencieusement sur certains navigateurs (constaté
   // sur iPhone : la vidéo reste figée sur son image "poster", ce qui donne
   // l'impression qu'elle "s'est transformée en photo"). Un blob local est
-  // beaucoup plus fiable pour de gros fichiers. À appeler avec le résultat
-  // pour définir ensuite l'attribut src en JS (voir renderClip).
-  function base64ToBlobUrl(base64, mime) {
+  // beaucoup plus fiable pour de gros fichiers.
+  //
+  // Passe par fetch() sur un data: URI plutôt que par atob() + une boucle JS
+  // caractère par caractère : cette boucle (jusqu'à ~30 millions d'itérations
+  // pour une grosse vidéo) peut être lente, voire échouer silencieusement par
+  // manque de mémoire sur un téléphone (constaté : le problème persistait
+  // même en filmant ET en regardant sur le MÊME iPhone, ce qui écarte un
+  // souci de format/codec et pointe plutôt vers ce décodage manuel trop
+  // lourd) — le décodeur natif du navigateur derrière fetch() est bien plus
+  // robuste pour de gros fichiers. Fonction ASYNCHRONE : voir attachVideoSrc/
+  // attachSoundToClip/getSoundBlobUrl pour les appels (await/.then).
+  async function base64ToBlobUrl(base64, mime) {
     try {
-      const byteChars = atob(base64);
-      const byteNumbers = new Uint8Array(byteChars.length);
-      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
-      const blob = new Blob([byteNumbers], { type: mime || 'application/octet-stream' });
+      const res = await fetch(`data:${mime || 'application/octet-stream'};base64,${base64}`);
+      const blob = await res.blob();
       return URL.createObjectURL(blob);
     } catch (err) {
       console.error('base64ToBlobUrl error:', err);
       return null;
+    }
+  }
+
+  // Pose le src d'un <video> de renderClip une fois la conversion base64 ->
+  // blob (voir base64ToBlobUrl) terminée — c'est-à-dire "en tâche de fond",
+  // sans bloquer l'affichage du clip (poster déjà visible entre-temps).
+  // Comme cette conversion est asynchrone, le clip peut déjà être devenu
+  // visible (voir setupObserver) avant qu'elle ne se termine : dans ce cas
+  // l'appel play() fait par l'observer échoue silencieusement (aucun src
+  // posé encore) et rien ne le relance jamais tout seul, ce qui laissait le
+  // clip bloqué sur son "poster" — donnant l'impression trompeuse que la
+  // vidéo "s'est transformée en photo". On relit donc ici dataset.shouldPlay
+  // (posé par l'observer) pour relancer play() nous-mêmes si besoin, une
+  // fois le src enfin prêt.
+  async function attachVideoSrc(v, el) {
+    const videoEl = el.querySelector('video');
+    if (!videoEl) return;
+    const blobUrl = await base64ToBlobUrl(v.videoData, v.videoMime);
+    // Le clip a pu être retiré du fil (rechargement, suppression) pendant
+    // que la conversion tournait encore — ne rien poser sur un élément mort.
+    if (!videoEl.isConnected) {
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+      return;
+    }
+    if (!blobUrl) {
+      const errEl = el.querySelector('.clipPlaybackError');
+      if (errEl) {
+        errEl.classList.remove('hidden');
+        errEl.querySelector('.clipPlaybackErrorDetail').textContent = `(conversion échouée — ${v.videoMime || 'format inconnu'})`;
+      }
+      return;
+    }
+    videoEl.src = blobUrl;
+    if (el.dataset.shouldPlay === '1') {
+      videoEl.play().catch(() => {
+        videoEl.muted = true;
+        videoEl.play().catch(() => {});
+      });
+      const audioEl = el.querySelector('.clipAudio');
+      if (audioEl && audioEl.src) audioEl.play().catch(() => {});
     }
   }
 
@@ -537,7 +591,7 @@
     if (soundBlobUrlCache.has(soundId)) return soundBlobUrlCache.get(soundId);
     try {
       const data = await api('/api/sounds/' + soundId);
-      const url = base64ToBlobUrl(data.sound.audioData, data.sound.audioMime || 'audio/mpeg');
+      const url = await base64ToBlobUrl(data.sound.audioData, data.sound.audioMime || 'audio/mpeg');
       if (url) soundBlobUrlCache.set(soundId, url);
       return url;
     } catch (err) {
@@ -863,8 +917,9 @@
         $('myVideosGrid').appendChild(thumb);
         if (needsBlobVideo) {
           const videoEl = thumb.querySelector('video');
-          const blobUrl = base64ToBlobUrl(v.videoData, v.videoMime);
-          if (videoEl && blobUrl) videoEl.src = blobUrl;
+          base64ToBlobUrl(v.videoData, v.videoMime).then((blobUrl) => {
+            if (videoEl && blobUrl) videoEl.src = blobUrl;
+          });
         }
       });
     } catch (err) {
@@ -918,6 +973,12 @@
         if (!video) return;
         const audio = entry.target.querySelector('.clipAudio');
         if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+          // Mémorisé sur l'élément (et pas seulement en local ici) : la
+          // conversion base64 -> blob (voir attachVideoSrc/base64ToBlobUrl)
+          // est asynchrone et peut encore être en cours quand ce clip devient
+          // visible — c'est ce flag qu'attachVideoSrc relit pour savoir s'il
+          // doit lancer play() lui-même une fois le src enfin posé.
+          entry.target.dataset.shouldPlay = '1';
           // Le navigateur peut refuser une lecture automatique AVEC le son
           // (déclenchée par le défilement, pas par un clic direct) même si
           // globalSoundEnabled est activé — dans ce cas, on retente sans son
@@ -931,6 +992,7 @@
             audio.play().catch(() => {});
           }
         } else {
+          entry.target.dataset.shouldPlay = '0';
           video.pause();
           if (audio) audio.pause();
         }
@@ -979,15 +1041,15 @@
 
   // Pose la source réelle de l'élément <audio> d'un clip (voir renderClip,
   // hasAttachedSound) une fois insérée dans le DOM — séparé de renderClip
-  // parce qu'un son de bibliothèque partagée se récupère à la demande
-  // (asynchrone, voir getSoundBlobUrl), alors qu'un son personnel est déjà
-  // disponible immédiatement (inclus dans v.personalSoundData).
+  // parce que base64ToBlobUrl est asynchrone (voir plus haut), et qu'un son
+  // de bibliothèque partagée passe en plus par un aller-retour serveur (voir
+  // getSoundBlobUrl) avant même de pouvoir être converti.
   async function attachSoundToClip(v, el) {
     const audioEl = el.querySelector('.clipAudio');
     if (!audioEl) return;
     let blobUrl = null;
     if (v.personalSoundData) {
-      blobUrl = base64ToBlobUrl(v.personalSoundData, v.personalSoundMime || 'audio/mpeg');
+      blobUrl = await base64ToBlobUrl(v.personalSoundData, v.personalSoundMime || 'audio/mpeg');
     } else if (v.sound && v.sound.id) {
       blobUrl = await getSoundBlobUrl(v.sound.id);
       // Marque cet <audio> comme utilisant un son PARTAGÉ (voir
@@ -1046,6 +1108,11 @@
     el.innerHTML = `
       ${mediaHtml}
       ${hasAttachedSound ? '<audio class="clipAudio" loop preload="none"></audio>' : ''}
+      ${!isPhoto ? `
+        <div class="clipPlaybackError hidden">
+          ⚠️ Vidéo illisible sur cet appareil<br><span class="clipPlaybackErrorDetail"></span>
+        </div>
+      ` : ''}
       ${isMine ? `<button class="clipDeleteBtn" title="Supprimer cette ${isPhoto ? 'photo' : 'vidéo'}">🗑️</button>` : ''}
       <div class="clipSide">
         ${v.author ? `
@@ -1090,8 +1157,12 @@
     `;
     const videoEl = el.querySelector('video');
     if (videoEl) {
-      const blobUrl = base64ToBlobUrl(v.videoData, v.videoMime);
-      if (blobUrl) videoEl.src = blobUrl;
+      // base64ToBlobUrl est asynchrone (voir sa définition : elle passe par
+      // fetch()+blob() plutôt que par un décodage manuel, plus robuste pour
+      // les grosses vidéos) — on ne bloque pas ici, attachVideoSrc pose le
+      // src dès que la conversion est prête et relance play() si besoin (cf.
+      // dataset.shouldPlay posé par l'observer plus haut).
+      attachVideoSrc(v, el);
       const audioEl = hasAttachedSound ? el.querySelector('.clipAudio') : null;
       // Quand un son a été ajouté, la vidéo reste TOUJOURS muette (voir plus
       // haut) : c'est l'élément <audio> séparé qui porte le son, et lui seul
@@ -1116,6 +1187,22 @@
           videoEl.pause();
           if (audioEl) audioEl.pause();
         }
+      });
+      // Rend visible un échec de DÉCODAGE (format non supporté par CET
+      // appareil, ex: du WebM/VP9 enregistré sur ordinateur puis regardé sur
+      // un iPhone, qui ne sait pas du tout lire ce format) — plutôt que de
+      // laisser silencieusement la vidéo figée sur son "poster", ce qui donne
+      // l'impression trompeuse qu'elle "s'est transformée en photo". Ce n'est
+      // PAS le même bug que le data-URI trop lourd (déjà corrigé via
+      // base64ToBlobUrl) : aucune conversion côté client ne peut réparer un
+      // format que l'appareil ne sait pas décoder — la vraie solution long
+      // terme est une conversion côté serveur (pas encore faite).
+      videoEl.addEventListener('error', () => {
+        const errEl = el.querySelector('.clipPlaybackError');
+        if (!errEl) return;
+        errEl.classList.remove('hidden');
+        const code = videoEl.error ? videoEl.error.code : '?';
+        errEl.querySelector('.clipPlaybackErrorDetail').textContent = `(code ${code} — ${v.videoMime || 'format inconnu'})`;
       });
     }
     el.querySelector('.likeBtn').addEventListener('click', () => toggleLike(v, el));
@@ -1406,7 +1493,22 @@
   let cameraMode = 'video'; // 'video' | 'photo'
 
   function pickVideoMimeType() {
-    const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
+    // mp4/H.264 EN PREMIER : c'est le format qu'un iPhone (Safari) sait
+    // lire de façon fiable. Safari ne sait PAS du tout décoder du WebM/VP8/
+    // VP9 dans une balise <video> — une vidéo enregistrée en WebM sur un
+    // ordinateur (Chrome/Edge/Firefox, qui ne savent en général PAS
+    // enregistrer en mp4) reste alors bloquée sur son image "poster" quand
+    // on essaie de la regarder sur iPhone, ce qui donne exactement
+    // l'impression qu'elle "s'est transformée en photo" — mais ce n'est PAS
+    // le même bug que le data-URI trop lourd corrigé par base64ToBlobUrl :
+    // ici, aucune conversion ne peut réparer une vidéo dans un format que
+    // l'appareil qui la REGARDE ne sait pas décoder du tout. Préférer mp4 à
+    // l'enregistrement quand c'est possible réduit ce risque, mais ne
+    // l'élimine pas complètement tant qu'il n'y a pas de conversion côté
+    // serveur (voir la discussion avec Lancine, et onVideoPlaybackError
+    // ci-dessous qui rend au moins l'erreur visible au lieu de rester
+    // silencieuse).
+    const candidates = ['video/mp4;codecs=h264,aac', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm'];
     if (!window.MediaRecorder || !MediaRecorder.isTypeSupported) return '';
     return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || '';
   }
@@ -1798,6 +1900,12 @@
       // attendre l'observer.
       const newVideoEl = newClipEl.querySelector('video');
       if (newVideoEl) {
+        // Posé directement (sans attendre le premier passage de l'observer,
+        // asynchrone) : si la conversion base64 -> blob de ce clip (voir
+        // attachVideoSrc) n'est pas encore terminée à cet instant, c'est ce
+        // flag qu'elle relit pour savoir si elle doit lancer play() elle-même
+        // une fois le src enfin posé.
+        newClipEl.dataset.shouldPlay = '1';
         // Pas de newVideoEl.muted = !globalSoundEnabled ici : renderClip a
         // déjà posé le bon état juste au-dessus (la vidéo reste TOUJOURS
         // muette si un son a été ajouté, voir hasAttachedSound) — l'écraser
