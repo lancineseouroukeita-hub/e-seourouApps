@@ -139,6 +139,13 @@
      automatiquement sous la zone system de N'IMPORTE QUEL téléphone plutôt
      que d'utiliser une marge fixe pensée pour un seul modèle. */
   #topBar{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 14px 0;padding-top:calc(14px + env(safe-area-inset-top, 0));z-index:5;pointer-events:none;}
+  /* #topBar est fixe et reste dans le DOM en permanence (il n'est pas dans
+     un .screen) : sans ce .hidden, son bouton #topSearchBtn (pointer-events:
+     auto, z-index 5) restait superposé exactement sur le bouton menu ☰ du
+     profil (.profileTopBarRight, dans #profileScreen, z-index 4 seulement)
+     et interceptait tous les clics dessus -- c'était la vraie cause des
+     "trois tirets qui ne fonctionnent pas" (voir showScreen). */
+  #topBar.hidden{display:none;}
   /* Onglets "Suivis" / "Pour toi" (comme TikTok) — filtrent le fil entre les
      comptes qu'on suit et tout le monde, voir loadFeed/feedMode. */
   .feedTabs{display:flex;gap:18px;pointer-events:auto;}
@@ -459,7 +466,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v15</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v16</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -1282,6 +1289,12 @@
   // ---------- Navigation entre écrans (Accueil / Ami(e)s / Profil) ----------
   function showScreen(name) {
     document.querySelectorAll('.screen, .screenFeed').forEach((el) => el.classList.remove('show'));
+    // #topBar (Suivis/Pour toi + 🔍) est un élément fixe HORS de tout
+    // .screen -- il restait donc affiché par-dessus profileScreen/
+    // friendsScreen/messagesScreen et son #topSearchBtn interceptait les
+    // clics sur le bouton menu ☰ du profil, juste en dessous à la même
+    // position. Il ne doit être visible que sur l'écran du fil.
+    $('topBar').classList.toggle('hidden', name !== 'feed');
     if (name === 'feed') {
       $('feedScreen').classList.add('show');
     } else if (name === 'friends') {
