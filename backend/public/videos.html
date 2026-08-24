@@ -428,10 +428,22 @@
   .settingsUnblockBtn{padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:none;color:var(--text);font-size:12px;cursor:pointer;}
   .settingsFullLink{display:block;margin:16px;padding:12px;border-radius:10px;background:var(--panel2);color:var(--text);text-align:center;font-size:13px;text-decoration:none;}
 
-  /* ---------- Menu ☰ (tiroir latéral, comme la capture TikTok) ---------- */
-  .menuOverlay{position:fixed;inset:0;z-index:30;display:flex;justify-content:flex-end;background:rgba(0,0,0,0.4);}
-  .menuOverlay.hidden{display:none;}
-  .menuPanel{width:80%;max-width:340px;height:100%;background:#141414;overflow-y:auto;padding-top:calc(16px + env(safe-area-inset-top, 0));padding-bottom:calc(16px + env(safe-area-inset-bottom, 0));}
+  /* ---------- Menu ☰ (tiroir lateral, comme la capture TikTok) ---------- */
+  /* VRAIE cause du menu qui ne s'ouvrait jamais (v16/v17) : ces deux regles
+     visaient .menuOverlay/.menuPanel (selecteurs de CLASSE) alors que le
+     HTML porte id="menuOverlay"/id="menuPanel" SANS ces classes -- la
+     div n'avait donc jamais ce position:fixed/z-index/etc, seulement la
+     classe generique .hidden. Au clic sur ☰, le JS retirait bien .hidden
+     (voir openMenu) mais la div redevenait un <div> ordinaire dans le flux
+     de la page, sans aucun style visible -- rien n'apparaissait a l'ecran,
+     comme si le clic n'avait rien fait. Le fix v16 (topBar qui interceptait
+     les clics) etait reel mais ne suffisait pas : CE bug-ci empechait le
+     menu de s'afficher meme quand le clic arrivait bien jusqu'a lui.
+     Passe donc en selecteurs d'ID, comme #shareSheetOverlay/#commentsOverlay
+     etc juste au-dessus/en-dessous, qui n'avaient pas ce probleme. */
+  #menuOverlay{position:fixed;inset:0;z-index:30;display:flex;justify-content:flex-end;background:rgba(0,0,0,0.4);}
+  #menuOverlay.hidden{display:none;}
+  #menuPanel{width:80%;max-width:340px;height:100%;background:#141414;overflow-y:auto;padding-top:calc(16px + env(safe-area-inset-top, 0));padding-bottom:calc(16px + env(safe-area-inset-bottom, 0));}
   .menuSectionLabel{padding:14px 18px 6px;font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:0.02em;}
   .menuRow{display:flex;align-items:center;gap:14px;width:100%;padding:12px 18px;background:none;border:none;color:var(--text);font-size:14.5px;font-weight:600;cursor:pointer;text-align:left;}
   .menuRow:active{background:rgba(255,255,255,0.05);}
@@ -465,7 +477,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v17</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v18</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
