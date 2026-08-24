@@ -1545,15 +1545,32 @@
         <!-- Comme WhatsApp : impossible de parcourir tous les comptes de
              l'appli. Il faut soit importer ses contacts du téléphone (Contact
              Picker du navigateur), soit connaître et taper le numéro de la
-             personne — voir importPhoneContacts()/addContactByPhonePrompt(). -->
+             personne — voir importPhoneContacts()/addContactByPhonePrompt().
+             Les 4 premières lignes reprennent l'ordre exact du "+" de
+             WhatsApp (Nouveau groupe / Nouveau contact / Nouvelle communauté
+             / Nouvelle diffusion) ; "Importer mes contacts" est une 5e ligne
+             ajoutée par nécessité (un navigateur ne peut pas synchroniser les
+             contacts du téléphone en arrière-plan comme l'app WhatsApp). -->
         <div id="newChatActions">
-          <div class="listItem newChatActionRow" id="importContactsBtn">
-            <div class="avatar newChatActionIcon">📇</div>
-            <div class="liText"><div class="liName">Importer mes contacts</div><div class="liSub">Depuis le répertoire de votre téléphone</div></div>
+          <div class="listItem newChatActionRow" id="newGroupFromChatBtn">
+            <div class="avatar newChatActionIcon">👥</div>
+            <div class="liText"><div class="liName">Nouveau groupe</div><div class="liSub">Avec plusieurs de vos contacts</div></div>
           </div>
           <div class="listItem newChatActionRow" id="addContactByPhoneBtn">
             <div class="avatar newChatActionIcon">➕</div>
-            <div class="liText"><div class="liName">Ajouter un contact</div><div class="liSub">Par numéro de téléphone</div></div>
+            <div class="liText"><div class="liName">Nouveau contact</div><div class="liSub">Par numéro de téléphone</div></div>
+          </div>
+          <div class="listItem newChatActionRow" id="newCommunityFromChatBtn">
+            <div class="avatar newChatActionIcon">👨‍👩‍👧‍👦</div>
+            <div class="liText"><div class="liName">Nouvelle communauté</div><div class="liSub">Rassembler plusieurs groupes</div></div>
+          </div>
+          <div class="listItem newChatActionRow" id="newBroadcastFromChatBtn">
+            <div class="avatar newChatActionIcon">📢</div>
+            <div class="liText"><div class="liName">Nouvelle diffusion</div><div class="liSub">Un message à plusieurs contacts à la fois</div></div>
+          </div>
+          <div class="listItem newChatActionRow" id="importContactsBtn">
+            <div class="avatar newChatActionIcon">📇</div>
+            <div class="liText"><div class="liName">Importer mes contacts</div><div class="liSub">Depuis le répertoire de votre téléphone</div></div>
           </div>
         </div>
         <input id="newChatSearchInput" type="text" placeholder="Rechercher parmi mes contacts">
@@ -3051,6 +3068,26 @@
     $('communityComposerOverlay').classList.remove('show');
   }
 
+  // "Nouveau groupe" depuis "Nouvelle discussion" (façon WhatsApp) : un groupe
+  // autonome, qui n'appartient à aucune communauté — contrairement à
+  // openCommunityGroupComposer(communityId) ci-dessus. Réutilise le même
+  // composeur (nom + sélection de membres) ; seul submitCommunityComposerBtn
+  // change de comportement selon communityComposerMode (voir plus bas).
+  async function openStandaloneGroupComposer() {
+    communityComposerMode = 'standaloneGroup';
+    communityComposerTargetId = null;
+    communityComposerSelected = new Set();
+    $('communityComposerTitle').textContent = 'Nouveau groupe';
+    $('communityNameInput').placeholder = 'Nom du groupe (facultatif)';
+    $('communityDescInput').style.display = 'none';
+    $('communityNameInput').value = '';
+    $('communityDescInput').value = '';
+    $('communityComposerMsg').textContent = '';
+    $('submitCommunityComposerBtn').textContent = 'Créer le groupe';
+    $('communityComposerOverlay').classList.add('show');
+    await renderMemberPicker();
+  }
+
   // ----- Introduction avant création (façon WhatsApp) -----
   // Le "+" ouvre d'abord cet écran d'explication, "Démarrer" seulement ouvre
   // ensuite le vrai formulaire. Ne s'applique qu'à une NOUVELLE communauté :
@@ -3086,18 +3123,32 @@
     msgEl.textContent = '';
     msgEl.className = 'settingsMsg';
     const name = $('communityNameInput').value.trim();
-    if (!name) {
+    // Comme WhatsApp : un groupe autonome peut rester sans nom (le serveur le
+    // nomme alors "Nouveau groupe", voir conversation.controller.js) — seule
+    // une communauté ou un groupe de communauté exige un nom.
+    if (!name && communityComposerMode !== 'standaloneGroup') {
       msgEl.textContent = 'Le nom est requis.';
       msgEl.className = 'settingsMsg error';
       return;
     }
     const memberUserIds = Array.from(communityComposerSelected);
+    if (communityComposerMode === 'standaloneGroup' && memberUserIds.length < 1) {
+      msgEl.textContent = 'Choisissez au moins un contact pour le groupe.';
+      msgEl.className = 'settingsMsg error';
+      return;
+    }
     try {
       if (communityComposerMode === 'create') {
         const description = $('communityDescInput').value.trim();
         await api('/api/communities', { method: 'POST', body: JSON.stringify({ name, description, memberUserIds }) });
         closeCommunityComposer();
         loadCommunities();
+      } else if (communityComposerMode === 'standaloneGroup') {
+        const data = await api('/api/conversations', { method: 'POST', body: JSON.stringify({ participantIds: memberUserIds, isGroup: true, name }) });
+        closeCommunityComposer();
+        await loadConversations();
+        switchBottomTab('discussions');
+        openConversation(data.conversation.id);
       } else {
         await api('/api/communities/' + communityComposerTargetId + '/groups', { method: 'POST', body: JSON.stringify({ name, memberUserIds }) });
         closeCommunityComposer();
@@ -4359,6 +4410,20 @@
   $('newChatSearchInput').addEventListener('input', (e) => renderNewChatList(e.target.value));
   $('importContactsBtn').addEventListener('click', importPhoneContacts);
   $('addContactByPhoneBtn').addEventListener('click', addContactByPhonePrompt);
+  // Les 2 autres lignes de "Nouvelle discussion" (façon WhatsApp) : "Nouveau
+  // groupe" réutilise le composeur de communauté en mode standaloneGroup (un
+  // groupe qui n'appartient à aucune communauté, voir openStandaloneGroupComposer
+  // ci-dessous), "Nouvelle communauté" ouvre directement l'écran d'intro déjà
+  // utilisé par addCommunityBtn dans l'onglet Communautés.
+  $('newGroupFromChatBtn').addEventListener('click', () => { closeNewChat(); openStandaloneGroupComposer(); });
+  $('newCommunityFromChatBtn').addEventListener('click', () => { closeNewChat(); openCommunityIntro(); });
+  $('newBroadcastFromChatBtn').addEventListener('click', () => {
+    closeNewChat();
+    // Pas encore implémenté (nécessite un vrai écran de diffusion : liste de
+    // destinataires + envoi individuel à chacun) — même message que dans le
+    // menu "⋯" (voir sidebarMenuBroadcast) pour rester cohérent.
+    alert('Messages de diffusion : bientôt disponible.');
+  });
 
   $('sidebarCameraBtn').addEventListener('click', () => {
     if (!activeConversationId) return alert('Ouvrez une discussion avant d\'envoyer une photo.');
