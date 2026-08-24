@@ -10,13 +10,24 @@ const prisma = require('../config/prisma');
  * puis enregistrement des gestionnaires de messagerie et de signalisation WebRTC.
  */
 function setupSocket(io) {
-  io.use((socket, next) => {
+  io.use(async (socket, next) => {
     const token = socket.handshake.auth && socket.handshake.auth.token;
     if (!token) return next(new Error('Authentification requise.'));
 
     try {
       const decoded = verifyToken(token);
-      socket.user = decoded; // { id, phone, name }
+      // Même vérification que middleware/auth.js côté REST : un appareil
+      // déconnecté à distance (Paramètres → Appareils connectés) ne doit pas
+      // continuer à recevoir les messages en temps réel. Token sans deviceId
+      // (émis avant cette fonctionnalité) : laissé passer, voir le même
+      // commentaire dans middleware/auth.js.
+      if (decoded.deviceId) {
+        const device = await prisma.device.findUnique({ where: { id: decoded.deviceId } });
+        if (!device || device.userId !== decoded.id || device.revokedAt) {
+          return next(new Error('Cet appareil a été déconnecté à distance.'));
+        }
+      }
+      socket.user = decoded; // { id, phone, name, deviceId? }
       return next();
     } catch (err) {
       return next(new Error('Token invalide ou expiré.'));

@@ -68,6 +68,10 @@ model User {
   messages        Message[]
   callParticipations CallParticipant[]
   pushSubscriptions  PushSubscription[]
+  // Appareils connectés (Paramètres → Appareils connectés, voir modèle Device
+  // ci-dessous) : un par connexion (register/login), utilisé pour lister et
+  // déconnecter à distance ce qui est actif, comme WhatsApp.
+  devices Device[]
   // Utilisateurs que j'ai bloqués, et utilisateurs qui m'ont bloqué (Paramètres → Confidentialité).
   blockedUsers   BlockedUser[] @relation("BlockerRelation")
   blockedByUsers BlockedUser[] @relation("BlockedRelation")
@@ -324,6 +328,34 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Appareil connecté (Paramètres → Appareils connectés, comme WhatsApp) : une
+// ligne par connexion (voir auth.controller.js register/login), révocable à
+// distance (revokedAt) — vérifié à chaque requête authentifiée et à chaque
+// connexion Socket.io (voir middleware/auth.js et sockets/index.js). Pas de
+// session persistée côté client (le token vit seulement en mémoire, pas en
+// localStorage) : un appareil correspond donc à ce qui est actif MAINTENANT,
+// pas à un identifiant matériel stable dans le temps.
+model Device {
+  id           String    @id @default(uuid())
+  userId       String
+  // Ex: "Chrome sur Windows", "Safari sur iPhone" — dérivé du User-Agent à la
+  // connexion, voir utils/deviceLabel.js.
+  label        String
+  userAgent    String?
+  createdAt    DateTime  @default(now())
+  // Rafraîchi à chaque requête authentifiée (voir middleware/auth.js) : permet
+  // de trier la liste par activité récente, comme WhatsApp.
+  lastActiveAt DateTime  @default(now())
+  // Non nul dès que déconnecté (bouton "Se déconnecter" sur cet appareil, ou
+  // "Se déconnecter de tous les autres appareils" depuis un autre) — on garde
+  // la ligne plutôt que de la supprimer, au cas où on affiche un historique plus tard.
+  revokedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // Statut (onglet "Actus", comme les Statuts WhatsApp) : texte coloré ou photo,

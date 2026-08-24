@@ -6,6 +6,22 @@ const { isAdminPhone } = require('../utils/adminPhones');
 // normalizePhone/PHONE_REGEX vivent maintenant dans utils/phone.js (partagé
 // avec contact.controller.js), comportement inchangé.
 const { normalizePhone, PHONE_REGEX } = require('../utils/phone');
+const { describeDevice } = require('../utils/deviceLabel');
+
+// Crée l'entrée "Appareil" correspondant à CETTE connexion (Paramètres →
+// Appareils connectés) et renvoie son id, à inclure dans le token JWT (voir
+// utils/jwt.js / middleware/auth.js). Chaque connexion (register ou login)
+// crée un nouvel appareil — comme il n'y a pas de session persistée côté
+// client (le token vit seulement en mémoire, pas en localStorage), un appareil
+// correspond en pratique à un onglet/une ouverture de l'appli, pas à un
+// identifiant matériel stable. Suffisant pour voir et révoquer ce qui est
+// connecté EN CE MOMENT, qui est le but de cet écran (comme WhatsApp).
+async function createDeviceForRequest(req, userId) {
+  const userAgent = req.headers['user-agent'] || null;
+  return prisma.device.create({
+    data: { userId, label: describeDevice(userAgent), userAgent },
+  });
+}
 
 function toPublicUser(user) {
   return {
@@ -72,7 +88,8 @@ async function register(req, res) {
     });
     user = await ensureAdminFlag(user);
 
-    const token = signToken({ id: user.id, phone: user.phone, name: user.name });
+    const device = await createDeviceForRequest(req, user.id);
+    const token = signToken({ id: user.id, phone: user.phone, name: user.name, deviceId: device.id });
     return res.status(201).json({ user: toPublicUser(user), token });
   } catch (err) {
     console.error('register error:', err);
@@ -99,7 +116,8 @@ async function login(req, res) {
     }
     user = await ensureAdminFlag(user);
 
-    const token = signToken({ id: user.id, phone: user.phone, name: user.name });
+    const device = await createDeviceForRequest(req, user.id);
+    const token = signToken({ id: user.id, phone: user.phone, name: user.name, deviceId: device.id });
     return res.json({ user: toPublicUser(user), token });
   } catch (err) {
     console.error('login error:', err);

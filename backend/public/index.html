@@ -704,20 +704,22 @@
   /* ---------- Communautés ---------- */
   .communityIcon{background:linear-gradient(135deg,#c98bf5,#a855f7);}
   #communitiesList .liSub{max-width:none;}
-  #communityComposerOverlay, #communityDetailOverlay, #communityAddMemberOverlay, #callAddParticipantOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;}
-  #communityComposerOverlay.show, #communityDetailOverlay.show, #communityAddMemberOverlay.show, #callAddParticipantOverlay.show{display:flex;}
+  #communityComposerOverlay, #communityDetailOverlay, #communityAddMemberOverlay, #callAddParticipantOverlay, #devicesOverlay{position:fixed;inset:0;background:rgba(6,7,10,.6);display:none;align-items:center;justify-content:center;padding:20px;}
+  #communityComposerOverlay.show, #communityDetailOverlay.show, #communityAddMemberOverlay.show, #callAddParticipantOverlay.show, #devicesOverlay.show{display:flex;}
   /* Le détail d'une communauté peut rester ouvert "derrière" pendant qu'on
      crée un groupe ou qu'on ajoute un membre : ces deux-là doivent passer
      au-dessus (sinon les clics sont interceptés par l'écran du dessous). */
-  #communityDetailOverlay{z-index:120;}
+  #communityDetailOverlay, #devicesOverlay{z-index:120;}
   #communityComposerOverlay, #communityAddMemberOverlay{z-index:125;}
   #callAddParticipantOverlay{z-index:135;}
-  #communityComposerCard, #communityDetailCard, #communityAddMemberCard, #callAddParticipantCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
-  #communityComposerHeader, #communityDetailHeader, #communityAddMemberHeader, #callAddParticipantHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
-  #communityComposerHeader h2, #communityDetailHeader h2, #communityAddMemberHeader h2, #callAddParticipantHeader h2{margin:0;font-size:16px;}
-  #communityComposerHeader button, #communityDetailHeader button, #communityAddMemberHeader button, #callAddParticipantHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
+  #communityComposerCard, #communityDetailCard, #communityAddMemberCard, #callAddParticipantCard, #devicesCard{background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);width:420px;max-width:100%;max-height:88vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,.5);}
+  #communityComposerHeader, #communityDetailHeader, #communityAddMemberHeader, #callAddParticipantHeader, #devicesHeader{display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid var(--border);background:var(--panel);border-radius:var(--radius) var(--radius) 0 0;}
+  #communityComposerHeader h2, #communityDetailHeader h2, #communityAddMemberHeader h2, #callAddParticipantHeader h2, #devicesHeader h2{margin:0;font-size:16px;}
+  #communityComposerHeader button, #communityDetailHeader button, #communityAddMemberHeader button, #callAddParticipantHeader button, #devicesHeader button{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;line-height:1;}
   #callAddParticipantBody{padding:16px;overflow-y:auto;}
-  #communityComposerBody, #communityDetailBody, #communityAddMemberBody{padding:16px;overflow-y:auto;}
+  #communityComposerBody, #communityDetailBody, #communityAddMemberBody, #devicesBody{padding:16px;overflow-y:auto;}
+  #devicesList{margin-bottom:14px;}
+  #devicesList .emptyHint{color:var(--muted);font-size:12px;padding:6px 0;}
   #communityNameInput, #communityDescInput{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;margin-bottom:10px;font-family:inherit;}
 
   /* Écran d'introduction avant de créer une communauté (façon WhatsApp) :
@@ -1617,6 +1619,22 @@
     </div>
   </div>
 
+  <!-- ---------- Appareils connectés (menu "⋯" → Appareils connectés), façon
+       WhatsApp : liste des appareils actuellement connectés à ce compte,
+       avec déconnexion à distance. Voir openDevicesOverlay()/renderDevicesList(). -->
+  <div id="devicesOverlay">
+    <div id="devicesCard">
+      <div id="devicesHeader">
+        <h2>Appareils connectés</h2>
+        <button id="closeDevicesBtn" title="Fermer">✕</button>
+      </div>
+      <div id="devicesBody">
+        <div id="devicesList"></div>
+        <button id="logoutOtherDevicesBtn" class="dangerFullBtn">Se déconnecter de tous les autres appareils</button>
+      </div>
+    </div>
+  </div>
+
   <!-- ---------- Thème de discussion (bulle + fond d'écran), depuis
        Paramètres → Apparence ---------- -->
   <div id="chatThemeOverlay">
@@ -2502,6 +2520,13 @@
   }
 
   $('logoutBtn').addEventListener('click', () => {
+    // Révoque aussi cet appareil côté serveur (Appareils connectés) : sinon
+    // il resterait affiché comme "connecté" vu depuis un autre appareil
+    // jusqu'à l'expiration naturelle du token (jusqu'à 7 jours). Ne bloque
+    // jamais la déconnexion locale, qui doit rester instantanée : on lit
+    // `token` MAINTENANT (avant de le remettre à null juste après), l'appel
+    // réseau peut échouer ou traîner sans conséquence pour l'utilisateur.
+    api('/api/devices/logout-self', { method: 'POST' }).catch(() => {});
     if (socket) socket.disconnect();
     token = null; me = null; activeConversationId = null;
     conversations = []; users = []; contacts = []; messagesByConv = {};
@@ -4356,8 +4381,71 @@
   $('sidebarMenuLists').addEventListener('click', () => { closeSidebarMenu(); $('addFilterBtn').click(); });
   $('sidebarMenuBroadcast').addEventListener('click', () => { closeSidebarMenu(); alert('Messages de diffusion : bientôt disponible.'); });
   $('sidebarMenuImportant').addEventListener('click', () => { closeSidebarMenu(); alert('Messages importants : bientôt disponible.'); });
-  $('sidebarMenuDevices').addEventListener('click', () => { closeSidebarMenu(); alert('Appareils connectés : bientôt disponible.'); });
+  $('sidebarMenuDevices').addEventListener('click', () => { closeSidebarMenu(); openDevicesOverlay(); });
   $('sidebarMenuSettings').addEventListener('click', () => { closeSidebarMenu(); $('settingsBtn').click(); });
+
+  // ----- Appareils connectés (façon WhatsApp) : liste des appareils
+  // actuellement connectés à ce compte (un par connexion, voir Device côté
+  // serveur), avec déconnexion à distance. -----
+  async function openDevicesOverlay() {
+    $('devicesList').innerHTML = '<div class="emptyHint">Chargement…</div>';
+    $('devicesOverlay').classList.add('show');
+    try {
+      const data = await api('/api/devices');
+      renderDevicesList(data.devices);
+    } catch (err) {
+      $('devicesList').innerHTML = `<div class="emptyHint">Erreur : ${escapeHtml(err.message)}</div>`;
+    }
+  }
+
+  function closeDevicesOverlay() {
+    $('devicesOverlay').classList.remove('show');
+  }
+
+  function renderDevicesList(devices) {
+    const el = $('devicesList');
+    el.innerHTML = '';
+    // Bouton "Se déconnecter de tous les autres appareils" : inutile (et
+    // désactivé) s'il n'y a que celui-ci de connecté.
+    $('logoutOtherDevicesBtn').style.display = devices.length > 1 ? '' : 'none';
+    if (!devices.length) {
+      el.innerHTML = '<div class="emptyHint">Aucun appareil connecté.</div>';
+      return;
+    }
+    devices.forEach((d) => {
+      const row = document.createElement('div');
+      row.className = 'blockedUserRow';
+      row.innerHTML = `<div class="avatar newChatActionIcon">💻</div>
+        <div class="liText"><div class="liName">${escapeHtml(d.label)}${d.isCurrent ? ' · cet appareil' : ''}</div><div class="liSub">${d.isCurrent ? 'Connecté maintenant' : 'Actif ' + fmtLastSeen(d.lastActiveAt)}</div></div>
+        ${d.isCurrent ? '' : `<button class="blockUserBtn isBlocked" data-device-id="${d.id}">Déconnecter</button>`}`;
+      const btn = row.querySelector('.blockUserBtn');
+      if (btn) {
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          try {
+            await api('/api/devices/' + d.id + '/logout', { method: 'POST' });
+            openDevicesOverlay();
+          } catch (err) {
+            alert('Erreur : ' + err.message);
+            btn.disabled = false;
+          }
+        });
+      }
+      el.appendChild(row);
+    });
+  }
+
+  $('closeDevicesBtn').addEventListener('click', closeDevicesOverlay);
+  $('devicesOverlay').addEventListener('click', (e) => { if (e.target === $('devicesOverlay')) closeDevicesOverlay(); });
+  $('logoutOtherDevicesBtn').addEventListener('click', async () => {
+    if (!confirm('Se déconnecter de tous les autres appareils connectés à ce compte ?')) return;
+    try {
+      await api('/api/devices/logout-others', { method: 'POST' });
+      openDevicesOverlay();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  });
 
   // "+" : ouvre l'écran "Nouvelle discussion" (recherche parmi MES contacts
   // qui utilisent déjà l'appli, par nom ou numéro) — jamais parmi tous les
