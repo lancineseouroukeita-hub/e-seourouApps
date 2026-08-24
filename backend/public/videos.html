@@ -123,7 +123,6 @@
   .muteBtn .discVolumeBadge{position:absolute;right:-5px;bottom:-5px;width:20px;height:20px;border-radius:50%;background:rgba(20,20,20,0.9);border:1px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;}
   .muteBtn .discVolumeBadge svg{width:13px;height:13px;}
   @keyframes discSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
-  .clip .clipDeleteBtn{position:absolute;top:14px;left:14px;background:rgba(30,30,30,0.55);border:none;color:#ff8a8a;width:36px;height:36px;border-radius:50%;font-size:15px;cursor:pointer;}
   /* Message affiché à la place de la vidéo quand ELLE échoue à se décoder sur
      cet appareil (voir renderClip, l'écouteur "error" du <video>) — plutôt
      que de laisser la vidéo figée, silencieuse, sur son "poster" sans aucune
@@ -466,7 +465,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v16</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v17</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -1721,7 +1720,12 @@
     const HEART_SVG = '<svg class="heartIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.7a5.5 5.5 0 0 0 0-7.7z"></path></svg>';
     const COMMENT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"></path><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"></circle></svg>';
     const SAVE_SVG = '<svg class="saveIconSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>';
-    const SHARE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 4 20 9 15 14"></polyline><path d="M4 20v-6a4 4 0 0 1 4-4h12"></path></svg>';
+    // "..." (trois points), pas une flèche de partage -- exactement comme la
+    // capture TikTok envoyée par Lancine (icône entre le favori/bookmark et
+    // le disque de son en bas) : c'est ce bouton qui ouvre "Envoyer à"
+    // (voir openShareSheet), lequel contient aussi "Supprimer" sur ses
+    // propres publications.
+    const SHARE_SVG = '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2.4"></circle><circle cx="12" cy="12" r="2.4"></circle><circle cx="19" cy="12" r="2.4"></circle></svg>';
     const MUSIC_NOTE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13"></path><circle cx="6" cy="18" r="3"></circle><circle cx="18" cy="16" r="3"></circle></svg>';
     // "Ajouter un son" (voir openSoundPicker) : au plus une des deux options
     // côté serveur, soundId prioritaire (voir createVideo) — donc ici aussi,
@@ -1741,7 +1745,6 @@
           ⚠️ Vidéo illisible sur cet appareil<br><span class="clipPlaybackErrorDetail"></span>
         </div>
       ` : ''}
-      ${isMine ? `<button class="clipDeleteBtn" title="Supprimer cette ${isPhoto ? 'photo' : 'vidéo'}">🗑️</button>` : ''}
       <div class="clipSide">
         ${v.author ? `
           <div class="clipAuthorFollow">
@@ -1841,9 +1844,11 @@
     // ci-dessous mais plus appelée) — cohérent avec la capture TikTok envoyée
     // par Lancine, avec en plus les contacts et les 4 actions demandées
     // (copier le lien, WhatsApp, Telegram, Messenger).
+    // Suppression : uniquement via "Supprimer" dans la feuille de partage
+    // (voir openShareSheet/shareDeleteBtn) -- exactement comme la capture
+    // TikTok envoyée par Lancine (pas d'icône 🗑️ séparée sur la vidéo elle-
+    // même, seulement derrière le bouton de partage/"...").
     el.querySelector('.shareBtn').addEventListener('click', () => openShareSheet({ type: 'video', video: v, el, onDeleted: opts && opts.onDeleted }));
-    const delBtn = el.querySelector('.clipDeleteBtn');
-    if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el, opts && opts.onDeleted));
     // Badge "+" sur l'avatar de l'auteur (suivi rapide sans quitter le fil,
     // comme TikTok) — masqué (mais toujours présent dans le DOM) sur ses
     // propres vidéos ou un auteur déjà suivi, voir plus haut.
