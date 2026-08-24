@@ -9,4 +9,13 @@
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 1024;
 
-module.exports = { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_BASE64_LENGTH };
+// Taille max d'une vidéo "Clips" (avant encodage) : 12 Mo. Volontairement
+// limité (voir schema.prisma, modèle Video) — stockée en base64 en base,
+// comme les pièces jointes de message, ce qui ne tient pas à grande échelle
+// pour des fichiers plus lourds. Combiné à une durée maximale imposée côté
+// client (30 secondes, voir public/videos.html), ça garde des fichiers
+// raisonnables pour une vidéo courte compressée.
+const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
+const MAX_VIDEO_BASE64_LENGTH = Math.ceil((MAX_VIDEO_BYTES * 4) / 3) + 1024;
+
+module.exports = { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_BASE64_LENGTH, MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH };

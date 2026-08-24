@@ -92,6 +92,11 @@ model User {
   // apparaît dans "Nouvelle discussion" et dans le sélecteur de membres d'un
   // groupe/communauté — jamais tous les comptes de l'appli, comme WhatsApp.
   contacts Contact[]
+  // "Clips" (produit vidéo courte, façon TikTok, lié depuis "Autres produits"
+  // dans Paramètres — voir modèle Video ci-dessous) : mêmes comptes que le
+  // reste de l'application, pas d'inscription séparée.
+  videos     Video[]
+  videoLikes VideoLike[]
 }
 
 // Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
@@ -441,4 +446,43 @@ model OtpCode {
   createdAt  DateTime  @default(now())
 
   @@index([phone, purpose])
+}
+
+// "Clips" — vidéo courte façon TikTok, premier produit lié depuis "Autres
+// produits" (Paramètres), avec les mêmes comptes que le reste de
+// l'application. Version volontairement minimale pour démarrer : fil
+// chronologique + likes, pas encore de commentaires/abonnements/algorithme.
+// Le fichier vidéo est stocké encodé en base64 directement dans la base,
+// comme les pièces jointes de message (voir Message ci-dessus) — pratique
+// pour démarrer sans infrastructure supplémentaire, mais volontairement
+// limité en taille/durée (voir utils/limits.js, MAX_VIDEO_BYTES) : cette
+// méthode ne tiendra pas à grande échelle et devra migrer vers un vrai
+// stockage de fichiers (S3/Cloudflare R2...) si l'usage grandit.
+model Video {
+  id            String   @id @default(uuid())
+  authorId      String
+  caption       String?
+  videoData     String   // contenu vidéo encodé en base64
+  videoMime     String   // ex: "video/webm", "video/mp4"
+  thumbnailData String?  // image de couverture encodée en base64 (facultative, extraite côté client)
+  thumbnailMime String?
+  duration      Int?     // durée en secondes (mesurée côté client, juste indicative)
+  createdAt     DateTime @default(now())
+
+  author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  likes  VideoLike[]
+
+  @@index([createdAt])
+}
+
+model VideoLike {
+  id        String   @id @default(uuid())
+  videoId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, userId])
 }

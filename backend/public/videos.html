@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Diarala_Tiktak</title>
+<!--
+  "Diarala_Tiktak" — premier produit lié depuis "Autres produits" (Paramètres de
+  seourouApps). Version volontairement minimale pour démarrer (voir la
+  discussion avec Lancine) : vidéos courtes, fil chronologique, mentions
+  "j'aime". Pas encore de commentaires, d'abonnements ni d'algorithme de
+  recommandation — ça viendra par étapes si le produit est utilisé.
+
+  Mêmes comptes que seourouApps (même numéro/mot de passe, même base
+  d'utilisateurs côté serveur) : PAS d'inscription séparée sur cette page,
+  volontairement — voir le formulaire ci-dessous qui appelle /api/auth/login,
+  exactement comme index.html. Comme dans seourouApps, le token ne vit qu'en
+  mémoire JS (jamais localStorage) : se reconnecter est nécessaire après un
+  rechargement de page, par sécurité, comme le reste de l'application.
+
+  Stockage vidéo : encodé en base64 directement en base (voir
+  backend/prisma/schema.prisma, modèle Video, et utils/limits.js) — pratique
+  pour démarrer sans infrastructure supplémentaire, mais volontairement limité
+  à 12 Mo / ~30 secondes par vidéo. À migrer vers un vrai stockage de fichiers
+  (S3/Cloudflare R2...) si l'usage grandit : cette méthode ne tient pas à
+  grande échelle.
+-->
+<style>
+  :root{
+    --bg:#000; --panel:#161616; --panel2:#1f1f1f; --border:#2c2c2c;
+    --text:#f5f5f7; --muted:#9a9a9e; --accent:#ff4d6d; --accent2:#e0405c;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;overflow:hidden;}
+  button{font-family:inherit;}
+
+  /* ---------- Écran de connexion (mêmes comptes que seourouApps) ---------- */
+  #loginScreen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:20;padding:20px;}
+  #loginScreen.hidden{display:none;}
+  .authCard{width:100%;max-width:340px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:26px 22px;}
+  .authCard h1{margin:0 0 4px;font-size:24px;display:flex;align-items:center;gap:8px;}
+  .authCard p.tagline{margin:0 0 20px;color:var(--muted);font-size:13px;}
+  .authCard input{width:100%;padding:11px 12px;margin-bottom:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14.5px;}
+  .authCard input:focus{outline:none;border-color:var(--accent);}
+  .authCard .primaryBtn{width:100%;margin-top:8px;padding:12px;border-radius:8px;border:none;background:var(--accent);color:white;font-size:15.5px;font-weight:600;cursor:pointer;}
+  .authCard .primaryBtn:hover{background:var(--accent2);}
+  .authCard .primaryBtn:disabled{opacity:0.6;cursor:default;}
+  .authMsg{min-height:18px;font-size:12.5px;color:#ff8a8a;margin-top:10px;}
+  .authHint{margin-top:16px;font-size:12px;color:var(--muted);line-height:1.5;}
+  .authHint a{color:var(--accent);text-decoration:none;}
+
+  /* ---------- Fil vidéo plein écran, façon TikTok ---------- */
+  #feedScreen{position:fixed;inset:0;background:var(--bg);display:none;}
+  #feedScreen.show{display:block;}
+  #feed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scroll-behavior:smooth;}
+  .clip{position:relative;height:100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;display:flex;align-items:center;justify-content:center;background:#000;}
+  .clip video{width:100%;height:100%;object-fit:contain;background:#000;}
+  .clip .clipOverlay{position:absolute;left:0;right:0;bottom:0;padding:16px 70px 26px 16px;background:linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));pointer-events:none;}
+  .clip .clipAuthor{font-weight:700;font-size:14.5px;margin-bottom:4px;}
+  .clip .clipCaption{font-size:13.5px;color:#e8e8ea;white-space:pre-wrap;word-break:break-word;}
+  .clip .clipSide{position:absolute;right:10px;bottom:30px;display:flex;flex-direction:column;align-items:center;gap:18px;}
+  .clip .sideBtn{background:rgba(30,30,30,0.55);border:none;color:white;width:46px;height:46px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:20px;line-height:1;gap:2px;}
+  .clip .sideBtn.liked{color:var(--accent);}
+  .clip .sideBtn .sideCount{font-size:10.5px;color:white;font-weight:600;}
+  .clip .muteBtn{position:absolute;top:14px;right:14px;background:rgba(30,30,30,0.55);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:15px;cursor:pointer;}
+  .clip .clipDeleteBtn{position:absolute;top:14px;left:14px;background:rgba(30,30,30,0.55);border:none;color:#ff8a8a;width:36px;height:36px;border-radius:50%;font-size:15px;cursor:pointer;}
+
+  #topBar{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 14px 0;z-index:5;pointer-events:none;}
+  #topBar .topBarTitle{pointer-events:auto;font-weight:800;font-size:17px;text-shadow:0 1px 4px rgba(0,0,0,0.6);}
+  #topBar button{pointer-events:auto;background:rgba(30,30,30,0.55);border:none;color:white;border-radius:16px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
+
+  #uploadFab{position:fixed;right:16px;bottom:22px;z-index:5;width:54px;height:54px;border-radius:50%;background:var(--accent);border:none;color:white;font-size:26px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.4);}
+  #uploadFab:hover{background:var(--accent2);}
+
+  #emptyFeed,#loadingFeed{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13.5px;text-align:center;padding:0 30px;}
+  #emptyFeed.hidden,#loadingFeed.hidden{display:none;}
+
+  /* ---------- Modale de publication ---------- */
+  #uploadOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:30;padding:20px;}
+  #uploadOverlay.hidden{display:none;}
+  #uploadCard{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;}
+  #uploadCard h2{margin:0 0 14px;font-size:17px;}
+  #uploadCard input[type="file"]{width:100%;color:var(--muted);font-size:13px;margin-bottom:12px;}
+  #uploadCard textarea{width:100%;min-height:60px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;resize:vertical;margin-bottom:10px;font-family:inherit;}
+  #uploadPreviewWrap{display:none;margin-bottom:12px;}
+  #uploadPreviewWrap.show{display:block;}
+  #uploadPreviewWrap video{width:100%;max-height:220px;border-radius:8px;background:#000;}
+  #uploadHint{font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
+  .uploadRow{display:flex;gap:10px;}
+  .uploadRow button{flex:1;padding:11px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;cursor:pointer;}
+  .uploadRow .primaryBtn{background:var(--accent);border-color:var(--accent);color:white;font-weight:600;}
+  .uploadRow .primaryBtn:hover{background:var(--accent2);}
+  .uploadRow .primaryBtn:disabled{opacity:0.6;cursor:default;}
+  #uploadMsg{min-height:16px;font-size:12px;color:#ff8a8a;margin-bottom:8px;}
+</style>
+</head>
+<body>
+
+  <!-- ---------- Connexion ---------- -->
+  <div id="loginScreen">
+    <div class="authCard">
+      <h1>🎬 Diarala_Tiktak</h1>
+      <p class="tagline">Vidéos courtes — connectez-vous avec votre compte seourouApps.</p>
+      <input id="loginPhoneInput" type="tel" placeholder="Numéro de téléphone (ex: +224621000000)" autocomplete="tel">
+      <input id="loginPasswordInput" type="password" placeholder="Mot de passe" autocomplete="current-password">
+      <button id="loginBtn" class="primaryBtn">Se connecter</button>
+      <div id="loginMsg" class="authMsg"></div>
+      <div class="authHint">Pas encore de compte ? Créez-en un dans seourouApps, puis revenez ici avec le même numéro et mot de passe.</div>
+    </div>
+  </div>
+
+  <!-- ---------- Fil vidéo ---------- -->
+  <div id="feedScreen">
+    <div id="topBar">
+      <div class="topBarTitle">🎬 Diarala_Tiktak</div>
+      <button id="logoutBtn">Se déconnecter</button>
+    </div>
+    <div id="feed"></div>
+    <div id="emptyFeed" class="hidden">Aucune vidéo pour l'instant.<br>Soyez le premier à en publier une avec le bouton "+".</div>
+    <div id="loadingFeed" class="hidden">Chargement…</div>
+    <button id="uploadFab" title="Publier une vidéo">+</button>
+  </div>
+
+  <!-- ---------- Publier une vidéo ---------- -->
+  <div id="uploadOverlay" class="hidden">
+    <div id="uploadCard">
+      <h2>Nouvelle vidéo</h2>
+      <input id="videoFileInput" type="file" accept="video/*" capture="user">
+      <div id="uploadPreviewWrap"><video id="uploadPreviewVideo" muted playsinline controls></video></div>
+      <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
+      <div id="uploadHint">Vidéo courte (30 secondes maximum, 12 Mo maximum).</div>
+      <div id="uploadMsg"></div>
+      <div class="uploadRow">
+        <button id="cancelUploadBtn">Annuler</button>
+        <button id="publishBtn" class="primaryBtn" disabled>Publier</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+
+  // Durée/taille max côté client — le serveur revérifie la taille de son côté
+  // (voir backend/src/utils/limits.js, MAX_VIDEO_BYTES) ; la durée, elle,
+  // n'est vérifiable qu'ici (pas de traitement vidéo côté serveur pour cette
+  // première version).
+  const MAX_VIDEO_SECONDS = 30;
+  const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
+
+  // Comme index.html : le token ne vit qu'en mémoire JS, jamais dans
+  // localStorage — se reconnecter à chaque rechargement de page fait partie
+  // du modèle de sécurité de l'application, pas un oubli.
+  let token = null;
+  let me = null;
+  let nextCursor = null;
+  let loadingMore = false;
+  let reachedEnd = false;
+  let pendingUploadFile = null;
+  let pendingThumbnail = null; // { data, mime } ou null
+
+  async function api(path, opts = {}) {
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
+    if (token) headers['Authorization'] = 'Bearer ' + token;
+    const res = await fetch(path, Object.assign({}, opts, { headers }));
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* pas de corps */ }
+    if (!res.ok) throw new Error((data && data.error) || ('Erreur HTTP ' + res.status));
+    return data;
+  }
+
+  function blobToBase64(blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result || '';
+        const commaIdx = result.indexOf(',');
+        resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+      };
+      reader.onerror = () => reject(reader.error || new Error('Lecture échouée'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  // ---------- Connexion ----------
+  async function doLogin() {
+    const phone = $('loginPhoneInput').value.trim();
+    const password = $('loginPasswordInput').value;
+    if (!phone || !password) {
+      $('loginMsg').textContent = 'Numéro de téléphone et mot de passe requis.';
+      return;
+    }
+    $('loginBtn').disabled = true;
+    $('loginMsg').textContent = '';
+    try {
+      const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) });
+      token = data.token;
+      me = data.user;
+      $('loginScreen').classList.add('hidden');
+      $('feedScreen').classList.add('show');
+      loadFeed(true);
+    } catch (err) {
+      $('loginMsg').textContent = err.message;
+    } finally {
+      $('loginBtn').disabled = false;
+    }
+  }
+  $('loginBtn').addEventListener('click', doLogin);
+  $('loginPasswordInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
+
+  $('logoutBtn').addEventListener('click', () => {
+    // Comme le bouton "Se déconnecter" de seourouApps : révoque aussi cet
+    // appareil côté serveur (visible sinon indéfiniment dans "Appareils
+    // connectés"), sans jamais bloquer la déconnexion locale si ça échoue.
+    api('/api/devices/logout-self', { method: 'POST' }).catch(() => {});
+    token = null;
+    me = null;
+    nextCursor = null;
+    reachedEnd = false;
+    $('feed').innerHTML = '';
+    $('feedScreen').classList.remove('show');
+    $('loginScreen').classList.remove('hidden');
+    $('loginPasswordInput').value = '';
+  });
+
+  // ---------- Fil ----------
+  let observer = null;
+
+  function setupObserver() {
+    if (observer) observer.disconnect();
+    observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const video = entry.target.querySelector('video');
+        if (!video) return;
+        if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+          video.play().catch(() => {});
+        } else {
+          video.pause();
+        }
+      });
+    }, { root: $('feed'), threshold: [0, 0.6, 1] });
+    document.querySelectorAll('.clip').forEach((el) => observer.observe(el));
+  }
+
+  async function loadFeed(reset) {
+    if (loadingMore || (reachedEnd && !reset)) return;
+    loadingMore = true;
+    if (reset) {
+      reachedEnd = false;
+      nextCursor = null;
+      $('feed').innerHTML = '';
+    }
+    $('loadingFeed').classList.remove('hidden');
+    $('emptyFeed').classList.add('hidden');
+    try {
+      const qs = nextCursor ? ('?before=' + encodeURIComponent(nextCursor)) : '';
+      const data = await api('/api/videos' + qs);
+      data.videos.forEach((v) => $('feed').appendChild(renderClip(v)));
+      nextCursor = data.nextCursor;
+      if (!data.nextCursor) reachedEnd = true;
+      if (reset && data.videos.length === 0) $('emptyFeed').classList.remove('hidden');
+      setupObserver();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      loadingMore = false;
+      $('loadingFeed').classList.add('hidden');
+    }
+  }
+
+  function renderClip(v) {
+    const el = document.createElement('div');
+    el.className = 'clip';
+    el.dataset.videoId = v.id;
+    const posterAttr = v.thumbnailData ? ` poster="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}"` : '';
+    const isMine = me && v.author && v.author.id === me.id;
+    el.innerHTML = `
+      <video loop muted playsinline${posterAttr} src="data:${v.videoMime};base64,${v.videoData}"></video>
+      <button class="muteBtn" title="Activer/couper le son">🔇</button>
+      ${isMine ? '<button class="clipDeleteBtn" title="Supprimer cette vidéo">🗑️</button>' : ''}
+      <div class="clipSide">
+        <button class="sideBtn likeBtn${v.likedByMe ? ' liked' : ''}">
+          <span class="likeIcon">${v.likedByMe ? '❤️' : '🤍'}</span>
+          <span class="sideCount likeCount">${v.likesCount}</span>
+        </button>
+      </div>
+      <div class="clipOverlay">
+        <div class="clipAuthor">${escapeHtml(v.author ? v.author.name : '—')}</div>
+        ${v.caption ? `<div class="clipCaption">${escapeHtml(v.caption)}</div>` : ''}
+      </div>
+    `;
+    const videoEl = el.querySelector('video');
+    const muteBtn = el.querySelector('.muteBtn');
+    muteBtn.addEventListener('click', () => {
+      videoEl.muted = !videoEl.muted;
+      muteBtn.textContent = videoEl.muted ? '🔇' : '🔊';
+    });
+    videoEl.addEventListener('click', () => {
+      if (videoEl.paused) videoEl.play().catch(() => {}); else videoEl.pause();
+    });
+    el.querySelector('.likeBtn').addEventListener('click', () => toggleLike(v, el));
+    const delBtn = el.querySelector('.clipDeleteBtn');
+    if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el));
+    return el;
+  }
+
+  async function toggleLike(v, el) {
+    const btn = el.querySelector('.likeBtn');
+    const icon = el.querySelector('.likeIcon');
+    const countEl = el.querySelector('.likeCount');
+    const wasLiked = btn.classList.contains('liked');
+    // Optimiste : on met à jour l'affichage tout de suite, comme les
+    // réactions sur un message dans seourouApps — on ne fait pas attendre la
+    // personne pour un like.
+    btn.classList.toggle('liked', !wasLiked);
+    icon.textContent = wasLiked ? '🤍' : '❤️';
+    countEl.textContent = String(parseInt(countEl.textContent, 10) + (wasLiked ? -1 : 1));
+    try {
+      const data = await api('/api/videos/' + v.id + '/' + (wasLiked ? 'unlike' : 'like'), { method: 'POST' });
+      countEl.textContent = String(data.likesCount);
+    } catch (err) {
+      // Échec : on annule le changement optimiste plutôt que de laisser un
+      // état incohérent avec le serveur.
+      btn.classList.toggle('liked', wasLiked);
+      icon.textContent = wasLiked ? '❤️' : '🤍';
+      countEl.textContent = String(parseInt(countEl.textContent, 10) + (wasLiked ? 1 : -1));
+    }
+  }
+
+  async function deleteClip(v, el) {
+    if (!confirm('Supprimer définitivement cette vidéo ?')) return;
+    try {
+      await api('/api/videos/' + v.id, { method: 'DELETE' });
+      el.remove();
+      if (!$('feed').children.length) $('emptyFeed').classList.remove('hidden');
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  }
+
+  $('feed').addEventListener('scroll', () => {
+    const el = $('feed');
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 400) loadFeed(false);
+  });
+
+  function escapeHtml(str) {
+    return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  // ---------- Publication ----------
+  function openUploadOverlay() {
+    pendingUploadFile = null;
+    pendingThumbnail = null;
+    $('videoFileInput').value = '';
+    $('captionInput').value = '';
+    $('uploadMsg').textContent = '';
+    $('uploadPreviewWrap').classList.remove('show');
+    $('publishBtn').disabled = true;
+    $('uploadOverlay').classList.remove('hidden');
+  }
+  function closeUploadOverlay() {
+    $('uploadOverlay').classList.add('hidden');
+    if ($('uploadPreviewVideo').src) URL.revokeObjectURL($('uploadPreviewVideo').src);
+    $('uploadPreviewVideo').src = '';
+  }
+  $('uploadFab').addEventListener('click', openUploadOverlay);
+  $('cancelUploadBtn').addEventListener('click', closeUploadOverlay);
+
+  $('videoFileInput').addEventListener('change', async () => {
+    const file = $('videoFileInput').files[0];
+    $('uploadMsg').textContent = '';
+    $('publishBtn').disabled = true;
+    pendingUploadFile = null;
+    pendingThumbnail = null;
+    if (!file) return;
+
+    if (file.size > MAX_VIDEO_BYTES) {
+      $('uploadMsg').textContent = `Vidéo trop volumineuse (${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} Mo maximum).`;
+      return;
+    }
+
+    const previewVideo = $('uploadPreviewVideo');
+    const objectUrl = URL.createObjectURL(file);
+    previewVideo.src = objectUrl;
+    $('uploadPreviewWrap').classList.add('show');
+
+    try {
+      const duration = await new Promise((resolve, reject) => {
+        previewVideo.onloadedmetadata = () => resolve(previewVideo.duration);
+        previewVideo.onerror = () => reject(new Error("Impossible de lire cette vidéo."));
+      });
+      if (duration && duration > MAX_VIDEO_SECONDS + 1) {
+        $('uploadMsg').textContent = `Vidéo trop longue (${MAX_VIDEO_SECONDS} secondes maximum).`;
+        return;
+      }
+      // Miniature : une image de la première seconde, pour l'afficher comme
+      // "poster" avant que la vidéo elle-même ne soit chargée dans le fil
+      // (voir renderClip) — pas indispensable, juste plus agréable.
+      pendingThumbnail = await captureThumbnail(previewVideo).catch(() => null);
+      pendingUploadFile = file;
+      $('publishBtn').disabled = false;
+    } catch (err) {
+      $('uploadMsg').textContent = err.message;
+    }
+  });
+
+  function captureThumbnail(videoEl) {
+    return new Promise((resolve, reject) => {
+      const grab = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const scale = Math.min(1, 480 / (videoEl.videoWidth || 480));
+          canvas.width = Math.round((videoEl.videoWidth || 480) * scale);
+          canvas.height = Math.round((videoEl.videoHeight || 270) * scale);
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          const commaIdx = dataUrl.indexOf(',');
+          resolve({ data: dataUrl.slice(commaIdx + 1), mime: 'image/jpeg' });
+        } catch (err) { reject(err); }
+      };
+      if (videoEl.readyState >= 2) { grab(); return; }
+      videoEl.onseeked = grab;
+      try { videoEl.currentTime = Math.min(0.3, (videoEl.duration || 1) / 4); } catch (err) { reject(err); }
+    });
+  }
+
+  $('publishBtn').addEventListener('click', async () => {
+    if (!pendingUploadFile) return;
+    $('publishBtn').disabled = true;
+    $('uploadMsg').textContent = 'Publication en cours…';
+    try {
+      const videoData = await blobToBase64(pendingUploadFile);
+      const body = {
+        videoData,
+        videoMime: pendingUploadFile.type || 'video/mp4',
+        caption: $('captionInput').value,
+        duration: Math.round($('uploadPreviewVideo').duration || 0),
+      };
+      if (pendingThumbnail) {
+        body.thumbnailData = pendingThumbnail.data;
+        body.thumbnailMime = pendingThumbnail.mime;
+      }
+      const data = await api('/api/videos', { method: 'POST', body: JSON.stringify(body) });
+      closeUploadOverlay();
+      // La vidéo qu'on vient de publier apparaît tout en haut du fil, comme
+      // WhatsApp affiche un statut qu'on vient de publier en premier.
+      $('feed').prepend(renderClip(data.video));
+      $('feed').scrollTo({ top: 0 });
+      $('emptyFeed').classList.add('hidden');
+      setupObserver();
+    } catch (err) {
+      $('uploadMsg').textContent = err.message;
+      $('publishBtn').disabled = false;
+    }
+  });
+</script>
+</body>
+</html>

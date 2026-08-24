@@ -16,6 +16,7 @@ const adminRoutes = require('./routes/admin.routes');
 const parentalRoutes = require('./routes/parental.routes');
 const contactRoutes = require('./routes/contact.routes');
 const deviceRoutes = require('./routes/device.routes');
+const videoRoutes = require('./routes/video.routes');
 const { setupSocket } = require('./sockets');
 const prisma = require('./config/prisma');
 
@@ -42,10 +43,11 @@ const corsOrigin = corsOriginEnv === '*' ? '*' : corsOriginEnv.split(',');
 
 app.use(cors({ origin: corsOrigin }));
 // Limite par défaut d'express.json() : 100 Ko, trop petit pour la photo de
-// profil (jusqu'à ~2 Mo, voir user.controller.js) ou une photo de statut
-// (jusqu'à 5 Mo, voir status.controller.js) envoyées en base64 (+33% de
+// profil (jusqu'à ~2 Mo, voir user.controller.js), une photo de statut
+// (jusqu'à 5 Mo, voir status.controller.js) ou une vidéo "Clips" (jusqu'à
+// 12 Mo, voir utils/limits.js, MAX_VIDEO_BYTES) envoyées en base64 (+33% de
 // taille par rapport au fichier d'origine une fois encodées).
-app.use(express.json({ limit: '8mb' }));
+app.use(express.json({ limit: '20mb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
@@ -60,6 +62,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/parental', parentalRoutes);
 app.use('/api/contacts', contactRoutes);
 app.use('/api/devices', deviceRoutes);
+app.use('/api/videos', videoRoutes);
 
 // Sert l'application web (testeur/PWA) : le dossier public/ contient index.html,
 // le manifest PWA, le service worker et les icônes. Comme c'est servi par ce même
