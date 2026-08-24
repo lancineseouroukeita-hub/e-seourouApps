@@ -502,6 +502,164 @@
     <div class="myVideosGrid" id="myVideosGrid"></div>
   </div>
 
+  <!-- ---------- Menu ☰ (tiroir latéral, comme la capture TikTok envoyée
+       par Lancine) : Ressources > Solde ; Outils personnels > Centre des
+       activités, Vidéos hors ligne, Ton code QR ; Outils de création et
+       professionnels > Studio de création, Promouvoir ; puis Paramètres et
+       confidentialité. "Studio de création" plutôt que "TikTok Studio" —
+       même fonctionnalité (statistiques), nom propre à Diarala_Tiktak. ---------- -->
+  <div id="menuOverlay" class="hidden">
+    <div id="menuPanel">
+      <div class="menuSectionLabel">Ressources</div>
+      <button class="menuRow" id="menuSoldeBtn" type="button">
+        <span class="menuRowIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12V7H5a2 2 0 0 1 0-4h11v4"></path><path d="M4 7v11a2 2 0 0 0 2 2h13a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2H6"></path><path d="M18 15h.01"></path></svg></span>
+        <span>Solde</span>
+      </button>
+      <div class="menuDivider"></div>
+      <div class="menuSectionLabel">Outils personnels</div>
+      <button class="menuRow" id="menuActivityBtn" type="button">
+        <span class="menuRowIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg></span>
+        <span>Centre des activités</span>
+      </button>
+      <button class="menuRow" id="menuOfflineBtn" type="button">
+        <span class="menuRowIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 16.58A5 5 0 0 0 18 7h-1.26A8 8 0 1 0 4 15.25"></path><polyline points="8 17 12 21 16 17"></polyline><line x1="12" y1="12" x2="12" y2="21"></line></svg></span>
+        <span>Vidéos hors ligne</span>
+      </button>
+      <button class="menuRow" id="menuQrBtn" type="button">
+        <span class="menuRowIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect><line x1="14" y1="14" x2="21" y2="14"></line><line x1="14" y1="21" x2="21" y2="21"></line><line x1="17.5" y1="14" x2="17.5" y2="21"></line></svg></span>
+        <span>Ton code QR</span>
+      </button>
+      <div class="menuDivider"></div>
+      <div class="menuSectionLabel">Outils de création et professionnels</div>
+      <button class="menuRow" id="menuStudioBtn" type="button">
+        <span class="menuRowIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg></span>
+        <span>Studio de création</span>
+      </button>
+      <button class="menuRow" id="menuBoostBtn" type="button">
+        <span class="menuRowIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg></span>
+        <span>Promouvoir</span>
+      </button>
+      <div class="menuDivider"></div>
+      <button class="menuRow" id="menuSettingsBtn" type="button">
+        <span class="menuRowIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg></span>
+        <span>Paramètres et confidentialité</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ---------- Feuille de partage "Envoyer à" (profil ou publication) ---------- -->
+  <div id="shareSheetOverlay" class="hidden">
+    <div id="shareSheetPanel">
+      <div class="shareSheetHead">
+        <span>Envoyer à</span>
+        <button class="shareSheetCloseBtn" id="shareSheetCloseBtn" type="button">✕</button>
+      </div>
+      <div class="shareSheetContacts" id="shareSheetContacts"></div>
+      <div class="shareSheetActions">
+        <button class="shareActionBtn" data-action="copy" type="button"><span class="shareActionIcon">🔗</span>Copier le lien</button>
+        <button class="shareActionBtn" data-action="whatsapp" type="button"><span class="shareActionIcon">💬</span>WhatsApp</button>
+        <button class="shareActionBtn" data-action="telegram" type="button"><span class="shareActionIcon">✈️</span>Telegram</button>
+        <button class="shareActionBtn" data-action="messenger" type="button"><span class="shareActionIcon">📨</span>Messenger</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Solde ---------- -->
+  <div id="walletScreen" class="subScreen">
+    <div class="subScreenHeader">
+      <button class="subScreenBackBtn" data-back-to="profile" type="button">←</button>
+      <span class="subScreenTitle">Solde</span>
+    </div>
+    <div class="walletBalanceCard">
+      <div class="walletBalanceNum" id="walletBalanceNum">0</div>
+      <div class="walletBalanceLabel">crédit(s) — monnaie interne à Diarala_Tiktak, pas de l'argent réel</div>
+    </div>
+    <div class="walletSectionLabel">Comment gagner des crédits : quelqu'un aime une de vos vidéos (+1), quelqu'un vous suit (+3). Dépensez-les avec "Promouvoir".</div>
+    <div class="walletSectionLabel">Historique</div>
+    <div id="walletTxList"></div>
+  </div>
+
+  <!-- ---------- Studio de création (statistiques) ---------- -->
+  <div id="studioScreen" class="subScreen">
+    <div class="subScreenHeader">
+      <button class="subScreenBackBtn" data-back-to="profile" type="button">←</button>
+      <span class="subScreenTitle">Studio de création</span>
+    </div>
+    <div class="studioStatsGrid">
+      <div class="studioStatCard"><div class="studioStatNum" id="studioTotalViews">0</div><div class="studioStatLabel">Vues totales</div></div>
+      <div class="studioStatCard"><div class="studioStatNum" id="studioTotalLikes">0</div><div class="studioStatLabel">J'aime totaux</div></div>
+      <div class="studioStatCard"><div class="studioStatNum" id="studioTotalComments">0</div><div class="studioStatLabel">Commentaires</div></div>
+      <div class="studioStatCard"><div class="studioStatNum" id="studioFollowers">0</div><div class="studioStatLabel">Abonnés</div></div>
+    </div>
+    <div class="studioSectionLabel">Vues des 7 derniers jours</div>
+    <div class="studioChart" id="studioChart"></div>
+    <div class="studioSectionLabel">Vos publications les plus vues</div>
+    <div id="studioTopVideos"></div>
+  </div>
+
+  <!-- ---------- Promouvoir ---------- -->
+  <div id="boostScreen" class="subScreen">
+    <div class="subScreenHeader">
+      <button class="subScreenBackBtn" data-back-to="profile" type="button">←</button>
+      <span class="subScreenTitle">Promouvoir</span>
+    </div>
+    <div class="boostIntro" id="boostIntro"></div>
+    <div id="boostVideoList"></div>
+  </div>
+
+  <!-- ---------- Centre des activités ---------- -->
+  <div id="activityScreen" class="subScreen">
+    <div class="subScreenHeader">
+      <button class="subScreenBackBtn" data-back-to="profile" type="button">←</button>
+      <span class="subScreenTitle">Centre des activités</span>
+    </div>
+    <div id="activityList"></div>
+  </div>
+
+  <!-- ---------- Vidéos hors ligne ---------- -->
+  <div id="offlineScreen" class="subScreen">
+    <div class="subScreenHeader">
+      <button class="subScreenBackBtn" data-back-to="profile" type="button">←</button>
+      <span class="subScreenTitle">Vidéos hors ligne</span>
+    </div>
+    <div class="walletSectionLabel">Vos publications enregistrées (🔖) — téléchargez-les pour les revoir sans connexion.</div>
+    <div id="offlineList"></div>
+  </div>
+
+  <!-- ---------- Ton code QR ---------- -->
+  <div id="qrScreen" class="subScreen">
+    <div class="subScreenHeader">
+      <button class="subScreenBackBtn" data-back-to="profile" type="button">←</button>
+      <span class="subScreenTitle">Ton code QR</span>
+    </div>
+    <div class="qrCanvasWrap">
+      <canvas id="qrCanvas" width="220" height="220"></canvas>
+      <div class="qrLinkText" id="qrLinkText"></div>
+      <button class="qrCopyBtn" id="qrCopyBtn" type="button">Copier le lien</button>
+    </div>
+  </div>
+
+  <!-- ---------- Paramètres et confidentialité ---------- -->
+  <div id="settingsScreen" class="subScreen">
+    <div class="subScreenHeader">
+      <button class="subScreenBackBtn" data-back-to="profile" type="button">←</button>
+      <span class="subScreenTitle">Paramètres et confidentialité</span>
+    </div>
+    <div class="settingsRow">
+      <div>
+        <div class="settingsRowLabel">Compte privé</div>
+        <div class="settingsRowHint">Seuls vos abonnés voient vos publications dans "Pour toi".</div>
+      </div>
+      <label class="toggleSwitch">
+        <input type="checkbox" id="settingsPrivateToggle">
+        <span class="toggleSwitchTrack"></span>
+      </label>
+    </div>
+    <div class="walletSectionLabel">Comptes bloqués</div>
+    <div id="settingsBlockedList"></div>
+    <a class="settingsFullLink" href="index.html">Paramètres complets de seourouApps →</a>
+  </div>
+
   <!-- ---------- Barre de navigation basse ---------- -->
   <!-- Icônes en trait (façon Feather/TikTok) plutôt que des émojis, qui ne
        rendent pas pareil sur tous les téléphones (voir la capture envoyée par
@@ -563,6 +721,16 @@
        bouton "Choisir le fichier" visible séparément, voir la discussion avec
        Lancine ("+" doit ouvrir directement la caméra, comme TikTok). -->
   <input id="videoFileInput" type="file" accept="video/*,image/*" style="display:none">
+
+  <!-- Génération du QR code ("Ton code QR", menu ☰) : bibliothèque légère
+       chargée depuis un CDN — cette page est une vraie page déployée en
+       production (pas un environnement bac à sable), donc un script externe
+       est possible ici, contrairement aux restrictions d'un aperçu isolé.
+       Expose un objet global "qrcode(typeNumber, errorCorrectionLevel)" (voir
+       plus bas, drawQrCode) — pas de rendu direct sur <canvas> fourni par la
+       bibliothèque elle-même, donc on dessine nous-mêmes case par case à
+       partir de qr.isDark(row, col). -->
+  <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
 
   <!-- ---------- Sélecteur de son ("Ajouter un son", comme TikTok) ---------- -->
   <div id="soundPickerOverlay" class="hidden">
@@ -989,6 +1157,11 @@
       $('backToAppBtn').classList.remove('hidden');
       showScreen('feed');
       loadFeed(true);
+      // Lien "?follow=<id>" (bouton partager du profil / QR code, voir
+      // "Ton code QR" plus bas) — même principe que le "?c=" de index.html,
+      // mais traité ici juste après la connexion plutôt qu'au chargement de
+      // la page (token en mémoire seulement, jamais connecté avant login).
+      maybeAutoFollowFromQuery();
     } catch (err) {
       $('loginMsg').textContent = err.message;
     } finally {
@@ -1213,6 +1386,16 @@
             try { audio.currentTime = video.currentTime; } catch (err) { /* ignoré */ }
             audio.play().catch(() => {});
           }
+          // Vue comptée pour "Studio de création" (voir getMyStats côté
+          // serveur) : une seule fois par publication et par session (le
+          // Set viewedVideoIds), pas à chaque repassage devant elle en
+          // scrollant dans le fil — sinon les stats exploseraient sans rien
+          // représenter de réel.
+          const viewedVideoId = entry.target.dataset.videoId;
+          if (viewedVideoId && !viewedVideoIds.has(viewedVideoId)) {
+            viewedVideoIds.add(viewedVideoId);
+            api('/api/videos/' + viewedVideoId + '/view', { method: 'POST' }).catch(() => {});
+          }
         } else {
           entry.target.dataset.shouldPlay = '0';
           video.pause();
@@ -1430,7 +1613,12 @@
     el.querySelector('.likeBtn').addEventListener('click', () => toggleLike(v, el));
     el.querySelector('.commentBtn').addEventListener('click', () => openComments(v, el));
     el.querySelector('.saveBtn').addEventListener('click', () => toggleSave(v, el));
-    el.querySelector('.shareBtn').addEventListener('click', () => shareVideo(v));
+    // Passe désormais par la feuille "Envoyer à" (menu ☰, voir openShareSheet
+    // plus bas) plutôt que par shareVideo (partage natif texte seul, gardée
+    // ci-dessous mais plus appelée) — cohérent avec la capture TikTok envoyée
+    // par Lancine, avec en plus les contacts et les 4 actions demandées
+    // (copier le lien, WhatsApp, Telegram, Messenger).
+    el.querySelector('.shareBtn').addEventListener('click', () => openShareSheet({ type: 'video', video: v }));
     const delBtn = el.querySelector('.clipDeleteBtn');
     if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el));
     // Badge "+" sur l'avatar de l'auteur (suivi rapide sans quitter le fil,
@@ -2156,6 +2344,524 @@
       $('publishBtn').disabled = false;
     }
   });
+
+  // ================================================================
+  // ---------- Menu ☰ / partage / Solde / Studio de création / Promouvoir /
+  // Centre des activités / Vidéos hors ligne / Ton code QR / Paramètres et
+  // confidentialité (voir la capture TikTok envoyée par Lancine) ----------
+  // ================================================================
+
+  // Une seule vue déclarée "active" à la fois parmi les 7 sous-écrans
+  // plein-écran (voir CSS .subScreen) — on les cache tous avant d'afficher
+  // celui demandé, au cas où (ne devrait normalement jamais arriver) plus
+  // d'un seul ait déjà la classe "show" en même temps.
+  function openSubScreen(id) {
+    document.querySelectorAll('.subScreen').forEach((el) => el.classList.remove('show'));
+    document.querySelectorAll('.clip video').forEach((v) => v.pause());
+    $(id).classList.add('show');
+  }
+  document.querySelectorAll('.subScreenBackBtn[data-back-to="profile"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const sub = btn.closest('.subScreen');
+      if (sub) sub.classList.remove('show');
+    });
+  });
+
+  function openMenu() { $('menuOverlay').classList.remove('hidden'); }
+  function closeMenu() { $('menuOverlay').classList.add('hidden'); }
+  $('profileMenuBtn').addEventListener('click', openMenu);
+  // Ferme au clic sur le fond sombre (pas sur le panneau lui-même) — même
+  // principe que commentsOverlay/soundPickerOverlay ailleurs dans ce fichier.
+  $('menuOverlay').addEventListener('click', (e) => { if (e.target === $('menuOverlay')) closeMenu(); });
+
+  function menuRowGoTo(subScreenId, loaderFn) {
+    closeMenu();
+    openSubScreen(subScreenId);
+    if (loaderFn) loaderFn();
+  }
+  $('menuSoldeBtn').addEventListener('click', () => menuRowGoTo('walletScreen', loadWallet));
+  $('menuActivityBtn').addEventListener('click', () => menuRowGoTo('activityScreen', loadActivity));
+  $('menuOfflineBtn').addEventListener('click', () => menuRowGoTo('offlineScreen', loadOffline));
+  $('menuQrBtn').addEventListener('click', () => menuRowGoTo('qrScreen', loadQr));
+  $('menuStudioBtn').addEventListener('click', () => menuRowGoTo('studioScreen', loadStudio));
+  $('menuBoostBtn').addEventListener('click', () => menuRowGoTo('boostScreen', loadBoost));
+  $('menuSettingsBtn').addEventListener('click', () => menuRowGoTo('settingsScreen', loadSettings));
+
+  // "Trouver des ami(e)s" (haut du profil) : réutilise l'onglet "Ami(e)s"
+  // existant plutôt qu'un écran séparé de suggestions de comptes.
+  $('profileFindFriendsBtn').addEventListener('click', () => showScreen('friends'));
+  // "Messages" (avatar en haut à droite du profil) : même chose que
+  // navMessagesBtn plus haut — la messagerie de seourouApps, pas dupliquée ici.
+  $('profileInboxBtn').addEventListener('click', () => { window.location.href = 'index.html'; });
+  // Pas de vrai changement de compte (voir le commentaire HTML au-dessus de
+  // ce bouton) — juste une explication au clic, le "title" au survol ne
+  // suffisant pas sur mobile (pas de hover).
+  $('profileNameDropdownBtn').addEventListener('click', () => {
+    alert('Diarala_Tiktak utilise le même compte que seourouApps — il n\'y a rien à changer ici.');
+  });
+
+  // ---------- Feuille de partage "Envoyer à" (profil ou publication) ----------
+  // Contexte de la feuille actuellement ouverte : soit { type: 'profile' },
+  // soit { type: 'video', video: v } — relu par buildSharePayload() pour
+  // savoir quel lien/texte proposer aux 4 actions et aux contacts.
+  let shareSheetContext = null;
+
+  function shareOrigin() {
+    // Retire tout ce qui suit "videos.html" (ex: un ?follow=... déjà présent
+    // dans l'URL courante) pour toujours reconstruire un lien propre.
+    return window.location.origin + window.location.pathname.replace(/videos\.html.*$/, 'videos.html');
+  }
+
+  function buildSharePayload() {
+    if (shareSheetContext && shareSheetContext.type === 'video' && shareSheetContext.video) {
+      const v = shareSheetContext.video;
+      const url = shareOrigin() + '?v=' + encodeURIComponent(v.id);
+      const text = (v.caption ? `"${v.caption}" — ` : '') + 'à voir sur Diarala_Tiktak : ' + url;
+      return { url, text };
+    }
+    const url = shareOrigin() + '?follow=' + encodeURIComponent(me ? me.id : '');
+    const text = `Suis-moi sur Diarala_Tiktak : ${url}`;
+    return { url, text };
+  }
+
+  function renderShareContact(u) {
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = 'shareContactItem';
+    item.innerHTML = `
+      <div class="shareContactAvatar">${u.avatarUrl ? `<img src="${u.avatarUrl}" alt="">` : '👤'}</div>
+      <div class="shareContactName">${escapeHtml(u.name)}</div>
+    `;
+    item.addEventListener('click', () => {
+      if (!u.phone) { alert('Ce contact n\'a pas de numéro enregistré.'); return; }
+      const { text } = buildSharePayload();
+      const waNumber = String(u.phone).replace(/[^\d+]/g, '');
+      window.open('https://wa.me/' + encodeURIComponent(waNumber) + '?text=' + encodeURIComponent(text), '_blank');
+      closeShareSheet();
+    });
+    return item;
+  }
+
+  async function openShareSheet(context) {
+    shareSheetContext = context;
+    $('shareSheetOverlay').classList.remove('hidden');
+    $('shareSheetContacts').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/follows/summary');
+      if (!data.users.length) {
+        $('shareSheetContacts').innerHTML = '<div class="screenEmpty">Aucun contact.</div>';
+        return;
+      }
+      $('shareSheetContacts').innerHTML = '';
+      data.users.forEach((u) => $('shareSheetContacts').appendChild(renderShareContact(u)));
+    } catch (err) {
+      $('shareSheetContacts').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+  function closeShareSheet() {
+    $('shareSheetOverlay').classList.add('hidden');
+    shareSheetContext = null;
+  }
+  $('profileShareBtn').addEventListener('click', () => openShareSheet({ type: 'profile' }));
+  $('shareSheetCloseBtn').addEventListener('click', closeShareSheet);
+  $('shareSheetOverlay').addEventListener('click', (e) => { if (e.target === $('shareSheetOverlay')) closeShareSheet(); });
+
+  document.querySelectorAll('.shareActionBtn[data-action]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const { url, text } = buildSharePayload();
+      const action = btn.dataset.action;
+      if (action === 'copy') {
+        try {
+          await navigator.clipboard.writeText(url);
+          alert('Lien copié !');
+        } catch (err) {
+          alert(url);
+        }
+        return;
+      }
+      if (action === 'whatsapp') {
+        window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank');
+      } else if (action === 'telegram') {
+        window.open('https://t.me/share/url?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(text), '_blank');
+      } else if (action === 'messenger') {
+        // Pas d'équivalent web officiel à wa.me/t.me pour Messenger sans App
+        // Facebook enregistrée (hors de portée pour ce produit de test) : on
+        // tente le schéma d'app mobile (n'ouvre l'appli QUE si elle est
+        // installée) et on copie le texte en repli, pour rester quand même
+        // "fonctionnel" au sens où la personne peut toujours le coller.
+        window.location.href = 'fb-messenger://share/?link=' + encodeURIComponent(url);
+        navigator.clipboard.writeText(text).catch(() => {});
+        setTimeout(() => {
+          alert('Si Messenger ne s\'est pas ouvert : le texte a été copié, collez-le dans une conversation.');
+        }, 700);
+      }
+      closeShareSheet();
+    });
+  });
+
+  // ---------- Solde ----------
+  async function loadWallet() {
+    $('walletBalanceNum').textContent = '…';
+    $('walletTxList').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/wallet');
+      $('walletBalanceNum').textContent = String(data.balance);
+      if (!data.transactions.length) {
+        $('walletTxList').innerHTML = '<div class="screenEmpty">Aucun mouvement pour l\'instant.</div>';
+        return;
+      }
+      $('walletTxList').innerHTML = '';
+      data.transactions.forEach((t) => {
+        const row = document.createElement('div');
+        row.className = 'walletTxRow';
+        const sign = t.amount > 0 ? '+' : '';
+        row.innerHTML = `
+          <div>
+            <div class="walletTxLabel">${escapeHtml(t.label)}</div>
+            <div class="walletTxDate">${new Date(t.createdAt).toLocaleString('fr-FR')}</div>
+          </div>
+          <div class="walletTxAmount ${t.amount > 0 ? 'positive' : 'negative'}">${sign}${t.amount}</div>
+        `;
+        $('walletTxList').appendChild(row);
+      });
+    } catch (err) {
+      $('walletTxList').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  // ---------- Centre des activités ----------
+  function relativeTime(dateStr) {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const mins = Math.floor(diffMs / 60000);
+    if (mins < 1) return 'à l\'instant';
+    if (mins < 60) return `${mins} min`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours} h`;
+    const days = Math.floor(hours / 24);
+    if (days < 30) return `${days} j`;
+    return new Date(dateStr).toLocaleDateString('fr-FR');
+  }
+  function renderActivityRow(ev) {
+    const row = document.createElement('div');
+    row.className = 'activityRow';
+    const avatarHtml = ev.user.avatarUrl
+      ? `<img src="${ev.user.avatarUrl}" alt="">`
+      : (ev.type === 'like' ? '❤️' : (ev.type === 'comment' ? '💬' : '👤'));
+    let textHtml;
+    if (ev.type === 'like') {
+      textHtml = `<b>${escapeHtml(ev.user.name)}</b> a aimé votre publication`;
+    } else if (ev.type === 'comment') {
+      textHtml = `<b>${escapeHtml(ev.user.name)}</b> a commenté : "${escapeHtml(ev.text)}"`;
+    } else {
+      textHtml = `<b>${escapeHtml(ev.user.name)}</b> a commencé à vous suivre`;
+    }
+    row.innerHTML = `
+      <div class="activityIcon">${avatarHtml}</div>
+      <div class="activityText">${textHtml}</div>
+      <div class="activityTime">${relativeTime(ev.createdAt)}</div>
+    `;
+    return row;
+  }
+  async function loadActivity() {
+    $('activityList').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/videos/activity/mine');
+      if (!data.events.length) {
+        $('activityList').innerHTML = '<div class="screenEmpty">Aucune activité pour l\'instant.</div>';
+        return;
+      }
+      $('activityList').innerHTML = '';
+      data.events.forEach((ev) => $('activityList').appendChild(renderActivityRow(ev)));
+    } catch (err) {
+      $('activityList').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  // ---------- Vidéos hors ligne ----------
+  function renderOfflineRow(v) {
+    const row = document.createElement('div');
+    row.className = 'offlineRow';
+    row.innerHTML = `
+      <div class="studioVideoInfo">
+        <div class="studioVideoCaption">${escapeHtml(v.caption || (v.type === 'photo' ? 'Photo sans légende' : 'Vidéo sans légende'))}</div>
+        <div class="studioVideoMeta">Par ${escapeHtml(v.author ? v.author.name : '—')}</div>
+      </div>
+      <button class="downloadBtn" type="button">Télécharger</button>
+    `;
+    const btn = row.querySelector('.downloadBtn');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.textContent = '…';
+      try {
+        let blobUrl;
+        let filename;
+        if (v.type === 'photo') {
+          blobUrl = await base64ToBlobUrl(v.photoData, baseMimeType(v.photoMime));
+          filename = 'diarala_' + v.id + '.jpg';
+        } else {
+          blobUrl = await base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime));
+          filename = 'diarala_' + v.id + '.mp4';
+        }
+        if (!blobUrl) throw new Error('Conversion échouée.');
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        // Laisse le temps au téléchargement de démarrer avant de libérer
+        // l'URL — même prudence que revokeClipBlobUrls ailleurs, mais avec un
+        // délai ici puisqu'on ne sait pas exactement quand le navigateur a
+        // fini de lire le blob pour l'enregistrer sur l'appareil.
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+        btn.classList.add('done');
+        btn.textContent = 'Téléchargé ✓';
+      } catch (err) {
+        alert('Erreur de téléchargement : ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Télécharger';
+      }
+    });
+    return row;
+  }
+  async function loadOffline() {
+    $('offlineList').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/videos/saved');
+      if (!data.videos.length) {
+        $('offlineList').innerHTML = '<div class="screenEmpty">Aucune publication enregistrée — appuyez sur 🔖 sur une publication du fil pour l\'ajouter ici.</div>';
+        return;
+      }
+      $('offlineList').innerHTML = '';
+      data.videos.forEach((v) => $('offlineList').appendChild(renderOfflineRow(v)));
+    } catch (err) {
+      $('offlineList').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  // ---------- Ton code QR ----------
+  // Dessine case par case (qr.isDark(row, col)) sur le <canvas> existant : la
+  // bibliothèque "qrcode-generator" (voir le <script> CDN plus haut) ne sait
+  // rendre qu'en <img>/<svg>/data URL, pas directement sur un canvas fourni.
+  function drawQrCode(text) {
+    const qr = qrcode(0, 'M');
+    qr.addData(text);
+    qr.make();
+    const count = qr.getModuleCount();
+    const canvas = $('qrCanvas');
+    const size = canvas.width;
+    const cell = size / count;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, size, size);
+    ctx.fillStyle = '#000000';
+    for (let row = 0; row < count; row += 1) {
+      for (let col = 0; col < count; col += 1) {
+        if (qr.isDark(row, col)) ctx.fillRect(Math.floor(col * cell), Math.floor(row * cell), Math.ceil(cell), Math.ceil(cell));
+      }
+    }
+  }
+  async function loadQr() {
+    const url = shareOrigin() + '?follow=' + encodeURIComponent(me ? me.id : '');
+    $('qrLinkText').textContent = url;
+    try {
+      drawQrCode(url);
+    } catch (err) {
+      console.error('Génération du QR code échouée :', err);
+    }
+  }
+  $('qrCopyBtn').addEventListener('click', async () => {
+    const url = $('qrLinkText').textContent;
+    try {
+      await navigator.clipboard.writeText(url);
+      $('qrCopyBtn').textContent = 'Copié !';
+      setTimeout(() => { $('qrCopyBtn').textContent = 'Copier le lien'; }, 1500);
+    } catch (err) {
+      alert(url);
+    }
+  });
+
+  // ---------- Studio de création (statistiques) ----------
+  function renderStudioVideoRow(v) {
+    const row = document.createElement('div');
+    row.className = 'studioVideoRow';
+    const thumbHtml = v.type === 'photo'
+      ? (v.photoData ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">` : '🖼️')
+      : (v.thumbnailData ? `<img src="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}" alt="">` : '🎬');
+    row.innerHTML = `
+      <div class="studioVideoThumb">${thumbHtml}</div>
+      <div class="studioVideoInfo">
+        <div class="studioVideoCaption">${escapeHtml(v.caption || (v.type === 'photo' ? 'Photo sans légende' : 'Vidéo sans légende'))}${v.boostedUntil ? '<span class="studioBoostedTag">🚀 Promue</span>' : ''}</div>
+        <div class="studioVideoMeta">${v.viewsCount} vues · ${v.likesCount} j'aime · ${v.commentsCount} commentaires</div>
+      </div>
+    `;
+    return row;
+  }
+  async function loadStudio() {
+    $('studioChart').innerHTML = '';
+    $('studioTopVideos').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/videos/stats/mine');
+      $('studioTotalViews').textContent = String(data.totalViews);
+      $('studioTotalLikes').textContent = String(data.totalLikes);
+      $('studioTotalComments').textContent = String(data.totalComments);
+      $('studioFollowers').textContent = String(data.followersCount);
+      const maxViews = Math.max(1, ...data.last7Days.map((d) => d.views));
+      $('studioChart').innerHTML = '';
+      data.last7Days.forEach((d) => {
+        const bar = document.createElement('div');
+        bar.className = 'studioChartBar';
+        const pct = Math.max(Math.round((d.views / maxViews) * 100), d.views > 0 ? 4 : 1);
+        const label = new Date(d.date + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'short' });
+        bar.innerHTML = `
+          <div class="studioChartBarNum">${d.views}</div>
+          <div class="studioChartBarFill" style="height:${pct}%"></div>
+          <div class="studioChartBarLabel">${label}</div>
+        `;
+        $('studioChart').appendChild(bar);
+      });
+      if (!data.topVideos.length) {
+        $('studioTopVideos').innerHTML = '<div class="screenEmpty">Aucune publication pour l\'instant.</div>';
+        return;
+      }
+      $('studioTopVideos').innerHTML = '';
+      data.topVideos.forEach((v) => $('studioTopVideos').appendChild(renderStudioVideoRow(v)));
+    } catch (err) {
+      $('studioTopVideos').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  // ---------- Promouvoir ----------
+  // Dupliqués côté client juste pour l'affichage (le serveur revérifie tout,
+  // voir utils/limits.js) — pas d'endpoint dédié pour exposer ces deux
+  // constantes, elles ne changent pour ainsi dire jamais.
+  const BOOST_COST_CREDITS = 50;
+  const BOOST_DURATION_HOURS = 24;
+  function renderBoostVideoRow(v, currentBalance) {
+    const row = document.createElement('div');
+    row.className = 'studioVideoRow';
+    const thumbHtml = v.type === 'photo'
+      ? (v.photoData ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">` : '🖼️')
+      : (v.thumbnailData ? `<img src="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}" alt="">` : '🎬');
+    const isActive = !!v.boostedUntil;
+    row.innerHTML = `
+      <div class="studioVideoThumb">${thumbHtml}</div>
+      <div class="studioVideoInfo">
+        <div class="studioVideoCaption">${escapeHtml(v.caption || (v.type === 'photo' ? 'Photo sans légende' : 'Vidéo sans légende'))}</div>
+        <div class="studioVideoMeta">${v.viewsCount} vues</div>
+      </div>
+      ${isActive
+        ? `<span class="boostActiveLabel">🚀 jusqu'au ${new Date(v.boostedUntil).toLocaleString('fr-FR')}</span>`
+        : `<button class="boostBtn" type="button"${currentBalance < BOOST_COST_CREDITS ? ' disabled' : ''}>Promouvoir (${BOOST_COST_CREDITS} crédits)</button>`}
+    `;
+    const btn = row.querySelector('.boostBtn');
+    if (btn) {
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        try {
+          const data = await api('/api/videos/' + v.id + '/boost', { method: 'POST' });
+          alert('Publication promue jusqu\'au ' + new Date(data.boostedUntil).toLocaleString('fr-FR') + '.');
+          loadBoost();
+        } catch (err) {
+          alert('Erreur : ' + err.message);
+          btn.disabled = false;
+        }
+      });
+    }
+    return row;
+  }
+  async function loadBoost() {
+    $('boostIntro').textContent = 'Chargement…';
+    $('boostVideoList').innerHTML = '';
+    try {
+      const [walletData, videosData] = await Promise.all([
+        api('/api/wallet'),
+        api('/api/videos/mine'),
+      ]);
+      $('boostIntro').textContent = `Solde actuel : ${walletData.balance} crédit(s). Promouvoir une publication coûte ${BOOST_COST_CREDITS} crédits et la fait remonter en tête du fil "Pour toi" pendant ${BOOST_DURATION_HOURS} heures.`;
+      if (!videosData.videos.length) {
+        $('boostVideoList').innerHTML = '<div class="screenEmpty">Publiez une vidéo ou une photo pour pouvoir la promouvoir.</div>';
+        return;
+      }
+      $('boostVideoList').innerHTML = '';
+      videosData.videos.forEach((v) => $('boostVideoList').appendChild(renderBoostVideoRow(v, walletData.balance)));
+    } catch (err) {
+      $('boostIntro').textContent = 'Erreur de chargement.';
+    }
+  }
+
+  // ---------- Paramètres et confidentialité ----------
+  function renderBlockedRow(u) {
+    const row = document.createElement('div');
+    row.className = 'settingsBlockedRow';
+    row.innerHTML = `
+      <span>${escapeHtml(u.name)}</span>
+      <button class="settingsUnblockBtn" type="button">Débloquer</button>
+    `;
+    row.querySelector('.settingsUnblockBtn').addEventListener('click', async () => {
+      try {
+        await api('/api/users/' + u.id + '/unblock', { method: 'POST' });
+        row.remove();
+        if (!$('settingsBlockedList').children.length) {
+          $('settingsBlockedList').innerHTML = '<div class="screenEmpty">Aucun compte bloqué.</div>';
+        }
+      } catch (err) {
+        alert('Erreur : ' + err.message);
+      }
+    });
+    return row;
+  }
+  async function loadSettings() {
+    $('settingsBlockedList').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const [privacyData, blockedData] = await Promise.all([
+        api('/api/videos/settings/privacy'),
+        api('/api/users/blocked'),
+      ]);
+      $('settingsPrivateToggle').checked = !!privacyData.videosPrivate;
+      if (!blockedData.users.length) {
+        $('settingsBlockedList').innerHTML = '<div class="screenEmpty">Aucun compte bloqué.</div>';
+        return;
+      }
+      $('settingsBlockedList').innerHTML = '';
+      blockedData.users.forEach((u) => $('settingsBlockedList').appendChild(renderBlockedRow(u)));
+    } catch (err) {
+      $('settingsBlockedList').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+  $('settingsPrivateToggle').addEventListener('change', async () => {
+    const checked = $('settingsPrivateToggle').checked;
+    try {
+      await api('/api/videos/settings/privacy', { method: 'PATCH', body: JSON.stringify({ videosPrivate: checked }) });
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+      $('settingsPrivateToggle').checked = !checked;
+    }
+  });
+
+  // ---------- Lien "?follow=<id>" (partage profil / QR code) ----------
+  // Vues comptées ("Studio de création") : une seule fois par vidéo pour
+  // toute la durée de cette session de navigation (voir setupObserver), pas
+  // à chaque repassage devant elle en scrollant dans le fil.
+  const viewedVideoIds = new Set();
+
+  async function maybeAutoFollowFromQuery() {
+    const params = new URLSearchParams(window.location.search);
+    const followId = params.get('follow');
+    if (!followId || !me || followId === me.id) return;
+    try {
+      await api('/api/follows/' + followId, { method: 'POST' });
+      alert('Vous suivez maintenant ce compte !');
+    } catch (err) {
+      console.error('Suivi automatique depuis le lien échoué :', err);
+    } finally {
+      // Retire le paramètre pour ne pas re-déclencher le suivi à chaque
+      // rechargement de page — même principe que le "?c=" de index.html.
+      const url = new URL(window.location.href);
+      url.searchParams.delete('follow');
+      window.history.replaceState({}, '', url.toString());
+    }
+  }
 </script>
 </body>
 </html>
