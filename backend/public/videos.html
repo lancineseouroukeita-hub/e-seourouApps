@@ -403,6 +403,36 @@
     });
   }
 
+  // Convertit un base64 reçu du serveur en URL de blob locale (objectURL)
+  // plutôt que de le mettre tel quel dans un attribut src="data:...;base64,"
+  // — pour une vidéo (potentiellement jusqu'à 25 Mo), un data-URI direct dans
+  // <video src> se bloque silencieusement sur certains navigateurs (constaté
+  // sur iPhone : la vidéo reste figée sur son image "poster", ce qui donne
+  // l'impression qu'elle "s'est transformée en photo"). Un blob local est
+  // beaucoup plus fiable pour de gros fichiers. À appeler avec le résultat
+  // pour définir ensuite l'attribut src en JS (voir renderClip).
+  function base64ToBlobUrl(base64, mime) {
+    try {
+      const byteChars = atob(base64);
+      const byteNumbers = new Uint8Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNumbers[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([byteNumbers], { type: mime || 'application/octet-stream' });
+      return URL.createObjectURL(blob);
+    } catch (err) {
+      console.error('base64ToBlobUrl error:', err);
+      return null;
+    }
+  }
+
+  // Révoque les blob URLs des vidéos d'un conteneur avant de les retirer du
+  // DOM (fil réinitialisé, vidéo supprimée) — sans ça, chaque objectURL créé
+  // par base64ToBlobUrl reste en mémoire jusqu'à la fermeture de l'onglet.
+  function revokeClipBlobUrls(container) {
+    container.querySelectorAll('video').forEach((videoEl) => {
+      if (videoEl.src && videoEl.src.startsWith('blob:')) URL.revokeObjectURL(videoEl.src);
+    });
+  }
+
   // ---------- Sélecteur d'indicatif (drapeau + code pays) ----------
   // Repris à l'identique de index.html : même liste de pays, même
   // comportement (recherche, drapeaux via flagcdn.com plutôt que l'emoji
@@ -678,6 +708,7 @@
     $('profileName').textContent = me ? me.name : '—';
     $('profilePhone').textContent = me ? me.phone : '';
     $('profileAvatar').innerHTML = (me && me.avatarUrl) ? `<img src="${me.avatarUrl}" alt="">` : '👤';
+    revokeClipBlobUrls($('myVideosGrid'));
     $('myVideosGrid').innerHTML = '';
     try {
       const [followData, videosData] = await Promise.all([
@@ -694,13 +725,24 @@
       videosData.videos.forEach((v) => {
         const thumb = document.createElement('div');
         thumb.className = 'myVideoThumb';
+        // Comme dans renderClip : jamais de src="data:...;base64,..." direct
+        // pour une vidéo (ça se bloque silencieusement sur certains mobiles
+        // pour les grosses vidéos, voir base64ToBlobUrl) — on utilise la
+        // vignette (le cas courant) et on ne retombe sur une <video> (avec
+        // blob: URL posée après coup) que si aucune vignette n'existe.
+        const needsBlobVideo = v.type !== 'photo' && !v.thumbnailData;
         const mediaHtml = v.type === 'photo'
           ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">`
           : (v.thumbnailData
             ? `<img src="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}" alt="">`
-            : `<video muted playsinline src="data:${v.videoMime};base64,${v.videoData}"></video>`);
+            : `<video muted playsinline></video>`);
         thumb.innerHTML = mediaHtml + `<span class="myVideoThumbLikes">❤️ ${v.likesCount}</span>`;
         $('myVideosGrid').appendChild(thumb);
+        if (needsBlobVideo) {
+          const videoEl = thumb.querySelector('video');
+          const blobUrl = base64ToBlobUrl(v.videoData, v.videoMime);
+          if (videoEl && blobUrl) videoEl.src = blobUrl;
+        }
       });
     } catch (err) {
       $('myVideosGrid').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
@@ -767,6 +809,10 @@
     if (reset) {
       reachedEnd = false;
       nextCursor = null;
+      // Libère toutes les blob: URLs des vidéos actuellement affichées avant de
+      // les jeter — sinon chaque changement d'onglet (Suivis/Pour toi) fuit la
+      // mémoire du navigateur (voir base64ToBlobUrl/revokeClipBlobUrls).
+      revokeClipBlobUrls($('feed'));
       $('feed').innerHTML = '';
     }
     $('loadingFeed').classList.remove('hidden');
@@ -804,8 +850,12 @@
     const mediaHtml = isPhoto
       ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">`
       : (() => {
+        // Pas de src="data:...;base64,..." ici : pour une vidéo (jusqu'à
+        // 25 Mo), c'est justement ce qui se bloque silencieusement sur
+        // certains téléphones — voir base64ToBlobUrl. Le src est posé juste
+        // après, une fois l'élément <video> réellement créé.
         const posterAttr = v.thumbnailData ? ` poster="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}"` : '';
-        return `<video loop muted playsinline${posterAttr} src="data:${v.videoMime};base64,${v.videoData}"></video>`;
+        return `<video loop muted playsinline${posterAttr}></video>`;
       })();
     // Icônes en trait façon TikTok (voir la référence envoyée par Lancine) —
     // pas de pastille sombre derrière : juste l'icône blanche + le compteur,
@@ -855,6 +905,8 @@
     `;
     const videoEl = el.querySelector('video');
     if (videoEl) {
+      const blobUrl = base64ToBlobUrl(v.videoData, v.videoMime);
+      if (blobUrl) videoEl.src = blobUrl;
       // Reflète l'état du son partagé par tout le fil (voir globalSoundEnabled) —
       // pas "muet à chaque nouvelle vidéo" comme avant.
       videoEl.muted = !globalSoundEnabled;
@@ -1027,6 +1079,7 @@
     if (!confirm('Supprimer définitivement cette vidéo ?')) return;
     try {
       await api('/api/videos/' + v.id, { method: 'DELETE' });
+      revokeClipBlobUrls(el);
       el.remove();
       if (!$('feed').children.length) $('emptyFeed').classList.remove('hidden');
     } catch (err) {
