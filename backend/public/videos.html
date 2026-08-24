@@ -215,6 +215,20 @@
   .myVideoThumb{position:relative;aspect-ratio:9/14;background:#000;overflow:hidden;}
   .myVideoThumb img,.myVideoThumb video{width:100%;height:100%;object-fit:cover;}
   .myVideoThumbLikes{position:absolute;left:4px;bottom:4px;color:white;font-size:11px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,0.7);}
+  .myVideoThumb{cursor:pointer;}
+
+  /* Vue individuelle d'une publication depuis la grille du profil (voir
+     openProfileClipView) — réutilise .clip (même style que le fil), donc
+     z-index au-dessus de .screen(4)/.subScreen(20)/#bottomNav(15) pour
+     recouvrir tout, mais sous le menu ☰/la feuille de partage(30) qui
+     peuvent encore s'ouvrir PAR-DESSUS depuis ce clip (bouton partager). */
+  #profileClipViewOverlay{position:fixed;inset:0;z-index:25;background:#000;}
+  #profileClipViewOverlay.hidden{display:none;}
+  #profileClipViewContent{position:absolute;inset:0;}
+  /* Bouton "fermer" en haut à DROITE (pas à gauche) : le bouton supprimer 🗑️
+     de .clip occupe déjà le haut-gauche (top:14px;left:14px) — toujours
+     visible ici puisque la grille du profil n'affiche que MES publications. */
+  #profileClipViewCloseBtn{position:fixed;top:calc(14px + env(safe-area-inset-top, 0));right:14px;z-index:26;background:rgba(30,30,30,0.55);border:none;color:#fff;width:36px;height:36px;border-radius:50%;font-size:16px;cursor:pointer;}
   .screenEmpty{padding:40px 30px;text-align:center;color:var(--muted);font-size:13px;}
 
   /* ---------- Modale de commentaires ---------- */
@@ -436,6 +450,14 @@
 </style>
 </head>
 <body>
+  <!-- Repère de version TOUJOURS visible, en pur HTML/CSS (aucune dépendance
+       au JavaScript) — pour vérifier en un coup d'œil si le téléphone affiche
+       bien la toute dernière version déployée, ou une version mise en cache
+       (PWA/navigateur) : à chaque nouvel envoi, on incrémente ce numéro et on
+       demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
+       correspond pas à la dernière version envoyée, le problème est côté
+       cache/déploiement, pas dans le code envoyé. -->
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v13</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -741,6 +763,17 @@
        bouton "Choisir le fichier" visible séparément, voir la discussion avec
        Lancine ("+" doit ouvrir directement la caméra, comme TikTok). -->
   <input id="videoFileInput" type="file" accept="video/*,image/*" style="display:none">
+
+  <!-- ---------- Vue individuelle d'une publication depuis la grille du
+       profil (comme TikTok : on appuie sur une vignette du profil pour voir
+       cette publication précise en plein écran, avec accès à la suppression)
+       — réutilise renderClip (même code que le fil : lecture, like,
+       commentaires, suppression...) plutôt que de reconstruire un affichage
+       séparé. Voir openProfileClipView. -->
+  <div id="profileClipViewOverlay" class="hidden">
+    <button id="profileClipViewCloseBtn" type="button" title="Fermer">←</button>
+    <div id="profileClipViewContent"></div>
+  </div>
 
   <!-- Génération du QR code ("Ton code QR", menu ☰) : bibliothèque légère
        chargée depuis un CDN — cette page est une vraie page déployée en
@@ -1343,6 +1376,7 @@
       videosData.videos.forEach((v) => {
         const thumb = document.createElement('div');
         thumb.className = 'myVideoThumb';
+        thumb.dataset.videoId = v.id;
         // Comme dans renderClip : jamais de src="data:...;base64,..." direct
         // pour une vidéo (ça se bloque silencieusement sur certains mobiles
         // pour les grosses vidéos, voir base64ToBlobUrl) — on utilise la
@@ -1355,6 +1389,11 @@
             ? `<img src="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}" alt="">`
             : `<video muted playsinline></video>`);
         thumb.innerHTML = mediaHtml + `<span class="myVideoThumbLikes">❤️ ${v.likesCount}</span>`;
+        // Comme TikTok : appuyer sur une vignette de la grille du profil
+        // ouvre CETTE publication précise en plein écran (voir
+        // openProfileClipView) — la suppression (🗑️) est accessible depuis
+        // cette vue individuelle, pas directement sur la vignette.
+        thumb.addEventListener('click', () => openProfileClipView(v));
         $('myVideosGrid').appendChild(thumb);
         if (needsBlobVideo) {
           const videoEl = thumb.querySelector('video');
@@ -1367,6 +1406,52 @@
       $('myVideosGrid').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
     }
   }
+
+  // ---------- Vue individuelle d'une publication depuis la grille du profil
+  // (comme TikTok) ----------
+  // Réutilise entièrement renderClip (lecture, like, commentaires, partage,
+  // suppression 🗑️...) plutôt que de reconstruire un affichage séparé — la
+  // suppression se fait ici, depuis la vue plein écran, pas directement sur
+  // la vignette de la grille.
+  function openProfileClipView(v) {
+    const clipEl = renderClip(v, {
+      onDeleted: () => {
+        closeProfileClipView();
+        const thumb = $('myVideosGrid').querySelector(`[data-video-id="${v.id}"]`);
+        if (thumb) thumb.remove();
+        const remaining = $('myVideosGrid').querySelectorAll('.myVideoThumb').length;
+        $('profileVideosCount').textContent = String(remaining);
+        if (!remaining) $('myVideosGrid').innerHTML = '<div class="screenEmpty">Vous n\'avez encore rien publié.</div>';
+      },
+    });
+    $('profileClipViewContent').innerHTML = '';
+    $('profileClipViewContent').appendChild(clipEl);
+    $('profileClipViewOverlay').classList.remove('hidden');
+    // Pas d'IntersectionObserver ici (une seule publication statique, pas un
+    // fil qui défile) — on lance la lecture nous-mêmes, avec le même flag
+    // que loadFeed/setupObserver pour qu'attachVideoSrc relance play() elle-
+    // même si la conversion base64 -> blob n'est pas encore terminée.
+    clipEl.dataset.shouldPlay = '1';
+    const videoEl = clipEl.querySelector('video');
+    if (videoEl) {
+      videoEl.muted = !globalSoundEnabled;
+      videoEl.play().catch(() => {
+        videoEl.muted = true;
+        videoEl.play().catch(() => {});
+      });
+    }
+    const audioEl = clipEl.querySelector('.clipAudio');
+    if (audioEl && audioEl.src) audioEl.play().catch(() => {});
+  }
+  function closeProfileClipView() {
+    const content = $('profileClipViewContent');
+    content.querySelectorAll('video').forEach((v) => v.pause());
+    content.querySelectorAll('.clipAudio').forEach((a) => a.pause());
+    revokeClipBlobUrls(content);
+    content.innerHTML = '';
+    $('profileClipViewOverlay').classList.add('hidden');
+  }
+  $('profileClipViewCloseBtn').addEventListener('click', closeProfileClipView);
 
   // ---------- Messages (liste des discussions, façon TikTok — voir la
   // capture envoyée par Lancine) ----------
@@ -1589,7 +1674,11 @@
     }
   }
 
-  function renderClip(v) {
+  // opts.onDeleted (optionnel) : appelé après une suppression réussie DEPUIS
+  // ce clip — utilisé par openProfileClipView (grille du profil) pour aussi
+  // retirer la vignette correspondante et fermer la vue, en plus de ce que
+  // deleteClip fait déjà tout seul (voir plus bas).
+  function renderClip(v, opts) {
     const el = document.createElement('div');
     el.className = 'clip';
     el.dataset.videoId = v.id;
@@ -1733,7 +1822,7 @@
     // (copier le lien, WhatsApp, Telegram, Messenger).
     el.querySelector('.shareBtn').addEventListener('click', () => openShareSheet({ type: 'video', video: v }));
     const delBtn = el.querySelector('.clipDeleteBtn');
-    if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el));
+    if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el, opts && opts.onDeleted));
     // Badge "+" sur l'avatar de l'auteur (suivi rapide sans quitter le fil,
     // comme TikTok) — masqué (mais toujours présent dans le DOM) sur ses
     // propres vidéos ou un auteur déjà suivi, voir plus haut.
@@ -1884,13 +1973,21 @@
     }
   });
 
-  async function deleteClip(v, el) {
+  // onDeleted (optionnel) : voir renderClip — un appelant hors du fil
+  // principal (grille du profil, voir openProfileClipView) s'en sert pour
+  // mettre à jour SA propre vue après une suppression réussie.
+  async function deleteClip(v, el, onDeleted) {
     if (!confirm('Supprimer définitivement cette vidéo ?')) return;
     try {
+      // Vérifié AVANT de retirer l'élément : ce clip ne vit pas forcément
+      // dans le fil principal (voir openProfileClipView) — inutile (et
+      // trompeur) de toucher à #emptyFeed dans ce cas.
+      const wasInFeed = $('feed').contains(el);
       await api('/api/videos/' + v.id, { method: 'DELETE' });
       revokeClipBlobUrls(el);
       el.remove();
-      if (!$('feed').children.length) $('emptyFeed').classList.remove('hidden');
+      if (wasInFeed && !$('feed').children.length) $('emptyFeed').classList.remove('hidden');
+      if (onDeleted) onDeleted();
     } catch (err) {
       alert('Erreur : ' + err.message);
     }
