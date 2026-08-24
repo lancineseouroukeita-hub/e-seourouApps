@@ -12,7 +12,7 @@ const MAX_CAPTION_LENGTH = 300;
 // Taille max d'un commentaire (même idée que MAX_CAPTION_LENGTH).
 const MAX_COMMENT_LENGTH = 500;
 
-function serializeVideo(video, currentUserId) {
+function serializeVideo(video, currentUserId, followingSet) {
   return {
     id: video.id,
     caption: video.caption || null,
@@ -35,33 +35,55 @@ function serializeVideo(video, currentUserId) {
     // valeurs par défaut (une publication qu'on vient de créer n'est encore ni
     // enregistrée ni commentée par personne).
     savedByMe: (currentUserId && video.saves) ? video.saves.some((s) => s.userId === currentUserId) : false,
+    savesCount: video._count ? (video._count.saves || 0) : (video.saves ? video.saves.length : 0),
     commentsCount: video._count ? (video._count.comments || 0) : (video.comments ? video.comments.length : 0),
+    // Vrai si je suis déjà l'auteur (voir schema.prisma, modèle Follow) — sert
+    // à afficher ou masquer le badge "+" de suivi rapide sur son avatar dans
+    // le fil, comme TikTok (le badge disparaît une fois qu'on suit).
+    followedByAuthor: followingSet ? followingSet.has(video.authorId) : false,
   };
 }
 
-// GET /api/videos?before=<createdAt ISO> — fil chronologique (plus récent en
-// premier), paginé par curseur plutôt que par numéro de page : plus simple à
-// tenir cohérent si une vidéo est publiée pendant qu'on fait défiler. On
-// n'inclut que les likes de l'utilisateur courant (pas toute la liste) pour
-// savoir s'il a déjà aimé chaque vidéo, sans alourdir la réponse.
+// GET /api/videos?before=<createdAt ISO>&onlyFollowing=1 — fil chronologique
+// (plus récent en premier), paginé par curseur plutôt que par numéro de page :
+// plus simple à tenir cohérent si une vidéo est publiée pendant qu'on fait
+// défiler. On n'inclut que les likes de l'utilisateur courant (pas toute la
+// liste) pour savoir s'il a déjà aimé chaque vidéo, sans alourdir la réponse.
+// onlyFollowing=1 restreint aux publications des comptes que je suis (onglet
+// "Suivis", voir schema.prisma modèle Follow) au lieu de tout le monde
+// ("Pour toi", comportement par défaut).
 async function listVideos(req, res) {
-  const { before } = req.query;
-  const where = before ? { createdAt: { lt: new Date(before) } } : {};
+  const { before, onlyFollowing } = req.query;
+  const where = {};
+  if (before) where.createdAt = { lt: new Date(before) };
+  if (onlyFollowing === '1' || onlyFollowing === 'true') {
+    const follows = await prisma.follow.findMany({
+      where: { followerId: req.user.id },
+      select: { followingId: true },
+    });
+    // "in: []" renvoie bien zéro résultat plutôt que tout le monde — normal
+    // quand on ne suit encore personne.
+    where.authorId = { in: follows.map((f) => f.followingId) };
+  }
 
-  const videos = await prisma.video.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-    take: FEED_PAGE_SIZE,
-    include: {
-      author: true,
-      likes: { where: { userId: req.user.id } },
-      saves: { where: { userId: req.user.id } },
-      _count: { select: { likes: true, comments: true } },
-    },
-  });
+  const [videos, myFollowing] = await Promise.all([
+    prisma.video.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take: FEED_PAGE_SIZE,
+      include: {
+        author: true,
+        likes: { where: { userId: req.user.id } },
+        saves: { where: { userId: req.user.id } },
+        _count: { select: { likes: true, comments: true, saves: true } },
+      },
+    }),
+    prisma.follow.findMany({ where: { followerId: req.user.id }, select: { followingId: true } }),
+  ]);
+  const followingSet = new Set(myFollowing.map((f) => f.followingId));
 
   return res.json({
-    videos: videos.map((v) => serializeVideo(v, req.user.id)),
+    videos: videos.map((v) => serializeVideo(v, req.user.id, followingSet)),
     nextCursor: videos.length === FEED_PAGE_SIZE ? videos[videos.length - 1].createdAt : null,
   });
 }
@@ -77,9 +99,11 @@ async function listMyVideos(req, res) {
       author: true,
       likes: { where: { userId: req.user.id } },
       saves: { where: { userId: req.user.id } },
-      _count: { select: { likes: true, comments: true } },
+      _count: { select: { likes: true, comments: true, saves: true } },
     },
   });
+  // Pas besoin de followingSet ici : ce sont mes propres vidéos, le badge
+  // "suivre" ne s'affiche jamais sur ses propres publications côté client.
   return res.json({ videos: videos.map((v) => serializeVideo(v, req.user.id)) });
 }
 
@@ -207,7 +231,8 @@ async function saveVideo(req, res) {
       update: {},
       create: { videoId: id, userId: req.user.id },
     });
-    return res.json({ ok: true });
+    const savesCount = await prisma.videoSave.count({ where: { videoId: id } });
+    return res.json({ ok: true, savesCount });
   } catch (err) {
     console.error('saveVideo error:', err);
     return res.status(500).json({ error: "Erreur serveur lors de l'enregistrement." });
@@ -219,7 +244,8 @@ async function unsaveVideo(req, res) {
   try {
     const { id } = req.params;
     await prisma.videoSave.deleteMany({ where: { videoId: id, userId: req.user.id } });
-    return res.json({ ok: true });
+    const savesCount = await prisma.videoSave.count({ where: { videoId: id } });
+    return res.json({ ok: true, savesCount });
   } catch (err) {
     console.error('unsaveVideo error:', err);
     return res.status(500).json({ error: "Erreur serveur lors du retrait de l'enregistrement." });

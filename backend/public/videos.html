@@ -80,34 +80,53 @@
   /* Colonne de boutons façon TikTok : j'aime, commentaire, enregistrer,
      partager, puis le son en dernier — tous dans la même colonne (voir la
      référence envoyée par Lancine), remontée au-dessus de #bottomNav. */
-  .clip .clipSide{position:absolute;right:10px;bottom:88px;display:flex;flex-direction:column;align-items:center;gap:16px;}
-  .clip .sideBtn{background:rgba(30,30,30,0.55);border:none;color:white;width:46px;height:46px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:20px;line-height:1;gap:2px;}
+  .clip .clipSide{position:absolute;right:10px;bottom:88px;display:flex;flex-direction:column;align-items:center;gap:17px;}
+  /* Icônes à plat, sans pastille sombre derrière — juste l'icône blanche +
+     le compteur, comme la vraie appli TikTok (voir la référence envoyée par
+     Lancine), au lieu du rond semi-transparent utilisé avant. */
+  .clip .sideBtn{background:none;border:none;color:white;width:auto;min-width:44px;height:auto;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:3px;padding:0;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.55));}
+  .clip .sideBtn svg{width:30px;height:30px;flex-shrink:0;}
   .clip .sideBtn.liked{color:var(--accent);}
+  .clip .sideBtn.liked svg.heartIcon{fill:currentColor;}
   .clip .sideBtn.saved{color:#ffd166;}
-  .clip .sideBtn .sideCount{font-size:10.5px;color:white;font-weight:600;}
+  .clip .sideBtn.saved svg.saveIconSvg{fill:currentColor;}
+  .clip .sideBtn .sideCount{font-size:11px;color:white;font-weight:600;}
+  /* Avatar de l'auteur + badge "+" de suivi rapide, au-dessus du cœur —
+     disparaît une fois qu'on suit ce compte (voir renderClip, followedByAuthor). */
+  .clipAuthorFollow{position:relative;margin-bottom:2px;filter:drop-shadow(0 1px 3px rgba(0,0,0,0.55));}
+  .clipAuthorAvatar{width:42px;height:42px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:19px;overflow:hidden;border:2px solid rgba(255,255,255,0.85);}
+  .clipAuthorAvatar img{width:100%;height:100%;object-fit:cover;}
+  .clipFollowBadge{position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);width:20px;height:20px;border-radius:50%;background:var(--accent);border:2px solid #000;color:white;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
+  .clipFollowBadge.hidden{display:none;}
   .clip .clipDeleteBtn{position:absolute;top:14px;left:14px;background:rgba(30,30,30,0.55);border:none;color:#ff8a8a;width:36px;height:36px;border-radius:50%;font-size:15px;cursor:pointer;}
 
   #topBar{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 14px 0;z-index:5;pointer-events:none;}
-  #topBar .topBarTitle{pointer-events:auto;font-weight:800;font-size:17px;text-shadow:0 1px 4px rgba(0,0,0,0.6);}
-  #topBar button{pointer-events:auto;background:rgba(30,30,30,0.55);border:none;color:white;border-radius:16px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
+  /* Onglets "Suivis" / "Pour toi" (comme TikTok) — filtrent le fil entre les
+     comptes qu'on suit et tout le monde, voir loadFeed/feedMode. */
+  .feedTabs{display:flex;gap:18px;pointer-events:auto;}
+  .feedTab{background:none;border:none;color:rgba(255,255,255,0.65);font-weight:700;font-size:15px;cursor:pointer;padding:4px 2px;border-bottom:2px solid transparent;text-shadow:0 1px 4px rgba(0,0,0,0.6);}
+  .feedTab.active{color:white;border-bottom-color:white;}
+  #topSearchBtn{pointer-events:auto;background:rgba(30,30,30,0.55);border:none;color:white;width:34px;height:34px;border-radius:50%;font-size:14.5px;cursor:pointer;}
 
-  #emptyFeed,#loadingFeed{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13.5px;text-align:center;padding:0 90px 60px;}
+  #emptyFeed,#loadingFeed{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13.5px;text-align:center;padding:0 90px 60px;white-space:pre-line;}
   #emptyFeed.hidden,#loadingFeed.hidden{display:none;}
 
   /* ---------- Barre de navigation basse (Accueil / Ami(e)s / + / Messages / Profil) ---------- */
   #bottomNav{position:fixed;left:0;right:0;bottom:0;z-index:15;display:flex;align-items:stretch;height:64px;background:linear-gradient(to top, rgba(0,0,0,0.92), rgba(0,0,0,0.55));border-top:1px solid rgba(255,255,255,0.06);padding-bottom:env(safe-area-inset-bottom, 0);}
   #bottomNav.hidden{display:none;}
   .navBtn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;color:var(--muted);font-size:10.5px;cursor:pointer;padding:6px 0;}
-  .navBtn .navIcon{font-size:21px;line-height:1;}
+  .navBtn .navIcon{font-size:21px;line-height:1;display:flex;align-items:center;justify-content:center;}
+  .navBtn .navIcon svg{width:23px;height:23px;flex-shrink:0;}
   .navBtn.active{color:white;}
   .navBtnPlus{position:relative;}
-  .navBtnPlus .navIcon{width:40px;height:28px;border-radius:8px;background:linear-gradient(135deg,#25d4e0,var(--accent));display:flex;align-items:center;justify-content:center;color:white;font-size:22px;font-weight:700;}
+  .navBtnPlus .navIcon{width:46px;height:30px;border-radius:15px;background:linear-gradient(135deg,#25d4e0,var(--accent));display:flex;align-items:center;justify-content:center;color:white;font-size:22px;font-weight:700;}
 
   /* ---------- Écrans Ami(e)s / Profil (listes/scroll normal, contrairement au fil vidéo) ---------- */
   .screen{position:fixed;inset:0;background:var(--bg);display:none;z-index:4;overflow-y:auto;padding-bottom:80px;}
   .screen.show{display:block;}
   .screenHeader{position:sticky;top:0;background:var(--bg);padding:16px 16px 10px;font-weight:800;font-size:18px;border-bottom:1px solid var(--border);z-index:1;}
   .screenSubhead{padding:12px 16px;color:var(--muted);font-size:12.5px;}
+  .friendsSearchInput{display:block;width:calc(100% - 32px);margin:0 16px 10px;padding:9px 12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;}
   .userRow{display:flex;align-items:center;gap:12px;padding:10px 16px;}
   .userAvatar{width:44px;height:44px;border-radius:50%;background:var(--panel2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden;}
   .userAvatar img{width:100%;height:100%;object-fit:cover;}
@@ -146,23 +165,30 @@
   #commentSendBtn{padding:0 16px;border-radius:20px;border:none;background:var(--accent);color:white;font-weight:600;font-size:13px;cursor:pointer;}
   #commentSendBtn:disabled{opacity:0.5;}
 
-  /* ---------- Modale de publication ---------- */
+  /* ---------- Caméra plein écran (ouverte directement en appuyant sur "+", comme TikTok) ---------- */
+  #cameraScreen{position:fixed;inset:0;background:#000;z-index:26;}
+  #cameraScreen.hidden{display:none;}
+  #cameraScreen video{width:100%;height:100%;object-fit:cover;background:#000;}
+  #cameraTopBar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px;padding-top:calc(16px + env(safe-area-inset-top, 0));}
+  #cameraTopBar button{background:rgba(30,30,30,0.55);border:none;color:white;width:38px;height:38px;border-radius:50%;font-size:17px;cursor:pointer;}
+  #cameraTimer{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.6);color:white;padding:5px 14px;border-radius:14px;font-size:13px;}
+  #cameraTimer.hidden{display:none;}
+  #cameraBottomBar{position:absolute;left:0;right:0;bottom:0;padding:14px 20px calc(24px + env(safe-area-inset-bottom, 0));display:flex;flex-direction:column;align-items:center;gap:16px;background:linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0));}
+  .cameraModeRow{display:flex;gap:22px;}
+  .cameraModeBtn{background:none;border:none;color:rgba(255,255,255,0.6);font-size:13.5px;font-weight:600;cursor:pointer;padding:4px 2px;border-bottom:2px solid transparent;}
+  .cameraModeBtn.active{color:white;border-bottom-color:white;}
+  .cameraControlsRow{width:100%;display:flex;align-items:center;justify-content:space-between;}
+  #cameraGalleryBtn{width:42px;height:42px;border-radius:8px;border:none;background:rgba(255,255,255,0.15);color:white;font-size:19px;cursor:pointer;}
+  #cameraShutterBtn{width:70px;height:70px;border-radius:50%;border:4px solid white;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
+  #cameraShutterInner{width:56px;height:56px;border-radius:50%;background:var(--accent);transition:border-radius 0.15s, width 0.15s, height 0.15s;display:block;}
+  #cameraShutterBtn.recording #cameraShutterInner{width:28px;height:28px;border-radius:8px;}
+  .cameraControlsSpacer{width:42px;height:42px;}
+
+  /* ---------- Modale de publication (légende + aperçu) ---------- */
   #uploadOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:30;padding:20px;}
   #uploadOverlay.hidden{display:none;}
   #uploadCard{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;}
   #uploadCard h2{margin:0 0 14px;font-size:17px;}
-  #uploadCard input[type="file"]{width:100%;color:var(--muted);font-size:13px;margin-bottom:10px;}
-  #useCameraBtn{width:100%;padding:9px;margin-bottom:12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
-  #useCameraBtn:hover{border-color:var(--accent);}
-  .cameraIcon{width:16px;height:16px;flex-shrink:0;}
-  #cameraPanel{margin-bottom:12px;}
-  #cameraPanel.hidden{display:none;}
-  #cameraLiveVideo{width:100%;max-height:260px;border-radius:8px;background:#000;display:block;margin-bottom:8px;}
-  #cameraTimer{text-align:center;font-size:13px;color:var(--muted);margin-bottom:8px;}
-  .cameraActionBtn{flex:1;padding:11px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
-  .cameraActionBtn.primaryBtn{border-color:var(--accent);background:var(--accent);color:white;}
-  .cameraActionBtn.primaryBtn:hover{background:var(--accent2);}
-  .cameraActionBtn:not(.primaryBtn):hover{border-color:var(--accent);}
   #uploadCard textarea{width:100%;min-height:60px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;resize:vertical;margin-bottom:10px;font-family:inherit;}
   #uploadPreviewWrap{display:none;margin-bottom:12px;}
   #uploadPreviewWrap.show{display:block;}
@@ -199,7 +225,11 @@
   <!-- ---------- Fil vidéo ---------- -->
   <div id="feedScreen" class="screenFeed show">
     <div id="topBar">
-      <div class="topBarTitle">🎬 Diarala_Tiktak</div>
+      <div class="feedTabs">
+        <button class="feedTab" data-feed="following" type="button">Suivis</button>
+        <button class="feedTab active" data-feed="foryou" type="button">Pour toi</button>
+      </div>
+      <button id="topSearchBtn" type="button" title="Rechercher des comptes">🔍</button>
     </div>
     <div id="feed"></div>
     <div id="emptyFeed" class="hidden">Aucune publication pour l'instant.<br>Soyez le premier à publier une vidéo ou une photo avec le bouton "+".</div>
@@ -210,6 +240,7 @@
   <div id="friendsScreen" class="screen">
     <div class="screenHeader">Ami(e)s</div>
     <div class="screenSubhead" id="friendsCounts"></div>
+    <input id="friendsSearchInput" type="text" placeholder="Rechercher un compte…" class="friendsSearchInput">
     <div id="friendsList"></div>
   </div>
 
@@ -230,12 +261,23 @@
   </div>
 
   <!-- ---------- Barre de navigation basse ---------- -->
+  <!-- Icônes en trait (façon Feather/TikTok) plutôt que des émojis, qui ne
+       rendent pas pareil sur tous les téléphones (voir la capture envoyée par
+       Lancine) — voir la discussion sur les icônes caméra plus haut, même idée. -->
   <div id="bottomNav" class="hidden">
-    <button class="navBtn active" data-screen="feed"><span class="navIcon">🏠</span>Accueil</button>
-    <button class="navBtn" data-screen="friends"><span class="navIcon">👥</span>Ami(e)s</button>
+    <button class="navBtn active" data-screen="feed">
+      <span class="navIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7"></path><path d="M5 10v10a1 1 0 0 0 1 1h3v-7h6v7h3a1 1 0 0 0 1-1V10"></path></svg></span>Accueil
+    </button>
+    <button class="navBtn" data-screen="friends">
+      <span class="navIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>Ami(e)s
+    </button>
     <button class="navBtn navBtnPlus" id="navUploadBtn"><span class="navIcon">+</span></button>
-    <button class="navBtn" id="navMessagesBtn"><span class="navIcon">💬</span>Messages</button>
-    <button class="navBtn" data-screen="profile"><span class="navIcon">👤</span>Profil</button>
+    <button class="navBtn" id="navMessagesBtn">
+      <span class="navIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"></path><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"></circle></svg></span>Messages
+    </button>
+    <button class="navBtn" data-screen="profile">
+      <span class="navIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>Profil
+    </button>
   </div>
 
   <!-- ---------- Commentaires ---------- -->
@@ -250,21 +292,35 @@
     </div>
   </div>
 
-  <!-- ---------- Publier une vidéo ---------- -->
+  <!-- ---------- Caméra plein écran (ouverte directement en appuyant sur "+", comme TikTok) ---------- -->
+  <div id="cameraScreen" class="hidden">
+    <video id="cameraLiveVideo" autoplay muted playsinline></video>
+    <div id="cameraTopBar">
+      <button id="cameraCloseBtn" type="button" title="Fermer">✕</button>
+      <button id="cameraFlipBtn" type="button" title="Retourner la caméra">🔄</button>
+    </div>
+    <div id="cameraTimer" class="hidden">00:00</div>
+    <div id="cameraBottomBar">
+      <div class="cameraModeRow">
+        <button class="cameraModeBtn active" data-mode="video" type="button">Vidéo</button>
+        <button class="cameraModeBtn" data-mode="photo" type="button">Photo</button>
+      </div>
+      <div class="cameraControlsRow">
+        <button id="cameraGalleryBtn" type="button" title="Choisir depuis la galerie">🖼️</button>
+        <button id="cameraShutterBtn" type="button" title="Filmer / photographier"><span id="cameraShutterInner"></span></button>
+        <span class="cameraControlsSpacer"></span>
+      </div>
+    </div>
+  </div>
+  <!-- Sélecteur de fichier caché, déclenché par #cameraGalleryBtn — plus de
+       bouton "Choisir le fichier" visible séparément, voir la discussion avec
+       Lancine ("+" doit ouvrir directement la caméra, comme TikTok). -->
+  <input id="videoFileInput" type="file" accept="video/*,image/*" style="display:none">
+
+  <!-- ---------- Publier une vidéo/photo (légende + aperçu, après capture ou choix dans la galerie) ---------- -->
   <div id="uploadOverlay" class="hidden">
     <div id="uploadCard">
       <h2>Nouvelle publication</h2>
-      <input id="videoFileInput" type="file" accept="video/*,image/*" capture="user">
-      <button id="useCameraBtn" type="button"><svg class="cameraIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>Filmer ou photographier avec la caméra</button>
-      <div id="cameraPanel" class="hidden">
-        <video id="cameraLiveVideo" autoplay muted playsinline></video>
-        <div id="cameraTimer">00:00</div>
-        <div class="uploadRow">
-          <button id="cameraCloseBtn" type="button">Fermer</button>
-          <button id="cameraPhotoBtn" type="button" class="cameraActionBtn"><svg class="cameraIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>Photo</button>
-          <button id="cameraRecordBtn" type="button" class="cameraActionBtn primaryBtn">⏺ Vidéo</button>
-        </div>
-      </div>
       <div id="uploadPreviewWrap">
         <video id="uploadPreviewVideo" playsinline controls></video>
         <img id="uploadPreviewImage" alt="Aperçu de la photo">
@@ -549,7 +605,8 @@
   document.querySelectorAll('.navBtn[data-screen]').forEach((btn) => {
     btn.addEventListener('click', () => showScreen(btn.dataset.screen));
   });
-  $('navUploadBtn').addEventListener('click', openUploadOverlay);
+  // navUploadBtn est câblé plus bas, une fois openCameraScreen défini (voir
+  // "---------- Caméra plein écran ----------").
   // "Messages" ouvre la messagerie seourouApps existante (même compte) plutôt
   // que de dupliquer toute une messagerie séparée pour Diarala_Tiktak — voir
   // la discussion avec Lancine.
@@ -637,6 +694,25 @@
 
   // ---------- Fil ----------
   let observer = null;
+  // 'foryou' (tout le monde, par défaut) ou 'following' (onglet "Suivis" —
+  // seulement les comptes que je suis, voir loadFeed).
+  let feedMode = 'foryou';
+
+  document.querySelectorAll('.feedTab').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      if (btn.dataset.feed === feedMode) return;
+      document.querySelectorAll('.feedTab').forEach((b) => b.classList.toggle('active', b === btn));
+      feedMode = btn.dataset.feed;
+      loadFeed(true);
+    });
+  });
+  // Pas d'écran de recherche dédié pour cette première version : on réutilise
+  // la liste "Ami(e)s" (qui a déjà un champ de recherche par nom) plutôt que
+  // de dupliquer un deuxième écran de recherche de comptes.
+  $('topSearchBtn').addEventListener('click', () => {
+    showScreen('friends');
+    $('friendsSearchInput').focus();
+  });
 
   // Applique le son à TOUTES les vidéos déjà affichées dans le fil, pas
   // seulement celle sur laquelle on vient d'appuyer — comme TikTok, "activer
@@ -681,12 +757,20 @@
     $('loadingFeed').classList.remove('hidden');
     $('emptyFeed').classList.add('hidden');
     try {
-      const qs = nextCursor ? ('?before=' + encodeURIComponent(nextCursor)) : '';
+      const params = [];
+      if (nextCursor) params.push('before=' + encodeURIComponent(nextCursor));
+      if (feedMode === 'following') params.push('onlyFollowing=1');
+      const qs = params.length ? ('?' + params.join('&')) : '';
       const data = await api('/api/videos' + qs);
       data.videos.forEach((v) => $('feed').appendChild(renderClip(v)));
       nextCursor = data.nextCursor;
       if (!data.nextCursor) reachedEnd = true;
-      if (reset && data.videos.length === 0) $('emptyFeed').classList.remove('hidden');
+      if (reset && data.videos.length === 0) {
+        $('emptyFeed').textContent = feedMode === 'following'
+          ? "Vous ne suivez encore personne, ou les comptes que vous suivez n'ont rien publié. Allez voir l'onglet \"Ami(e)s\" pour vous abonner."
+          : "Aucune publication pour l'instant.\nSoyez le premier à publier une vidéo ou une photo avec le bouton \"+\".";
+        $('emptyFeed').classList.remove('hidden');
+      }
       setupObserver();
     } catch (err) {
       console.error(err);
@@ -708,25 +792,37 @@
         const posterAttr = v.thumbnailData ? ` poster="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}"` : '';
         return `<video loop muted playsinline${posterAttr} src="data:${v.videoMime};base64,${v.videoData}"></video>`;
       })();
+    // Icônes en trait façon TikTok (voir la référence envoyée par Lancine) —
+    // pas de pastille sombre derrière : juste l'icône blanche + le compteur,
+    // directement sur la vidéo.
+    const HEART_SVG = '<svg class="heartIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.7a5.5 5.5 0 0 0 0-7.7z"></path></svg>';
+    const COMMENT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"></path><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"></circle></svg>';
+    const SAVE_SVG = '<svg class="saveIconSvg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>';
+    const SHARE_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 4 20 9 15 14"></polyline><path d="M4 20v-6a4 4 0 0 1 4-4h12"></path></svg>';
     el.innerHTML = `
       ${mediaHtml}
       ${isMine ? `<button class="clipDeleteBtn" title="Supprimer cette ${isPhoto ? 'photo' : 'vidéo'}">🗑️</button>` : ''}
       <div class="clipSide">
+        ${(!isMine && v.author) ? `
+          <div class="clipAuthorFollow">
+            <div class="clipAuthorAvatar">${v.author.avatarUrl ? `<img src="${v.author.avatarUrl}" alt="">` : '👤'}</div>
+            <button class="clipFollowBadge${v.followedByAuthor ? ' hidden' : ''}" title="Suivre ${escapeHtml(v.author.name)}">+</button>
+          </div>
+        ` : ''}
         <button class="sideBtn likeBtn${v.likedByMe ? ' liked' : ''}">
-          <span class="likeIcon">${v.likedByMe ? '❤️' : '🤍'}</span>
+          ${HEART_SVG}
           <span class="sideCount likeCount">${v.likesCount}</span>
         </button>
         <button class="sideBtn commentBtn">
-          <span>💬</span>
+          ${COMMENT_SVG}
           <span class="sideCount commentCount">${v.commentsCount || 0}</span>
         </button>
         <button class="sideBtn saveBtn${v.savedByMe ? ' saved' : ''}">
-          <span class="saveIcon">${v.savedByMe ? '🔖' : '📑'}</span>
-          <span class="sideCount">Garder</span>
+          ${SAVE_SVG}
+          <span class="sideCount saveCount">${v.savesCount || 0}</span>
         </button>
         <button class="sideBtn shareBtn">
-          <span>↗️</span>
-          <span class="sideCount">Partager</span>
+          ${SHARE_SVG}
         </button>
         ${isPhoto ? '' : `<button class="sideBtn muteBtn" title="Activer/couper le son">🔇</button>`}
       </div>
@@ -756,19 +852,33 @@
     el.querySelector('.shareBtn').addEventListener('click', () => shareVideo(v));
     const delBtn = el.querySelector('.clipDeleteBtn');
     if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el));
+    // Badge "+" sur l'avatar de l'auteur (suivi rapide sans quitter le fil,
+    // comme TikTok) — absent sur ses propres vidéos (voir isMine ci-dessus).
+    const followBadge = el.querySelector('.clipFollowBadge');
+    if (followBadge && v.author) {
+      followBadge.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        followBadge.disabled = true;
+        try {
+          await api('/api/follows/' + v.author.id, { method: 'POST' });
+          followBadge.classList.add('hidden');
+        } catch (err) {
+          followBadge.disabled = false;
+        }
+      });
+    }
     return el;
   }
 
   async function toggleLike(v, el) {
     const btn = el.querySelector('.likeBtn');
-    const icon = el.querySelector('.likeIcon');
     const countEl = el.querySelector('.likeCount');
     const wasLiked = btn.classList.contains('liked');
-    // Optimiste : on met à jour l'affichage tout de suite, comme les
-    // réactions sur un message dans seourouApps — on ne fait pas attendre la
-    // personne pour un like.
+    // Optimiste : on met à jour l'affichage tout de suite (le cœur passe en
+    // plein via la classe "liked", voir la règle CSS .sideBtn.liked svg), comme
+    // les réactions sur un message dans seourouApps — on ne fait pas attendre
+    // la personne pour un like.
     btn.classList.toggle('liked', !wasLiked);
-    icon.textContent = wasLiked ? '🤍' : '❤️';
     countEl.textContent = String(parseInt(countEl.textContent, 10) + (wasLiked ? -1 : 1));
     try {
       const data = await api('/api/videos/' + v.id + '/' + (wasLiked ? 'unlike' : 'like'), { method: 'POST' });
@@ -777,24 +887,24 @@
       // Échec : on annule le changement optimiste plutôt que de laisser un
       // état incohérent avec le serveur.
       btn.classList.toggle('liked', wasLiked);
-      icon.textContent = wasLiked ? '❤️' : '🤍';
       countEl.textContent = String(parseInt(countEl.textContent, 10) + (wasLiked ? 1 : -1));
     }
   }
 
   async function toggleSave(v, el) {
     const btn = el.querySelector('.saveBtn');
-    const icon = el.querySelector('.saveIcon');
+    const countEl = el.querySelector('.saveCount');
     const wasSaved = btn.classList.contains('saved');
     // Optimiste, comme toggleLike.
     btn.classList.toggle('saved', !wasSaved);
-    icon.textContent = wasSaved ? '📑' : '🔖';
+    countEl.textContent = String(parseInt(countEl.textContent, 10) + (wasSaved ? -1 : 1));
     v.savedByMe = !wasSaved;
     try {
-      await api('/api/videos/' + v.id + '/' + (wasSaved ? 'unsave' : 'save'), { method: 'POST' });
+      const data = await api('/api/videos/' + v.id + '/' + (wasSaved ? 'unsave' : 'save'), { method: 'POST' });
+      countEl.textContent = String(data.savesCount);
     } catch (err) {
       btn.classList.toggle('saved', wasSaved);
-      icon.textContent = wasSaved ? '🔖' : '📑';
+      countEl.textContent = String(parseInt(countEl.textContent, 10) + (wasSaved ? 1 : -1));
       v.savedByMe = wasSaved;
     }
   }
@@ -912,33 +1022,28 @@
   }
 
   // ---------- Publication ----------
-  function openUploadOverlay() {
-    pendingUploadFile = null;
-    pendingUploadKind = 'video';
-    pendingThumbnail = null;
-    $('videoFileInput').value = '';
+  // Affiche la modale légende + aperçu — appelée seulement APRÈS qu'on a déjà
+  // un fichier prêt (juste après une capture caméra, ou juste après avoir
+  // choisi un fichier dans la galerie via acceptMediaBlob) : contrairement à
+  // avant, ce n'est plus le point d'entrée de la publication (voir
+  // openCameraScreen, qui ouvre directement la caméra en appuyant sur "+",
+  // comme TikTok).
+  function showPublishOverlay() {
     $('captionInput').value = '';
     $('uploadMsg').textContent = '';
-    $('uploadPreviewWrap').classList.remove('show', 'kind-video', 'kind-photo');
-    $('cameraPanel').classList.add('hidden');
-    $('publishBtn').disabled = true;
     $('uploadOverlay').classList.remove('hidden');
   }
   function closeUploadOverlay() {
-    // Si la caméra était ouverte/en cours d'enregistrement, on la coupe —
-    // sans ça le témoin caméra du navigateur resterait allumé en arrière-plan.
-    if (cameraStream) {
-      if (cameraRecording && cameraRecorder && cameraRecorder.state !== 'inactive') cameraRecorder.stop();
-      cameraStream.getTracks().forEach((t) => t.stop());
-      cameraStream = null;
-    }
-    clearInterval(cameraTimerInterval);
-    cameraTimerInterval = null;
     $('uploadOverlay').classList.add('hidden');
     if ($('uploadPreviewVideo').src) URL.revokeObjectURL($('uploadPreviewVideo').src);
     $('uploadPreviewVideo').src = '';
     if ($('uploadPreviewImage').src) URL.revokeObjectURL($('uploadPreviewImage').src);
     $('uploadPreviewImage').src = '';
+    pendingUploadFile = null;
+    pendingThumbnail = null;
+    $('videoFileInput').value = '';
+    $('uploadPreviewWrap').classList.remove('show', 'kind-video', 'kind-photo');
+    $('publishBtn').disabled = true;
   }
   $('cancelUploadBtn').addEventListener('click', closeUploadOverlay);
 
@@ -998,24 +1103,28 @@
     }
   }
 
-  $('videoFileInput').addEventListener('change', () => {
+  // Choisi depuis la galerie (bouton 🖼️ de l'écran caméra) : on ferme la
+  // caméra plein écran puis on va directement à l'aperçu + légende.
+  $('videoFileInput').addEventListener('change', async () => {
     const file = $('videoFileInput').files[0];
     if (!file) return;
-    acceptMediaBlob(file, file.type.startsWith('image/') ? 'photo' : 'video');
+    await acceptMediaBlob(file, file.type.startsWith('image/') ? 'photo' : 'video');
+    if (pendingUploadFile) showPublishOverlay();
   });
 
-  // ---------- Caméra (webcam + micro du navigateur) ----------
-  // Alternative à "Choisir un fichier" : filme directement depuis la page,
-  // pratique sur un ordinateur où il n'y a pas d'appli caméra à côté (le
-  // sélecteur de fichier seul suffit sur mobile, qui ouvre déjà l'appareil
-  // photo natif via l'attribut "capture"). Même limite de durée que le reste
-  // (MAX_VIDEO_SECONDS) : arrêt automatique de l'enregistrement à la limite.
+  // ---------- Caméra plein écran (webcam + micro du navigateur) ----------
+  // Ouverte directement en appuyant sur "+" (comme TikTok) plutôt qu'une
+  // modale avec un simple bouton "Filmer" — voir la discussion avec Lancine.
+  // Même limite de durée que le reste (MAX_VIDEO_SECONDS) : arrêt automatique
+  // de l'enregistrement à la limite.
   let cameraStream = null;
   let cameraRecorder = null;
   let cameraChunks = [];
   let cameraRecording = false;
   let cameraStartTs = null;
   let cameraTimerInterval = null;
+  let cameraFacingMode = 'user';
+  let cameraMode = 'video'; // 'video' | 'photo'
 
   function pickVideoMimeType() {
     const candidates = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4'];
@@ -1023,58 +1132,97 @@
     return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || '';
   }
 
-  async function openCameraPanel() {
-    if (!window.MediaRecorder || !navigator.mediaDevices) {
-      alert("L'enregistrement vidéo n'est pas supporté par ce navigateur.");
-      return;
-    }
+  async function startCameraStream() {
+    if (cameraStream) { cameraStream.getTracks().forEach((t) => t.stop()); cameraStream = null; }
     try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode }, audio: true });
     } catch (err) {
       alert('Impossible d\'accéder à la caméra/au micro : ' + err.message);
+      closeCameraScreen();
       return;
     }
     $('cameraLiveVideo').srcObject = cameraStream;
-    $('cameraTimer').textContent = '00:00';
-    $('cameraRecordBtn').textContent = '⏺ Enregistrer';
-    $('cameraPanel').classList.remove('hidden');
+    // Effet miroir pour la caméra avant, comme n'importe quelle appli caméra —
+    // seulement à l'affichage : la photo capturée est retournée à nouveau
+    // dans le bon sens (voir capturePhotoFromCamera).
+    $('cameraLiveVideo').style.transform = (cameraFacingMode === 'user') ? 'scaleX(-1)' : 'none';
   }
 
-  function closeCameraPanel() {
+  function setCameraMode(mode) {
+    cameraMode = mode;
+    document.querySelectorAll('.cameraModeBtn').forEach((btn) => btn.classList.toggle('active', btn.dataset.mode === mode));
+  }
+
+  async function openCameraScreen() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      // Pas de caméra utilisable (navigateur trop ancien, ou appareil sans
+      // webcam) : on retombe sur le sélecteur de fichier plutôt que de
+      // bloquer complètement la publication.
+      $('videoFileInput').click();
+      return;
+    }
+    setCameraMode('video');
+    $('cameraScreen').classList.remove('hidden');
+    await startCameraStream();
+  }
+
+  function closeCameraScreen() {
     if (cameraRecording && cameraRecorder && cameraRecorder.state !== 'inactive') {
-      // Arrêter proprement déclenche onCameraRecordingStopped, qui coupe déjà
-      // le flux — pas besoin de le refaire ici.
+      // Arrêter proprement déclenche onCameraRecordingStopped, qui referme
+      // déjà cet écran — pas besoin de le refaire ici.
       cameraRecorder.stop();
       return;
     }
     if (cameraStream) { cameraStream.getTracks().forEach((t) => t.stop()); cameraStream = null; }
     $('cameraLiveVideo').srcObject = null;
-    $('cameraPanel').classList.add('hidden');
+    $('cameraScreen').classList.add('hidden');
     clearInterval(cameraTimerInterval);
     cameraTimerInterval = null;
+    $('cameraTimer').classList.add('hidden');
+    $('cameraShutterBtn').classList.remove('recording');
   }
 
-  $('useCameraBtn').addEventListener('click', openCameraPanel);
-  $('cameraCloseBtn').addEventListener('click', closeCameraPanel);
-  $('cameraRecordBtn').addEventListener('click', () => {
-    if (!cameraRecording) startCameraRecording(); else stopCameraRecording();
+  $('navUploadBtn').addEventListener('click', openCameraScreen);
+  $('cameraCloseBtn').addEventListener('click', closeCameraScreen);
+  $('cameraFlipBtn').addEventListener('click', () => {
+    cameraFacingMode = cameraFacingMode === 'user' ? 'environment' : 'user';
+    startCameraStream();
   });
-  $('cameraPhotoBtn').addEventListener('click', capturePhotoFromCamera);
+  document.querySelectorAll('.cameraModeBtn').forEach((btn) => {
+    btn.addEventListener('click', () => { if (!cameraRecording) setCameraMode(btn.dataset.mode); });
+  });
+  $('cameraGalleryBtn').addEventListener('click', () => {
+    closeCameraScreen();
+    $('videoFileInput').click();
+  });
+  $('cameraShutterBtn').addEventListener('click', () => {
+    if (cameraMode === 'photo') capturePhotoFromCamera();
+    else if (!cameraRecording) startCameraRecording();
+    else stopCameraRecording();
+  });
 
   // Prend une photo instantanée du flux de la caméra (une image, pas un
-  // enregistrement) — alternative à "⏺ Vidéo" dans le même panneau, comme
-  // l'appareil photo natif d'un téléphone qui propose les deux dans une seule
-  // interface.
+  // enregistrement) — mode "Photo" du même écran caméra.
   function capturePhotoFromCamera() {
     if (cameraRecording) return; // pas de photo pendant un enregistrement vidéo en cours
     const liveVideo = $('cameraLiveVideo');
     const canvas = document.createElement('canvas');
     canvas.width = liveVideo.videoWidth || 640;
     canvas.height = liveVideo.videoHeight || 480;
-    canvas.getContext('2d').drawImage(liveVideo, 0, 0, canvas.width, canvas.height);
-    canvas.toBlob((blob) => {
-      closeCameraPanel();
-      if (blob) acceptMediaBlob(blob, 'photo');
+    const ctx = canvas.getContext('2d');
+    if (cameraFacingMode === 'user') {
+      // Retourne l'image pour compenser l'effet miroir de l'aperçu (voir
+      // startCameraStream) — sans ça, la photo publiée serait inversée.
+      ctx.translate(canvas.width, 0);
+      ctx.scale(-1, 1);
+    }
+    ctx.drawImage(liveVideo, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(async (blob) => {
+      closeCameraScreen();
+      if (blob) {
+        await acceptMediaBlob(blob, 'photo');
+        if (pendingUploadFile) showPublishOverlay();
+      }
     }, 'image/jpeg', 0.85);
   }
 
@@ -1092,7 +1240,9 @@
     cameraRecorder.start();
     cameraRecording = true;
     cameraStartTs = Date.now();
-    $('cameraRecordBtn').textContent = '⏹ Arrêter';
+    $('cameraShutterBtn').classList.add('recording');
+    $('cameraTimer').textContent = '00:00';
+    $('cameraTimer').classList.remove('hidden');
     cameraTimerInterval = setInterval(() => {
       const secs = Math.floor((Date.now() - cameraStartTs) / 1000);
       $('cameraTimer').textContent = String(Math.floor(secs / 60)).padStart(2, '0') + ':' + String(secs % 60).padStart(2, '0');
@@ -1105,7 +1255,7 @@
     cameraRecorder.stop();
   }
 
-  function onCameraRecordingStopped() {
+  async function onCameraRecordingStopped() {
     clearInterval(cameraTimerInterval);
     cameraTimerInterval = null;
     cameraRecording = false;
@@ -1113,12 +1263,11 @@
     cameraChunks = [];
     const recorder = cameraRecorder;
     cameraRecorder = null;
-    if (cameraStream) { cameraStream.getTracks().forEach((t) => t.stop()); cameraStream = null; }
-    $('cameraLiveVideo').srcObject = null;
-    $('cameraPanel').classList.add('hidden');
+    closeCameraScreen();
     if (!chunks.length) return;
     const blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || 'video/webm' });
-    acceptMediaBlob(blob, 'video');
+    await acceptMediaBlob(blob, 'video');
+    if (pendingUploadFile) showPublishOverlay();
   }
 
   function captureThumbnail(videoEl) {
@@ -1170,6 +1319,10 @@
       }
       const data = await api('/api/videos', { method: 'POST', body: JSON.stringify(body) });
       closeUploadOverlay();
+      // "+" est accessible depuis Accueil/Ami(e)s/Profil : on revient sur le
+      // fil pour voir tout de suite la publication qu'on vient de faire,
+      // même si on avait appuyé sur "+" depuis un autre écran.
+      showScreen('feed');
       // La publication qu'on vient de faire apparaît tout en haut du fil,
       // comme WhatsApp affiche un statut qu'on vient de publier en premier.
       const newClipEl = renderClip(data.video);
