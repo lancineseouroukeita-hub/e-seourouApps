@@ -1048,10 +1048,14 @@
       ${hasAttachedSound ? '<audio class="clipAudio" loop preload="none"></audio>' : ''}
       ${isMine ? `<button class="clipDeleteBtn" title="Supprimer cette ${isPhoto ? 'photo' : 'vidéo'}">🗑️</button>` : ''}
       <div class="clipSide">
-        ${(!isMine && v.author) ? `
+        ${v.author ? `
           <div class="clipAuthorFollow">
             <div class="clipAuthorAvatar">${v.author.avatarUrl ? `<img src="${v.author.avatarUrl}" alt="">` : '👤'}</div>
-            <button class="clipFollowBadge${v.followedByAuthor ? ' hidden' : ''}" title="Suivre ${escapeHtml(v.author.name)}">+</button>
+            <!-- L'avatar reste TOUJOURS visible (comme TikTok, y compris sur
+                 ses propres vidéos) — seul le badge "+" de suivi rapide est
+                 masqué quand il n'a pas de sens : sa propre vidéo (isMine,
+                 impossible de se suivre soi-même) ou un auteur déjà suivi. -->
+            <button class="clipFollowBadge${(isMine || v.followedByAuthor) ? ' hidden' : ''}" title="Suivre ${escapeHtml(v.author.name)}">+</button>
           </div>
         ` : ''}
         <button class="sideBtn likeBtn${v.likedByMe ? ' liked' : ''}">
@@ -1121,7 +1125,8 @@
     const delBtn = el.querySelector('.clipDeleteBtn');
     if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el));
     // Badge "+" sur l'avatar de l'auteur (suivi rapide sans quitter le fil,
-    // comme TikTok) — absent sur ses propres vidéos (voir isMine ci-dessus).
+    // comme TikTok) — masqué (mais toujours présent dans le DOM) sur ses
+    // propres vidéos ou un auteur déjà suivi, voir plus haut.
     const followBadge = el.querySelector('.clipFollowBadge');
     if (followBadge && v.author) {
       followBadge.addEventListener('click', async (e) => {
