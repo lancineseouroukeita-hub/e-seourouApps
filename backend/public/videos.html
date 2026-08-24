@@ -536,6 +536,24 @@
   // lourd) — le décodeur natif du navigateur derrière fetch() est bien plus
   // robuste pour de gros fichiers. Fonction ASYNCHRONE : voir attachVideoSrc/
   // attachSoundToClip/getSoundBlobUrl pour les appels (await/.then).
+  // Le "codecs=..." que certains navigateurs annoncent pour une vidéo qu'ils
+  // viennent eux-mêmes d'enregistrer (constaté sur iOS Safari : ex.
+  // "video/mp4;codecs=avc1.42000a,mp4a.40.2") ne correspond pas toujours
+  // fidèlement à ce qui a réellement été encodé — passer ce paramètre au
+  // moment de la LECTURE peut alors faire refuser la vidéo par le décodeur
+  // ("Vidéo illisible sur cet appareil", code 4) même quand le fichier est
+  // parfaitement lisible, et même sur le même appareil qui a filmé. On ne
+  // garde donc que le type de base (ex: "video/mp4") pour construire la
+  // source à lire, en laissant le navigateur détecter lui-même le vrai
+  // codec à partir du contenu plutôt que de se fier à cette étiquette
+  // potentiellement inexacte. Le type complet original reste affiché dans
+  // le message d'erreur (voir renderClip) à titre d'information/diagnostic.
+  function baseMimeType(mime) {
+    if (!mime) return mime;
+    const idx = mime.indexOf(';');
+    return idx === -1 ? mime : mime.slice(0, idx).trim();
+  }
+
   async function base64ToBlobUrl(base64, mime) {
     try {
       const res = await fetch(`data:${mime || 'application/octet-stream'};base64,${base64}`);
@@ -561,7 +579,7 @@
   async function attachVideoSrc(v, el) {
     const videoEl = el.querySelector('video');
     if (!videoEl) return;
-    const blobUrl = await base64ToBlobUrl(v.videoData, v.videoMime);
+    const blobUrl = await base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime));
     // Le clip a pu être retiré du fil (rechargement, suppression) pendant
     // que la conversion tournait encore — ne rien poser sur un élément mort.
     if (!videoEl.isConnected) {
@@ -940,7 +958,7 @@
         $('myVideosGrid').appendChild(thumb);
         if (needsBlobVideo) {
           const videoEl = thumb.querySelector('video');
-          base64ToBlobUrl(v.videoData, v.videoMime).then((blobUrl) => {
+          base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime)).then((blobUrl) => {
             if (videoEl && blobUrl) videoEl.src = blobUrl;
           });
         }
