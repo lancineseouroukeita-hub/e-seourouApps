@@ -178,7 +178,20 @@
   .userRowMeta{font-size:12px;color:var(--muted);}
   .followBtn{flex-shrink:0;padding:7px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:white;font-size:12.5px;font-weight:600;cursor:pointer;}
   .followBtn.following{background:transparent;color:var(--text);border-color:var(--border);}
-  .profileHead{display:flex;flex-direction:column;align-items:center;padding:24px 16px 14px;padding-top:calc(24px + env(safe-area-inset-top, 0));text-align:center;}
+  .profileHead{display:flex;flex-direction:column;align-items:center;padding:8px 16px 14px;text-align:center;}
+  /* Barre du haut du Profil (suivre des ami(e)s, avatar/messages, partager,
+     menu ☰) — comme la vraie appli TikTok (voir la capture envoyée par
+     Lancine). C'est CETTE barre qui porte maintenant la zone de sécurité du
+     haut (encoche/île dynamique) : .profileHead n'a plus besoin de la sienne
+     puisqu'elle n'est plus le premier élément de l'écran. */
+  .profileTopBar{display:flex;align-items:center;justify-content:space-between;padding:14px 14px 0;padding-top:calc(14px + env(safe-area-inset-top, 0));}
+  .profileTopBar .profileTopBarRight{display:flex;align-items:center;gap:14px;}
+  .profileTopBarBtn{background:none;border:none;color:var(--text);cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;}
+  .profileTopBarBtn svg{width:24px;height:24px;}
+  .profileNameDropdown{display:flex;align-items:center;gap:3px;font-weight:700;font-size:15px;color:var(--text);background:none;border:none;cursor:default;max-width:150px;}
+  .profileNameDropdown span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .profileInboxAvatar{width:26px;height:26px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:13px;overflow:hidden;cursor:pointer;border:none;color:inherit;}
+  .profileInboxAvatar img{width:100%;height:100%;object-fit:cover;}
   .profileHead .userAvatar{width:78px;height:78px;font-size:30px;margin-bottom:10px;}
   .profileName{font-size:17px;font-weight:700;margin-bottom:2px;}
   .profilePhone{font-size:12.5px;color:var(--muted);margin-bottom:14px;}
@@ -287,12 +300,20 @@
      hors de #feedScreen/#friendsScreen/#profileScreen, pour rester visible
      de façon identique sur les trois plutôt que de le dupliquer partout —
      masqué/affiché en même temps que #bottomNav (voir doLogin/doLogout). */
-  #backToAppBtn{position:fixed;top:14px;left:14px;width:34px;height:34px;border-radius:50%;background:rgba(30,30,30,0.55);border:none;color:white;font-size:18px;line-height:1;cursor:pointer;z-index:16;display:flex;align-items:center;justify-content:center;}
+  /* top: calc(...) avec la zone de sécurité du HAUT (pas juste 14px fixes) :
+     élément fixe indépendant de #topBar, donc PAS concerné par le padding
+     de #topBar (qui ne déplace que son propre contenu) — sans ce calc, le
+     bouton restait collé à 14px du tout haut de l'écran sur un téléphone
+     avec encoche/île dynamique, sous l'heure système. Sur certains
+     iPhones/PWA, cette bande tout en haut n'est même pas cliquable (réservée
+     par le système) : d'où le bouton "trop haut ET qui ne répond pas". */
+  #backToAppBtn{position:fixed;top:calc(14px + env(safe-area-inset-top, 0));left:14px;width:34px;height:34px;border-radius:50%;background:rgba(30,30,30,0.55);border:none;color:white;font-size:18px;line-height:1;cursor:pointer;z-index:16;display:flex;align-items:center;justify-content:center;}
   #backToAppBtn.hidden{display:none;}
   /* Espace réservé pour que ce bouton ne recouvre pas le contenu de chaque
      écran (onglets Suivis/Pour toi sur le fil, "Ami(e)s" sur cet écran-là). */
   #topBar{padding-left:54px;}
   .screenHeader{padding-left:54px;}
+  .profileTopBar{padding-left:54px;}
 </style>
 </head>
 <body>
@@ -338,6 +359,27 @@
 
   <!-- ---------- Profil ---------- -->
   <div id="profileScreen" class="screen">
+    <div class="profileTopBar">
+      <button class="profileTopBarBtn" id="profileFindFriendsBtn" type="button" title="Trouver des ami(e)s">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="19" y1="8" x2="19" y2="14"></line><line x1="16" y1="11" x2="22" y2="11"></line></svg>
+      </button>
+      <!-- Pas de vrai changement de compte ici (contrairement à TikTok) :
+           Diarala_Tiktak partage un seul compte avec le reste de
+           seourouApps — juste le nom, pour l'aspect visuel de la capture. -->
+      <button class="profileNameDropdown" type="button" id="profileNameDropdownBtn" title="Diarala_Tiktak utilise le même compte que seourouApps">
+        <span id="profileTopBarName">—</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="14" height="14"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="profileTopBarRight">
+        <button class="profileInboxAvatar" id="profileInboxBtn" type="button" title="Messages">👤</button>
+        <button class="profileTopBarBtn" id="profileShareBtn" type="button" title="Partager mon profil">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 4 20 9 15 14"></polyline><path d="M4 20v-6a4 4 0 0 1 4-4h12"></path></svg>
+        </button>
+        <button class="profileTopBarBtn" id="profileMenuBtn" type="button" title="Menu">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+      </div>
+    </div>
     <div class="profileHead">
       <div class="userAvatar" id="profileAvatar">👤</div>
       <div class="profileName" id="profileName">—</div>
@@ -527,15 +569,42 @@
   // l'impression qu'elle "s'est transformée en photo"). Un blob local est
   // beaucoup plus fiable pour de gros fichiers.
   //
-  // Passe par fetch() sur un data: URI plutôt que par atob() + une boucle JS
-  // caractère par caractère : cette boucle (jusqu'à ~30 millions d'itérations
-  // pour une grosse vidéo) peut être lente, voire échouer silencieusement par
-  // manque de mémoire sur un téléphone (constaté : le problème persistait
-  // même en filmant ET en regardant sur le MÊME iPhone, ce qui écarte un
-  // souci de format/codec et pointe plutôt vers ce décodage manuel trop
-  // lourd) — le décodeur natif du navigateur derrière fetch() est bien plus
-  // robuste pour de gros fichiers. Fonction ASYNCHRONE : voir attachVideoSrc/
-  // attachSoundToClip/getSoundBlobUrl pour les appels (await/.then).
+  // Historique de cette fonction (pour ne pas refaire les mêmes essais) :
+  // 1) atob() + boucle JS caractère par caractère pour remplir un
+  //    Uint8Array : soupçonné trop lent/gourmand en mémoire sur un
+  //    téléphone pour une grosse vidéo.
+  // 2) fetch() sur un data: URI (data:<mime>;base64,<...>) + .blob() :
+  //    censé laisser le décodeur natif du navigateur faire le travail — sauf
+  //    que ça a fait apparaître une VRAIE limite de taille : au-delà d'une
+  //    certaine longueur, construire cette URL-texte échoue silencieusement
+  //    ("conversion échouée" dans l'UI) sur les grosses vidéos, alors que ça
+  //    marchait pour un petit fichier de test. Un data: URI reste une CHAÎNE
+  //    DE CARACTÈRES (l'intégralité du base64 dans une seule URL) — certains
+  //    navigateurs mobiles limitent la longueur d'URL/URI qu'ils acceptent,
+  //    même pour fetch().
+  // 3) Solution actuelle : atob() (décodage natif, rapide, PAS la boucle
+  //    manuelle lente du (1)) pour obtenir les octets bruts, puis un
+  //    Uint8Array rempli par blocs, puis new Blob([bytes]) directement —
+  //    aucune chaîne "URI" géante n'est jamais construite, donc aucune limite
+  //    de longueur d'URL ne peut s'appliquer, quelle que soit la taille du
+  //    fichier. atob() lui-même est une fonction native du navigateur (pas
+  //    une boucle JS), donc rapide même sur un gros fichier.
+  function base64ToBytes(base64) {
+    const binary = atob(base64);
+    const len = binary.length;
+    const bytes = new Uint8Array(len);
+    // Rempli par blocs plutôt qu'en un seul passage naïf : même résultat,
+    // mais évite de bloquer le thread principal d'un coup sur un très gros
+    // fichier (perceptible comme un gel de l'interface le temps de la
+    // conversion).
+    const CHUNK = 262144; // 256 Ko à la fois
+    for (let offset = 0; offset < len; offset += CHUNK) {
+      const end = Math.min(offset + CHUNK, len);
+      for (let i = offset; i < end; i += 1) bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes;
+  }
+
   // Le "codecs=..." que certains navigateurs annoncent pour une vidéo qu'ils
   // viennent eux-mêmes d'enregistrer (constaté sur iOS Safari : ex.
   // "video/mp4;codecs=avc1.42000a,mp4a.40.2") ne correspond pas toujours
@@ -554,10 +623,14 @@
     return idx === -1 ? mime : mime.slice(0, idx).trim();
   }
 
+  // Fonction ASYNCHRONE (même si son corps est maintenant surtout
+  // synchrone) : voir attachVideoSrc/attachSoundToClip/getSoundBlobUrl pour
+  // les appels (await/.then) — gardé async pour que ces appelants n'aient
+  // rien à changer si l'implémentation évolue encore.
   async function base64ToBlobUrl(base64, mime) {
     try {
-      const res = await fetch(`data:${mime || 'application/octet-stream'};base64,${base64}`);
-      const blob = await res.blob();
+      const bytes = base64ToBytes(base64);
+      const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
       return URL.createObjectURL(blob);
     } catch (err) {
       console.error('base64ToBlobUrl error:', err);
