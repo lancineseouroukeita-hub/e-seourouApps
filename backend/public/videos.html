@@ -98,6 +98,15 @@
   .clipAuthorAvatar img{width:100%;height:100%;object-fit:cover;}
   .clipFollowBadge{position:absolute;left:50%;bottom:-8px;transform:translateX(-50%);width:20px;height:20px;border-radius:50%;background:var(--accent);border:2px solid #000;color:white;font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
   .clipFollowBadge.hidden{display:none;}
+  /* Disque rond en bas de la colonne (comme la pochette du son sur TikTok) —
+     ici la miniature de la vidéo elle-même plutôt qu'un vrai morceau de
+     musique (pas de bibliothèque de sons dans cette première version) ; il
+     tourne lentement et reste le bouton pour couper/activer le son. */
+  .muteBtn .discWrap{position:relative;width:40px;height:40px;}
+  .muteBtn .discArt{position:absolute;inset:0;border-radius:50%;background:#222 center/cover no-repeat;display:flex;align-items:center;justify-content:center;font-size:16px;border:1px solid rgba(255,255,255,0.4);animation:discSpin 6s linear infinite;}
+  .muteBtn .discVolumeBadge{position:absolute;right:-5px;bottom:-5px;width:20px;height:20px;border-radius:50%;background:rgba(20,20,20,0.9);border:1px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;}
+  .muteBtn .discVolumeBadge svg{width:13px;height:13px;}
+  @keyframes discSpin{from{transform:rotate(0deg);}to{transform:rotate(360deg);}}
   .clip .clipDeleteBtn{position:absolute;top:14px;left:14px;background:rgba(30,30,30,0.55);border:none;color:#ff8a8a;width:36px;height:36px;border-radius:50%;font-size:15px;cursor:pointer;}
 
   #topBar{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 14px 0;z-index:5;pointer-events:none;}
@@ -364,6 +373,12 @@
   // sur le bouton son d'UNE vidéo, ça s'applique à TOUTES les vidéos du fil,
   // comme TikTok — pas besoin de réactiver le son à chaque vidéo.
   let globalSoundEnabled = false;
+
+  // Icônes du bouton son en SVG plutôt qu'en émoji (🔇/🔊) : l'émoji rendait
+  // de façon très inconsistante/moche selon les téléphones (capture envoyée
+  // par Lancine) — même raison que les icônes caméra plus haut.
+  const VOLUME_ON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14"></path><path d="M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>';
+  const VOLUME_OFF_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" fill="currentColor"></polygon><line x1="23" y1="9" x2="17" y2="15"></line><line x1="17" y1="9" x2="23" y2="15"></line></svg>';
 
   async function api(path, opts = {}) {
     const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
@@ -720,7 +735,7 @@
   function setGlobalSound(enabled) {
     globalSoundEnabled = enabled;
     document.querySelectorAll('.clip video').forEach((video) => { video.muted = !enabled; });
-    document.querySelectorAll('.clip .muteBtn').forEach((btn) => { btn.textContent = enabled ? '🔊' : '🔇'; });
+    document.querySelectorAll('.clip .muteBtn .discVolumeBadge').forEach((badge) => { badge.innerHTML = enabled ? VOLUME_ON_SVG : VOLUME_OFF_SVG; });
   }
 
   function setupObserver() {
@@ -824,7 +839,14 @@
         <button class="sideBtn shareBtn">
           ${SHARE_SVG}
         </button>
-        ${isPhoto ? '' : `<button class="sideBtn muteBtn" title="Activer/couper le son">🔇</button>`}
+        ${isPhoto ? '' : `
+          <button class="sideBtn muteBtn" title="Activer/couper le son">
+            <span class="discWrap">
+              <span class="discArt"${v.thumbnailData ? ` style="background-image:url('data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}')"` : ''}>${v.thumbnailData ? '' : '🎵'}</span>
+              <span class="discVolumeBadge"></span>
+            </span>
+          </button>
+        `}
       </div>
       <div class="clipOverlay">
         <div class="clipAuthor">${escapeHtml(v.author ? v.author.name : '—')}</div>
@@ -837,7 +859,7 @@
       // pas "muet à chaque nouvelle vidéo" comme avant.
       videoEl.muted = !globalSoundEnabled;
       const muteBtn = el.querySelector('.muteBtn');
-      muteBtn.textContent = globalSoundEnabled ? '🔊' : '🔇';
+      muteBtn.querySelector('.discVolumeBadge').innerHTML = globalSoundEnabled ? VOLUME_ON_SVG : VOLUME_OFF_SVG;
       muteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
         setGlobalSound(!globalSoundEnabled);
