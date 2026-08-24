@@ -73,7 +73,7 @@
   #feedScreen.show{display:block;}
   #feed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scroll-behavior:smooth;}
   .clip{position:relative;height:100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;display:flex;align-items:center;justify-content:center;background:#000;}
-  .clip video{width:100%;height:100%;object-fit:contain;background:#000;}
+  .clip video,.clip img{width:100%;height:100%;object-fit:contain;background:#000;}
   .clip .clipOverlay{position:absolute;left:0;right:0;bottom:0;padding:16px 70px 26px 16px;background:linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));pointer-events:none;}
   .clip .clipAuthor{font-weight:700;font-size:14.5px;margin-bottom:4px;}
   .clip .clipCaption{font-size:13.5px;color:#e8e8ea;white-space:pre-wrap;word-break:break-word;}
@@ -100,18 +100,23 @@
   #uploadCard{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;}
   #uploadCard h2{margin:0 0 14px;font-size:17px;}
   #uploadCard input[type="file"]{width:100%;color:var(--muted);font-size:13px;margin-bottom:10px;}
-  #useCameraBtn{width:100%;padding:9px;margin-bottom:12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;cursor:pointer;}
+  #useCameraBtn{width:100%;padding:9px;margin-bottom:12px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;}
   #useCameraBtn:hover{border-color:var(--accent);}
+  .cameraIcon{width:16px;height:16px;flex-shrink:0;}
   #cameraPanel{margin-bottom:12px;}
   #cameraPanel.hidden{display:none;}
   #cameraLiveVideo{width:100%;max-height:260px;border-radius:8px;background:#000;display:block;margin-bottom:8px;}
   #cameraTimer{text-align:center;font-size:13px;color:var(--muted);margin-bottom:8px;}
-  #cameraRecordBtn{flex:1;padding:11px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:white;font-size:14px;font-weight:600;cursor:pointer;}
-  #cameraRecordBtn:hover{background:var(--accent2);}
+  .cameraActionBtn{flex:1;padding:11px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .cameraActionBtn.primaryBtn{border-color:var(--accent);background:var(--accent);color:white;}
+  .cameraActionBtn.primaryBtn:hover{background:var(--accent2);}
+  .cameraActionBtn:not(.primaryBtn):hover{border-color:var(--accent);}
   #uploadCard textarea{width:100%;min-height:60px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;resize:vertical;margin-bottom:10px;font-family:inherit;}
   #uploadPreviewWrap{display:none;margin-bottom:12px;}
   #uploadPreviewWrap.show{display:block;}
-  #uploadPreviewWrap video{width:100%;max-height:220px;border-radius:8px;background:#000;}
+  #uploadPreviewWrap video,#uploadPreviewWrap img{width:100%;max-height:220px;border-radius:8px;background:#000;object-fit:contain;display:none;}
+  #uploadPreviewWrap.kind-video video{display:block;}
+  #uploadPreviewWrap.kind-photo img{display:block;}
   #uploadHint{font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
   .uploadRow{display:flex;gap:10px;}
   .uploadRow button{flex:1;padding:11px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;cursor:pointer;}
@@ -127,7 +132,7 @@
   <div id="loginScreen">
     <div class="authCard">
       <h1>🎬 Diarala_Tiktak</h1>
-      <p class="tagline">Vidéos courtes — connectez-vous avec votre compte seourouApps.</p>
+      <p class="tagline">Vidéos et photos courtes — connectez-vous avec votre compte seourouApps.</p>
       <div class="phoneFieldRow">
         <button type="button" class="countryCodeBtn" id="loginCountryBtn"></button>
         <input id="loginPhoneInput" type="tel" placeholder="6XX XX XX XX" autocomplete="tel">
@@ -146,7 +151,7 @@
       <button id="logoutBtn">Se déconnecter</button>
     </div>
     <div id="feed"></div>
-    <div id="emptyFeed" class="hidden">Aucune vidéo pour l'instant.<br>Soyez le premier à en publier une avec le bouton "+".</div>
+    <div id="emptyFeed" class="hidden">Aucune publication pour l'instant.<br>Soyez le premier à publier une vidéo ou une photo avec le bouton "+".</div>
     <div id="loadingFeed" class="hidden">Chargement…</div>
     <button id="uploadFab" title="Publier une vidéo">+</button>
   </div>
@@ -154,20 +159,24 @@
   <!-- ---------- Publier une vidéo ---------- -->
   <div id="uploadOverlay" class="hidden">
     <div id="uploadCard">
-      <h2>Nouvelle vidéo</h2>
-      <input id="videoFileInput" type="file" accept="video/*" capture="user">
-      <button id="useCameraBtn" type="button">🎥 Filmer avec la caméra</button>
+      <h2>Nouvelle publication</h2>
+      <input id="videoFileInput" type="file" accept="video/*,image/*" capture="user">
+      <button id="useCameraBtn" type="button"><svg class="cameraIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>Filmer ou photographier avec la caméra</button>
       <div id="cameraPanel" class="hidden">
         <video id="cameraLiveVideo" autoplay muted playsinline></video>
         <div id="cameraTimer">00:00</div>
         <div class="uploadRow">
-          <button id="cameraCloseBtn" type="button">Fermer la caméra</button>
-          <button id="cameraRecordBtn" type="button">⏺ Enregistrer</button>
+          <button id="cameraCloseBtn" type="button">Fermer</button>
+          <button id="cameraPhotoBtn" type="button" class="cameraActionBtn"><svg class="cameraIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>Photo</button>
+          <button id="cameraRecordBtn" type="button" class="cameraActionBtn primaryBtn">⏺ Vidéo</button>
         </div>
       </div>
-      <div id="uploadPreviewWrap"><video id="uploadPreviewVideo" muted playsinline controls></video></div>
+      <div id="uploadPreviewWrap">
+        <video id="uploadPreviewVideo" muted playsinline controls></video>
+        <img id="uploadPreviewImage" alt="Aperçu de la photo">
+      </div>
       <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
-      <div id="uploadHint">Vidéo courte (30 secondes maximum, 12 Mo maximum).</div>
+      <div id="uploadHint">Vidéo courte (30 secondes / 12 Mo maximum) ou photo (8 Mo maximum).</div>
       <div id="uploadMsg"></div>
       <div class="uploadRow">
         <button id="cancelUploadBtn">Annuler</button>
@@ -185,6 +194,7 @@
   // première version).
   const MAX_VIDEO_SECONDS = 30;
   const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
+  const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
 
   // Comme index.html : le token ne vit qu'en mémoire JS, jamais dans
   // localStorage — se reconnecter à chaque rechargement de page fait partie
@@ -195,7 +205,8 @@
   let loadingMore = false;
   let reachedEnd = false;
   let pendingUploadFile = null;
-  let pendingThumbnail = null; // { data, mime } ou null
+  let pendingUploadKind = 'video'; // 'video' | 'photo'
+  let pendingThumbnail = null; // { data, mime } ou null — vidéo uniquement
 
   async function api(path, opts = {}) {
     const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
@@ -458,12 +469,18 @@
     const el = document.createElement('div');
     el.className = 'clip';
     el.dataset.videoId = v.id;
-    const posterAttr = v.thumbnailData ? ` poster="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}"` : '';
+    const isPhoto = v.type === 'photo';
     const isMine = me && v.author && v.author.id === me.id;
+    const mediaHtml = isPhoto
+      ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">`
+      : (() => {
+        const posterAttr = v.thumbnailData ? ` poster="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}"` : '';
+        return `<video loop muted playsinline${posterAttr} src="data:${v.videoMime};base64,${v.videoData}"></video>`;
+      })();
     el.innerHTML = `
-      <video loop muted playsinline${posterAttr} src="data:${v.videoMime};base64,${v.videoData}"></video>
-      <button class="muteBtn" title="Activer/couper le son">🔇</button>
-      ${isMine ? '<button class="clipDeleteBtn" title="Supprimer cette vidéo">🗑️</button>' : ''}
+      ${mediaHtml}
+      ${isPhoto ? '' : '<button class="muteBtn" title="Activer/couper le son">🔇</button>'}
+      ${isMine ? `<button class="clipDeleteBtn" title="Supprimer cette ${isPhoto ? 'photo' : 'vidéo'}">🗑️</button>` : ''}
       <div class="clipSide">
         <button class="sideBtn likeBtn${v.likedByMe ? ' liked' : ''}">
           <span class="likeIcon">${v.likedByMe ? '❤️' : '🤍'}</span>
@@ -476,14 +493,16 @@
       </div>
     `;
     const videoEl = el.querySelector('video');
-    const muteBtn = el.querySelector('.muteBtn');
-    muteBtn.addEventListener('click', () => {
-      videoEl.muted = !videoEl.muted;
-      muteBtn.textContent = videoEl.muted ? '🔇' : '🔊';
-    });
-    videoEl.addEventListener('click', () => {
-      if (videoEl.paused) videoEl.play().catch(() => {}); else videoEl.pause();
-    });
+    if (videoEl) {
+      const muteBtn = el.querySelector('.muteBtn');
+      muteBtn.addEventListener('click', () => {
+        videoEl.muted = !videoEl.muted;
+        muteBtn.textContent = videoEl.muted ? '🔇' : '🔊';
+      });
+      videoEl.addEventListener('click', () => {
+        if (videoEl.paused) videoEl.play().catch(() => {}); else videoEl.pause();
+      });
+    }
     el.querySelector('.likeBtn').addEventListener('click', () => toggleLike(v, el));
     const delBtn = el.querySelector('.clipDeleteBtn');
     if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el));
@@ -536,11 +555,12 @@
   // ---------- Publication ----------
   function openUploadOverlay() {
     pendingUploadFile = null;
+    pendingUploadKind = 'video';
     pendingThumbnail = null;
     $('videoFileInput').value = '';
     $('captionInput').value = '';
     $('uploadMsg').textContent = '';
-    $('uploadPreviewWrap').classList.remove('show');
+    $('uploadPreviewWrap').classList.remove('show', 'kind-video', 'kind-photo');
     $('cameraPanel').classList.add('hidden');
     $('publishBtn').disabled = true;
     $('uploadOverlay').classList.remove('hidden');
@@ -558,19 +578,37 @@
     $('uploadOverlay').classList.add('hidden');
     if ($('uploadPreviewVideo').src) URL.revokeObjectURL($('uploadPreviewVideo').src);
     $('uploadPreviewVideo').src = '';
+    if ($('uploadPreviewImage').src) URL.revokeObjectURL($('uploadPreviewImage').src);
+    $('uploadPreviewImage').src = '';
   }
   $('uploadFab').addEventListener('click', openUploadOverlay);
   $('cancelUploadBtn').addEventListener('click', closeUploadOverlay);
 
-  // Point d'entrée commun, que la vidéo vienne du sélecteur de fichier ou de
-  // la caméra (voir plus bas) : même validation (taille/durée), même
-  // génération de miniature, même variable pendingUploadFile à publier.
-  async function acceptVideoBlob(blob) {
+  // Point d'entrée commun, que la vidéo/photo vienne du sélecteur de fichier
+  // ou de la caméra (voir plus bas) : même validation (taille, et durée pour
+  // une vidéo), même variable pendingUploadFile à publier ensuite.
+  async function acceptMediaBlob(blob, kind) {
     $('uploadMsg').textContent = '';
     $('publishBtn').disabled = true;
     pendingUploadFile = null;
+    pendingUploadKind = kind;
     pendingThumbnail = null;
+    $('uploadPreviewWrap').classList.remove('kind-video', 'kind-photo');
     if (!blob) return;
+
+    if (kind === 'photo') {
+      if (blob.size > MAX_PHOTO_BYTES) {
+        $('uploadMsg').textContent = `Photo trop volumineuse (${Math.round(MAX_PHOTO_BYTES / (1024 * 1024))} Mo maximum).`;
+        return;
+      }
+      const previewImage = $('uploadPreviewImage');
+      if (previewImage.src) URL.revokeObjectURL(previewImage.src);
+      previewImage.src = URL.createObjectURL(blob);
+      $('uploadPreviewWrap').classList.add('show', 'kind-photo');
+      pendingUploadFile = blob;
+      $('publishBtn').disabled = false;
+      return;
+    }
 
     if (blob.size > MAX_VIDEO_BYTES) {
       $('uploadMsg').textContent = `Vidéo trop volumineuse (${Math.round(MAX_VIDEO_BYTES / (1024 * 1024))} Mo maximum).`;
@@ -580,7 +618,7 @@
     const previewVideo = $('uploadPreviewVideo');
     if (previewVideo.src) URL.revokeObjectURL(previewVideo.src);
     previewVideo.src = URL.createObjectURL(blob);
-    $('uploadPreviewWrap').classList.add('show');
+    $('uploadPreviewWrap').classList.add('show', 'kind-video');
 
     try {
       const duration = await new Promise((resolve, reject) => {
@@ -604,7 +642,8 @@
 
   $('videoFileInput').addEventListener('change', () => {
     const file = $('videoFileInput').files[0];
-    if (file) acceptVideoBlob(file);
+    if (!file) return;
+    acceptMediaBlob(file, file.type.startsWith('image/') ? 'photo' : 'video');
   });
 
   // ---------- Caméra (webcam + micro du navigateur) ----------
@@ -662,6 +701,24 @@
   $('cameraRecordBtn').addEventListener('click', () => {
     if (!cameraRecording) startCameraRecording(); else stopCameraRecording();
   });
+  $('cameraPhotoBtn').addEventListener('click', capturePhotoFromCamera);
+
+  // Prend une photo instantanée du flux de la caméra (une image, pas un
+  // enregistrement) — alternative à "⏺ Vidéo" dans le même panneau, comme
+  // l'appareil photo natif d'un téléphone qui propose les deux dans une seule
+  // interface.
+  function capturePhotoFromCamera() {
+    if (cameraRecording) return; // pas de photo pendant un enregistrement vidéo en cours
+    const liveVideo = $('cameraLiveVideo');
+    const canvas = document.createElement('canvas');
+    canvas.width = liveVideo.videoWidth || 640;
+    canvas.height = liveVideo.videoHeight || 480;
+    canvas.getContext('2d').drawImage(liveVideo, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      closeCameraPanel();
+      if (blob) acceptMediaBlob(blob, 'photo');
+    }, 'image/jpeg', 0.85);
+  }
 
   function startCameraRecording() {
     cameraChunks = [];
@@ -703,7 +760,7 @@
     $('cameraPanel').classList.add('hidden');
     if (!chunks.length) return;
     const blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || 'video/webm' });
-    acceptVideoBlob(blob);
+    acceptMediaBlob(blob, 'video');
   }
 
   function captureThumbnail(videoEl) {
@@ -732,21 +789,31 @@
     $('publishBtn').disabled = true;
     $('uploadMsg').textContent = 'Publication en cours…';
     try {
-      const videoData = await blobToBase64(pendingUploadFile);
-      const body = {
-        videoData,
-        videoMime: pendingUploadFile.type || 'video/mp4',
-        caption: $('captionInput').value,
-        duration: Math.round($('uploadPreviewVideo').duration || 0),
-      };
-      if (pendingThumbnail) {
-        body.thumbnailData = pendingThumbnail.data;
-        body.thumbnailMime = pendingThumbnail.mime;
+      let body;
+      if (pendingUploadKind === 'photo') {
+        body = {
+          type: 'photo',
+          photoData: await blobToBase64(pendingUploadFile),
+          photoMime: pendingUploadFile.type || 'image/jpeg',
+          caption: $('captionInput').value,
+        };
+      } else {
+        body = {
+          type: 'video',
+          videoData: await blobToBase64(pendingUploadFile),
+          videoMime: pendingUploadFile.type || 'video/mp4',
+          caption: $('captionInput').value,
+          duration: Math.round($('uploadPreviewVideo').duration || 0),
+        };
+        if (pendingThumbnail) {
+          body.thumbnailData = pendingThumbnail.data;
+          body.thumbnailMime = pendingThumbnail.mime;
+        }
       }
       const data = await api('/api/videos', { method: 'POST', body: JSON.stringify(body) });
       closeUploadOverlay();
-      // La vidéo qu'on vient de publier apparaît tout en haut du fil, comme
-      // WhatsApp affiche un statut qu'on vient de publier en premier.
+      // La publication qu'on vient de faire apparaît tout en haut du fil,
+      // comme WhatsApp affiche un statut qu'on vient de publier en premier.
       $('feed').prepend(renderClip(data.video));
       $('feed').scrollTo({ top: 0 });
       $('emptyFeed').classList.add('hidden');

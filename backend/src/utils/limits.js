@@ -18,4 +18,14 @@ const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) +
 const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
 const MAX_VIDEO_BASE64_LENGTH = Math.ceil((MAX_VIDEO_BYTES * 4) / 3) + 1024;
 
-module.exports = { MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_BASE64_LENGTH, MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH };
+// Taille max d'une photo "Clips" (avant encodage) : 8 Mo — une publication
+// "Clips" peut être une photo au lieu d'une vidéo courte (voir
+// video.controller.js, schema.prisma modèle Video, champ "type").
+const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+const MAX_PHOTO_BASE64_LENGTH = Math.ceil((MAX_PHOTO_BYTES * 4) / 3) + 1024;
+
+module.exports = {
+  MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_BASE64_LENGTH,
+  MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH,
+  MAX_PHOTO_BYTES, MAX_PHOTO_BASE64_LENGTH,
+};

@@ -462,11 +462,18 @@ model Video {
   id            String   @id @default(uuid())
   authorId      String
   caption       String?
-  videoData     String   // contenu vidéo encodé en base64
-  videoMime     String   // ex: "video/webm", "video/mp4"
-  thumbnailData String?  // image de couverture encodée en base64 (facultative, extraite côté client)
+  // "video" (défaut) ou "photo" — une publication "Clips" peut être une
+  // vidéo courte OU une photo (comme les Stories/Reels), voir
+  // video.controller.js. videoData/videoMime restent nullable pour une
+  // publication de type "photo" (et inversement pour photoData/photoMime).
+  type          String   @default("video")
+  videoData     String?  // contenu vidéo encodé en base64 (type === "video")
+  videoMime     String?  // ex: "video/webm", "video/mp4"
+  photoData     String?  // contenu photo encodé en base64 (type === "photo")
+  photoMime     String?  // ex: "image/jpeg", "image/png"
+  thumbnailData String?  // miniature vidéo encodée en base64 (facultative, extraite côté client) — inutile pour une photo, qui sert déjà elle-même d'aperçu
   thumbnailMime String?
-  duration      Int?     // durée en secondes (mesurée côté client, juste indicative)
+  duration      Int?     // durée en secondes (mesurée côté client, juste indicative) — uniquement pour une vidéo
   createdAt     DateTime @default(now())
 
   author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)

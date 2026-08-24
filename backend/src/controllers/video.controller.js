@@ -1,6 +1,6 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
-const { MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH } = require('../utils/limits');
+const { MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH, MAX_PHOTO_BYTES, MAX_PHOTO_BASE64_LENGTH } = require('../utils/limits');
 
 // Nombre de vidéos renvoyées par page du fil (voir listVideos) : assez pour
 // remplir l'écran sans recharger une page trop lourde d'un coup — chaque
@@ -14,8 +14,13 @@ function serializeVideo(video, currentUserId) {
   return {
     id: video.id,
     caption: video.caption || null,
-    videoData: video.videoData,
-    videoMime: video.videoMime,
+    // "video" (par défaut, y compris les publications créées avant l'ajout
+    // des photos) ou "photo" — voir schema.prisma, modèle Video.
+    type: video.type || 'video',
+    videoData: video.videoData || null,
+    videoMime: video.videoMime || null,
+    photoData: video.photoData || null,
+    photoMime: video.photoMime || null,
     thumbnailData: video.thumbnailData || null,
     thumbnailMime: video.thumbnailMime || null,
     duration: video.duration || null,
@@ -68,12 +73,37 @@ async function listMyVideos(req, res) {
   return res.json({ videos: videos.map((v) => serializeVideo(v, req.user.id)) });
 }
 
-// POST /api/videos — publie une vidéo. body: { videoData (base64, sans le
-// préfixe "data:...;base64,"), videoMime, caption?, duration?, thumbnailData?, thumbnailMime? }
+// POST /api/videos — publie une vidéo OU une photo (comme les
+// Stories/Reels : les deux formats sont acceptés sur "Clips"). body:
+// { type: "video" (défaut) | "photo", caption?,
+//   -- si type === "video" -- videoData (base64, sans le préfixe
+//   "data:...;base64,"), videoMime, duration?, thumbnailData?, thumbnailMime?,
+//   -- si type === "photo" -- photoData (idem), photoMime }
 async function createVideo(req, res) {
   try {
-    const { videoData, videoMime, duration, thumbnailData, thumbnailMime } = req.body;
+    const type = req.body.type === 'photo' ? 'photo' : 'video';
     const caption = String(req.body.caption || '').trim().slice(0, MAX_CAPTION_LENGTH) || null;
+
+    if (type === 'photo') {
+      const { photoData, photoMime } = req.body;
+      if (!photoData || typeof photoData !== 'string') {
+        return res.status(400).json({ error: 'photoData est requis.' });
+      }
+      if (!photoMime || typeof photoMime !== 'string' || !photoMime.startsWith('image/')) {
+        return res.status(400).json({ error: 'photoMime doit être un type image valide.' });
+      }
+      if (photoData.length > MAX_PHOTO_BASE64_LENGTH) {
+        return res.status(400).json({ error: `Photo trop volumineuse (${Math.round(MAX_PHOTO_BYTES / (1024 * 1024))} Mo maximum).` });
+      }
+
+      const video = await prisma.video.create({
+        data: { authorId: req.user.id, caption, type, photoData, photoMime },
+        include: { author: true, likes: true },
+      });
+      return res.status(201).json({ video: serializeVideo(video, req.user.id) });
+    }
+
+    const { videoData, videoMime, duration, thumbnailData, thumbnailMime } = req.body;
 
     if (!videoData || typeof videoData !== 'string') {
       return res.status(400).json({ error: 'videoData est requis.' });
@@ -89,6 +119,7 @@ async function createVideo(req, res) {
       data: {
         authorId: req.user.id,
         caption,
+        type,
         videoData,
         videoMime,
         duration: Number.isFinite(duration) ? Math.round(duration) : null,
@@ -101,7 +132,7 @@ async function createVideo(req, res) {
     return res.status(201).json({ video: serializeVideo(video, req.user.id) });
   } catch (err) {
     console.error('createVideo error:', err);
-    return res.status(500).json({ error: 'Erreur serveur lors de la publication de la vidéo.' });
+    return res.status(500).json({ error: 'Erreur serveur lors de la publication.' });
   }
 }
 
