@@ -178,6 +178,17 @@
   .userRowMeta{font-size:12px;color:var(--muted);}
   .followBtn{flex-shrink:0;padding:7px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:white;font-size:12.5px;font-weight:600;cursor:pointer;}
   .followBtn.following{background:transparent;color:var(--text);border-color:var(--border);}
+
+  /* Messages (liste des discussions) */
+  .messageRow{cursor:pointer;border-bottom:1px solid var(--border);}
+  .messageRow:active{background:var(--panel2);}
+  .messageRowRight{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;}
+  .messageRowTime{font-size:11px;color:var(--muted);}
+  .messageUnreadDot{width:9px;height:9px;border-radius:50%;background:var(--accent);align-self:flex-end;}
+  /* Le nom et l'aperçu restent en gras/blanc tant que le dernier message n'a
+     pas été lu (marqué via lastReadAt côté serveur, voir loadMessages) —
+     même code visuel qu'un aperçu de discussion classique (WhatsApp/TikTok). */
+  .messageRow.unread .userRowMeta{color:var(--text);font-weight:600;}
   .profileHead{display:flex;flex-direction:column;align-items:center;padding:8px 16px 14px;text-align:center;}
   /* Barre du haut du Profil (suivre des ami(e)s, avatar/messages, partager,
      menu ☰) — comme la vraie appli TikTok (voir la capture envoyée par
@@ -465,6 +476,15 @@
     <div id="friendsList"></div>
   </div>
 
+  <!-- ---------- Messages (liste des discussions, façon TikTok, voir la
+       capture envoyée par Lancine — ouvrir une discussion réutilise
+       l'interface de messagerie de seourouApps déjà existante, MÊME compte,
+       plutôt que de dupliquer tout un système de chat ici) ---------- -->
+  <div id="messagesScreen" class="screen">
+    <div class="screenHeader">Messages</div>
+    <div id="messagesList"></div>
+  </div>
+
   <!-- ---------- Profil ---------- -->
   <div id="profileScreen" class="screen">
     <div class="profileTopBar">
@@ -672,7 +692,7 @@
       <span class="navIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg></span>Ami(e)s
     </button>
     <button class="navBtn navBtnPlus" id="navUploadBtn"><span class="navIcon">+</span></button>
-    <button class="navBtn" id="navMessagesBtn">
+    <button class="navBtn" id="navMessagesBtn" data-screen="messages">
       <span class="navIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8z"></path><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"></circle><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"></circle></svg></span>Messages
     </button>
     <button class="navBtn" data-screen="profile">
@@ -1201,6 +1221,7 @@
     $('feed').innerHTML = '';
     $('friendsList').innerHTML = '';
     $('myVideosGrid').innerHTML = '';
+    $('messagesList').innerHTML = '';
     $('bottomNav').classList.add('hidden');
     $('backToAppBtn').classList.add('hidden');
     document.querySelectorAll('.screen, .screenFeed').forEach((el) => el.classList.remove('show'));
@@ -1229,12 +1250,15 @@
     } else if (name === 'profile') {
       $('profileScreen').classList.add('show');
       loadProfile();
+    } else if (name === 'messages') {
+      $('messagesScreen').classList.add('show');
+      loadMessages();
     }
     document.querySelectorAll('.navBtn[data-screen]').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.screen === name);
     });
     // On coupe la lecture des vidéos du fil en le quittant — sinon le son
-    // continue en arrière-plan sur l'écran Ami(e)s/Profil.
+    // continue en arrière-plan sur l'écran Ami(e)s/Profil/Messages.
     if (name !== 'feed') document.querySelectorAll('.clip video').forEach((v) => v.pause());
   }
   document.querySelectorAll('.navBtn[data-screen]').forEach((btn) => {
@@ -1242,10 +1266,14 @@
   });
   // navUploadBtn est câblé plus bas, une fois openCameraScreen défini (voir
   // "---------- Caméra plein écran ----------").
-  // "Messages" ouvre la messagerie seourouApps existante (même compte) plutôt
-  // que de dupliquer toute une messagerie séparée pour Diarala_Tiktak — voir
-  // la discussion avec Lancine.
-  $('navMessagesBtn').addEventListener('click', () => { window.location.href = 'index.html'; });
+  // "Messages" reste maintenant DANS Diarala_Tiktak (liste des discussions
+  // façon TikTok, voir loadMessages plus bas) au lieu de rediriger tout de
+  // suite vers seourouApps comme avant — Lancine a demandé un vrai écran ici
+  // plutôt qu'un renvoi immédiat. Ouvrir une discussion précise, elle,
+  // continue de réutiliser l'interface de chat déjà existante de seourouApps
+  // (même compte) : dupliquer tout un système de chat (pièces jointes, notes
+  // vocales, réactions...) juste pour l'afficher à l'identique ici n'aurait
+  // aucun intérêt.
 
   // ---------- Ami(e)s : suivre/ne plus suivre (direct, façon TikTok) ----------
   async function loadFriends() {
@@ -1338,6 +1366,73 @@
     } catch (err) {
       $('myVideosGrid').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
     }
+  }
+
+  // ---------- Messages (liste des discussions, façon TikTok — voir la
+  // capture envoyée par Lancine) ----------
+  // La LISTE est native à Diarala_Tiktak, mais ouvrir une discussion précise
+  // renvoie vers l'interface de chat déjà existante de seourouApps (même
+  // compte, lien "?c=<id>" — même principe que le "?follow=" plus bas)
+  // plutôt que de reconstruire tout un système de chat ici (pièces jointes,
+  // notes vocales, réactions...) pour un résultat identique.
+  async function loadMessages() {
+    $('messagesList').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/conversations');
+      // Une discussion archivée ne doit pas polluer la liste principale —
+      // toujours consultable depuis seourouApps si besoin, pas de réglage
+      // "archiver" séparé pour Diarala_Tiktak dans cette première version.
+      const conversations = data.conversations.filter((c) => !c.archived);
+      if (!conversations.length) {
+        $('messagesList').innerHTML = '<div class="screenEmpty">Aucune discussion pour l\'instant.</div>';
+        return;
+      }
+      // Plus récente activité en premier (dernier message, pas juste la date
+      // de création de la discussion).
+      conversations.sort((a, b) => {
+        const at = a.lastMessage ? new Date(a.lastMessage.createdAt) : new Date(a.createdAt);
+        const bt = b.lastMessage ? new Date(b.lastMessage.createdAt) : new Date(b.createdAt);
+        return bt - at;
+      });
+      $('messagesList').innerHTML = '';
+      conversations.forEach((c) => $('messagesList').appendChild(renderMessageRow(c)));
+    } catch (err) {
+      $('messagesList').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  function renderMessageRow(c) {
+    const otherParticipant = !c.isGroup ? c.participants.find((p) => !me || p.id !== me.id) : null;
+    const displayName = c.isGroup ? (c.name || 'Groupe') : (otherParticipant ? otherParticipant.name : '—');
+    const avatarUrl = c.isGroup ? null : (otherParticipant ? otherParticipant.avatarUrl : null);
+    const myParticipant = me ? c.participants.find((p) => p.id === me.id) : null;
+    // Jamais "non lu" si le dernier message est le MIEN (je l'ai forcément
+    // déjà "lu" en l'envoyant) — sinon comparé à ma propre lastReadAt.
+    const unread = !!(c.lastMessage
+      && c.lastMessage.senderId !== (me ? me.id : null)
+      && (!myParticipant || !myParticipant.lastReadAt || new Date(c.lastMessage.createdAt) > new Date(myParticipant.lastReadAt)));
+    const preview = c.lastMessage
+      ? (c.lastMessage.senderId === (me ? me.id : null) ? 'Vous : ' : '') + c.lastMessage.content
+      : 'Aucun message pour l\'instant.';
+    const row = document.createElement('div');
+    row.className = 'userRow messageRow' + (unread ? ' unread' : '');
+    row.innerHTML = `
+      <div class="userAvatar">${c.isGroup ? '👥' : (avatarUrl ? `<img src="${avatarUrl}" alt="">` : '👤')}</div>
+      <div class="userRowInfo">
+        <div class="userRowName">${escapeHtml(displayName)}</div>
+        <div class="userRowMeta">${escapeHtml(preview)}</div>
+      </div>
+      <div class="messageRowRight">
+        <div class="messageRowTime">${c.lastMessage ? relativeTime(c.lastMessage.createdAt) : ''}</div>
+        ${unread ? '<span class="messageUnreadDot"></span>' : ''}
+      </div>
+    `;
+    // Ouvre cette discussion précise dans seourouApps (voir le commentaire
+    // au-dessus de loadMessages) — même lien "?c=" déjà géré par index.html.
+    row.addEventListener('click', () => {
+      window.location.href = 'index.html?c=' + encodeURIComponent(c.id);
+    });
+    return row;
   }
 
   // ---------- Fil ----------
@@ -2408,9 +2503,10 @@
   // "Trouver des ami(e)s" (haut du profil) : réutilise l'onglet "Ami(e)s"
   // existant plutôt qu'un écran séparé de suggestions de comptes.
   $('profileFindFriendsBtn').addEventListener('click', () => showScreen('friends'));
-  // "Messages" (avatar en haut à droite du profil) : même chose que
-  // navMessagesBtn plus haut — la messagerie de seourouApps, pas dupliquée ici.
-  $('profileInboxBtn').addEventListener('click', () => { window.location.href = 'index.html'; });
+  // "Messages" (avatar en haut à droite du profil) : même écran natif que
+  // navMessagesBtn plus haut (voir showScreen('messages')/loadMessages),
+  // pour rester cohérent partout dans Diarala_Tiktak.
+  $('profileInboxBtn').addEventListener('click', () => showScreen('messages'));
   // Pas de vrai changement de compte (voir le commentaire HTML au-dessus de
   // ce bouton) — juste une explication au clic, le "title" au survol ne
   // suffisant pas sur mobile (pas de hover).
