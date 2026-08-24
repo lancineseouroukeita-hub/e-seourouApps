@@ -477,7 +477,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v18</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v19</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -902,13 +902,32 @@
     return data;
   }
 
+  // VRAIE cause (trouvee apres suppression de TOUTES les videos et un nouvel
+  // enregistrement qui echouait encore a l'identique) du "InvalidCharacterError:
+  // The string contains invalid characters" -- meme sur une publication toute
+  // fraiche, pas seulement les anciennes videos corrompues : reader.result
+  // est une data URL "data:<mime>;base64,<donnees>", et on cherchait le
+  // premier "," pour trouver ou commencent les donnees -- SAUF que le
+  // mimeType d'un MediaRecorder contient lui-meme des virgules entre ses
+  // codecs (ex: "video/mp4;codecs=avc1.42000a,mp4a.40.2" ou
+  // "video/webm;codecs=vp8,opus"). Le premier "," tombait donc EN PLEIN
+  // MILIEU du mimeType, pas au vrai separateur -- et le "videoData" envoye
+  // au serveur commencait en realite par un bout du mimeType lui-meme
+  // ("mp4a.40.2;base64,....") avant les vraies donnees, avec des caracteres
+  // (".", ";") qui ne sont pas du base64 valide. Stocke tel quel cote
+  // serveur (aucune validation dessus), CE videoData corrompu ne pouvait
+  // plus jamais se decoder a la lecture -- systematiquement, sur CHAQUE
+  // nouvel enregistrement dont le mimeType contient une virgule, pas
+  // seulement les anciennes videos. On cherche maintenant le vrai marqueur
+  // ";base64," (qui n'apparait jamais ailleurs) plutot que le premier ",".
   function blobToBase64(blob) {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result || '';
-        const commaIdx = result.indexOf(',');
-        resolve(commaIdx >= 0 ? result.slice(commaIdx + 1) : result);
+        const marker = ';base64,';
+        const markerIdx = result.indexOf(marker);
+        resolve(markerIdx >= 0 ? result.slice(markerIdx + marker.length) : result);
       };
       reader.onerror = () => reject(reader.error || new Error('Lecture échouée'));
       reader.readAsDataURL(blob);
@@ -2502,8 +2521,14 @@
           const ctx = canvas.getContext('2d');
           ctx.drawImage(videoEl, 0, 0, canvas.width, canvas.height);
           const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
-          const commaIdx = dataUrl.indexOf(',');
-          resolve({ data: dataUrl.slice(commaIdx + 1), mime: 'image/jpeg' });
+          // Meme precaution que blobToBase64 ci-dessus (marqueur ";base64,"
+          // plutot que le premier ",") -- inutile ici en pratique (le mime
+          // "image/jpeg" fixe ne contient jamais de virgule), mais garde la
+          // meme methode partout pour ne pas laisser un piege similaire si ce
+          // mime venait a changer un jour.
+          const marker = ';base64,';
+          const markerIdx = dataUrl.indexOf(marker);
+          resolve({ data: markerIdx >= 0 ? dataUrl.slice(markerIdx + marker.length) : dataUrl, mime: 'image/jpeg' });
         } catch (err) { reject(err); }
       };
       if (videoEl.readyState >= 2) { grab(); return; }
