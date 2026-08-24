@@ -447,6 +447,8 @@
   .shareSheetActions{display:flex;padding:8px 6px 18px;overflow-x:auto;}
   .shareActionBtn{display:flex;flex-direction:column;align-items:center;gap:6px;background:none;border:none;color:var(--text);font-size:11px;flex-shrink:0;width:76px;cursor:pointer;}
   .shareActionIcon{width:46px;height:46px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:19px;}
+  .shareActionBtn.hidden{display:none;}
+  .shareActionDelete{color:var(--accent);}
 </style>
 </head>
 <body>
@@ -457,7 +459,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v13</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v14</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -602,6 +604,11 @@
         <button class="shareActionBtn" data-action="whatsapp" type="button"><span class="shareActionIcon">💬</span>WhatsApp</button>
         <button class="shareActionBtn" data-action="telegram" type="button"><span class="shareActionIcon">✈️</span>Telegram</button>
         <button class="shareActionBtn" data-action="messenger" type="button"><span class="shareActionIcon">📨</span>Messenger</button>
+        <!-- Comme le "..." de TikTok sur ses PROPRES publications (voir la
+             capture envoyée par Lancine) : cette feuille double alors de
+             menu de gestion — masqué par défaut, affiché uniquement pour ma
+             propre vidéo/photo (voir openShareSheet). -->
+        <button class="shareActionBtn shareActionDelete hidden" data-action="delete" type="button" id="shareDeleteBtn"><span class="shareActionIcon">🗑️</span>Supprimer</button>
       </div>
     </div>
   </div>
@@ -1820,7 +1827,7 @@
     // ci-dessous mais plus appelée) — cohérent avec la capture TikTok envoyée
     // par Lancine, avec en plus les contacts et les 4 actions demandées
     // (copier le lien, WhatsApp, Telegram, Messenger).
-    el.querySelector('.shareBtn').addEventListener('click', () => openShareSheet({ type: 'video', video: v }));
+    el.querySelector('.shareBtn').addEventListener('click', () => openShareSheet({ type: 'video', video: v, el, onDeleted: opts && opts.onDeleted }));
     const delBtn = el.querySelector('.clipDeleteBtn');
     if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el, opts && opts.onDeleted));
     // Badge "+" sur l'avatar de l'auteur (suivi rapide sans quitter le fil,
@@ -2656,6 +2663,11 @@
   async function openShareSheet(context) {
     shareSheetContext = context;
     $('shareSheetOverlay').classList.remove('hidden');
+    // "Supprimer" (comme le "..." de TikTok) : seulement sur SA PROPRE
+    // vidéo/photo (jamais sur celle d'un autre, jamais depuis le partage du
+    // profil lui-même) — voir la capture envoyée par Lancine.
+    const isMineVideo = context.type === 'video' && context.video && context.video.author && me && context.video.author.id === me.id;
+    $('shareDeleteBtn').classList.toggle('hidden', !isMineVideo);
     $('shareSheetContacts').innerHTML = '<div class="screenEmpty">Chargement…</div>';
     try {
       const data = await api('/api/follows/summary');
@@ -2679,8 +2691,20 @@
 
   document.querySelectorAll('.shareActionBtn[data-action]').forEach((btn) => {
     btn.addEventListener('click', async () => {
-      const { url, text } = buildSharePayload();
       const action = btn.dataset.action;
+      // "Supprimer" ne construit aucun lien de partage — court-circuite tout
+      // le reste et réutilise directement deleteClip (même fonction que le
+      // 🗑️ du fil/de la vue individuelle du profil), avec sa propre
+      // confirmation déjà intégrée.
+      if (action === 'delete') {
+        const ctx = shareSheetContext;
+        closeShareSheet();
+        if (ctx && ctx.type === 'video' && ctx.video && ctx.el) {
+          deleteClip(ctx.video, ctx.el, ctx.onDeleted);
+        }
+        return;
+      }
+      const { url, text } = buildSharePayload();
       if (action === 'copy') {
         try {
           await navigator.clipboard.writeText(url);
