@@ -9,6 +9,8 @@ const FEED_PAGE_SIZE = 6;
 
 // Taille max de la légende (comme les autres champs texte courts de l'appli).
 const MAX_CAPTION_LENGTH = 300;
+// Taille max d'un commentaire (même idée que MAX_CAPTION_LENGTH).
+const MAX_COMMENT_LENGTH = 500;
 
 function serializeVideo(video, currentUserId) {
   return {
@@ -28,6 +30,12 @@ function serializeVideo(video, currentUserId) {
     author: toPublicUser(video.author),
     likesCount: video._count ? video._count.likes : (video.likes ? video.likes.length : 0),
     likedByMe: currentUserId ? video.likes.some((l) => l.userId === currentUserId) : false,
+    // saves/comments ne sont inclus que là où on en a besoin (voir listVideos,
+    // listMyVideos) — absents ailleurs (ex: juste après createVideo), d'où les
+    // valeurs par défaut (une publication qu'on vient de créer n'est encore ni
+    // enregistrée ni commentée par personne).
+    savedByMe: (currentUserId && video.saves) ? video.saves.some((s) => s.userId === currentUserId) : false,
+    commentsCount: video._count ? (video._count.comments || 0) : (video.comments ? video.comments.length : 0),
   };
 }
 
@@ -47,7 +55,8 @@ async function listVideos(req, res) {
     include: {
       author: true,
       likes: { where: { userId: req.user.id } },
-      _count: { select: { likes: true } },
+      saves: { where: { userId: req.user.id } },
+      _count: { select: { likes: true, comments: true } },
     },
   });
 
@@ -67,7 +76,8 @@ async function listMyVideos(req, res) {
     include: {
       author: true,
       likes: { where: { userId: req.user.id } },
-      _count: { select: { likes: true } },
+      saves: { where: { userId: req.user.id } },
+      _count: { select: { likes: true, comments: true } },
     },
   });
   return res.json({ videos: videos.map((v) => serializeVideo(v, req.user.id)) });
@@ -184,4 +194,94 @@ async function unlikeVideo(req, res) {
   }
 }
 
-module.exports = { listVideos, listMyVideos, createVideo, deleteVideo, likeVideo, unlikeVideo };
+// POST /api/videos/:id/save — "enregistrer" une vidéo (bouton marque-page,
+// comme TikTok) : juste un signet personnel, idempotent comme un like.
+async function saveVideo(req, res) {
+  try {
+    const { id } = req.params;
+    const video = await prisma.video.findUnique({ where: { id } });
+    if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
+
+    await prisma.videoSave.upsert({
+      where: { videoId_userId: { videoId: id, userId: req.user.id } },
+      update: {},
+      create: { videoId: id, userId: req.user.id },
+    });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('saveVideo error:', err);
+    return res.status(500).json({ error: "Erreur serveur lors de l'enregistrement." });
+  }
+}
+
+// POST /api/videos/:id/unsave
+async function unsaveVideo(req, res) {
+  try {
+    const { id } = req.params;
+    await prisma.videoSave.deleteMany({ where: { videoId: id, userId: req.user.id } });
+    return res.json({ ok: true });
+  } catch (err) {
+    console.error('unsaveVideo error:', err);
+    return res.status(500).json({ error: "Erreur serveur lors du retrait de l'enregistrement." });
+  }
+}
+
+// GET /api/videos/:id/comments — liste simple, du plus ancien au plus récent
+// (comme une discussion), pas de pagination pour cette première version : le
+// volume de commentaires sur "Clips" devrait rester modeste au démarrage.
+async function listComments(req, res) {
+  try {
+    const { id } = req.params;
+    const comments = await prisma.videoComment.findMany({
+      where: { videoId: id },
+      orderBy: { createdAt: 'asc' },
+      include: { author: true },
+    });
+    return res.json({
+      comments: comments.map((c) => ({
+        id: c.id,
+        text: c.text,
+        createdAt: c.createdAt,
+        author: toPublicUser(c.author),
+      })),
+    });
+  } catch (err) {
+    console.error('listComments error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+}
+
+// POST /api/videos/:id/comments — body: { text }
+async function createComment(req, res) {
+  try {
+    const { id } = req.params;
+    const text = String(req.body.text || '').trim().slice(0, MAX_COMMENT_LENGTH);
+    if (!text) return res.status(400).json({ error: 'Le commentaire ne peut pas être vide.' });
+
+    const video = await prisma.video.findUnique({ where: { id } });
+    if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
+
+    const comment = await prisma.videoComment.create({
+      data: { videoId: id, authorId: req.user.id, text },
+      include: { author: true },
+    });
+    const commentsCount = await prisma.videoComment.count({ where: { videoId: id } });
+    return res.status(201).json({
+      comment: {
+        id: comment.id,
+        text: comment.text,
+        createdAt: comment.createdAt,
+        author: toPublicUser(comment.author),
+      },
+      commentsCount,
+    });
+  } catch (err) {
+    console.error('createComment error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la publication du commentaire.' });
+  }
+}
+
+module.exports = {
+  listVideos, listMyVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
+  saveVideo, unsaveVideo, listComments, createComment,
+};

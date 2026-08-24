@@ -95,8 +95,14 @@ model User {
   // "Clips" (produit vidéo courte, façon TikTok, lié depuis "Autres produits"
   // dans Paramètres — voir modèle Video ci-dessous) : mêmes comptes que le
   // reste de l'application, pas d'inscription séparée.
-  videos     Video[]
-  videoLikes VideoLike[]
+  videos       Video[]
+  videoLikes   VideoLike[]
+  videoSaves   VideoSave[]
+  videoComments VideoComment[]
+  // Abonnements "Clips" (onglet "Ami(e)s") : comme TikTok, suivre quelqu'un
+  // est direct (pas de demande à accepter) — voir modèle Follow ci-dessous.
+  following Follow[] @relation("Following")
+  followers Follow[] @relation("Followers")
 }
 
 // Un utilisateur bloqué ne peut plus envoyer de message ni appeler la personne
@@ -477,7 +483,9 @@ model Video {
   createdAt     DateTime @default(now())
 
   author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  likes  VideoLike[]
+  likes    VideoLike[]
+  saves    VideoSave[]
+  comments VideoComment[]
 
   @@index([createdAt])
 }
@@ -492,4 +500,52 @@ model VideoLike {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([videoId, userId])
+}
+
+// Vidéo "enregistrée" par un utilisateur (bouton marque-page façon TikTok) —
+// juste un signet personnel pour l'instant, pas encore d'écran "mes vidéos
+// enregistrées" dédié côté client, mais structuré comme VideoLike pour en
+// ajouter un facilement plus tard.
+model VideoSave {
+  id        String   @id @default(uuid())
+  videoId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([videoId, userId])
+}
+
+// Commentaire texte simple sur une vidéo/photo "Clips" — pas de réponses
+// imbriquées ni de réactions pour l'instant (volontairement minimal, comme le
+// reste de "Clips" — voir le commentaire au-dessus du modèle Video).
+model VideoComment {
+  id        String   @id @default(uuid())
+  videoId   String
+  authorId  String
+  text      String
+  createdAt DateTime @default(now())
+
+  video  Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([videoId, createdAt])
+}
+
+// Abonnement "Clips" (onglet "Ami(e)s", écran Profil) — direct comme TikTok :
+// suivre quelqu'un ne nécessite pas qu'il l'accepte (contrairement à une
+// demande d'ami Facebook). followerId = celui qui suit, followingId = celui
+// qui est suivi.
+model Follow {
+  id          String   @id @default(uuid())
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("Following", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
 }

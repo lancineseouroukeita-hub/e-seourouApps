@@ -74,25 +74,77 @@
   #feed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scroll-behavior:smooth;}
   .clip{position:relative;height:100%;width:100%;scroll-snap-align:start;scroll-snap-stop:always;display:flex;align-items:center;justify-content:center;background:#000;}
   .clip video,.clip img{width:100%;height:100%;object-fit:contain;background:#000;}
-  .clip .clipOverlay{position:absolute;left:0;right:0;bottom:0;padding:16px 70px 26px 16px;background:linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));pointer-events:none;}
+  .clip .clipOverlay{position:absolute;left:0;right:0;bottom:0;padding:16px 76px 90px 16px;background:linear-gradient(to top, rgba(0,0,0,0.75), rgba(0,0,0,0));pointer-events:none;}
   .clip .clipAuthor{font-weight:700;font-size:14.5px;margin-bottom:4px;}
   .clip .clipCaption{font-size:13.5px;color:#e8e8ea;white-space:pre-wrap;word-break:break-word;}
-  .clip .clipSide{position:absolute;right:10px;bottom:30px;display:flex;flex-direction:column;align-items:center;gap:18px;}
+  /* Colonne de boutons façon TikTok : j'aime, commentaire, enregistrer,
+     partager, puis le son en dernier — tous dans la même colonne (voir la
+     référence envoyée par Lancine), remontée au-dessus de #bottomNav. */
+  .clip .clipSide{position:absolute;right:10px;bottom:88px;display:flex;flex-direction:column;align-items:center;gap:16px;}
   .clip .sideBtn{background:rgba(30,30,30,0.55);border:none;color:white;width:46px;height:46px;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;font-size:20px;line-height:1;gap:2px;}
   .clip .sideBtn.liked{color:var(--accent);}
+  .clip .sideBtn.saved{color:#ffd166;}
   .clip .sideBtn .sideCount{font-size:10.5px;color:white;font-weight:600;}
-  .clip .muteBtn{position:absolute;top:14px;right:14px;background:rgba(30,30,30,0.55);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:15px;cursor:pointer;}
   .clip .clipDeleteBtn{position:absolute;top:14px;left:14px;background:rgba(30,30,30,0.55);border:none;color:#ff8a8a;width:36px;height:36px;border-radius:50%;font-size:15px;cursor:pointer;}
 
   #topBar{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 14px 0;z-index:5;pointer-events:none;}
   #topBar .topBarTitle{pointer-events:auto;font-weight:800;font-size:17px;text-shadow:0 1px 4px rgba(0,0,0,0.6);}
   #topBar button{pointer-events:auto;background:rgba(30,30,30,0.55);border:none;color:white;border-radius:16px;padding:7px 12px;font-size:12.5px;cursor:pointer;}
 
-  #uploadFab{position:fixed;right:16px;bottom:22px;z-index:5;width:54px;height:54px;border-radius:50%;background:var(--accent);border:none;color:white;font-size:26px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,0.4);}
-  #uploadFab:hover{background:var(--accent2);}
-
-  #emptyFeed,#loadingFeed{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13.5px;text-align:center;padding:0 30px;}
+  #emptyFeed,#loadingFeed{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13.5px;text-align:center;padding:0 90px 60px;}
   #emptyFeed.hidden,#loadingFeed.hidden{display:none;}
+
+  /* ---------- Barre de navigation basse (Accueil / Ami(e)s / + / Messages / Profil) ---------- */
+  #bottomNav{position:fixed;left:0;right:0;bottom:0;z-index:15;display:flex;align-items:stretch;height:64px;background:linear-gradient(to top, rgba(0,0,0,0.92), rgba(0,0,0,0.55));border-top:1px solid rgba(255,255,255,0.06);padding-bottom:env(safe-area-inset-bottom, 0);}
+  #bottomNav.hidden{display:none;}
+  .navBtn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;background:none;border:none;color:var(--muted);font-size:10.5px;cursor:pointer;padding:6px 0;}
+  .navBtn .navIcon{font-size:21px;line-height:1;}
+  .navBtn.active{color:white;}
+  .navBtnPlus{position:relative;}
+  .navBtnPlus .navIcon{width:40px;height:28px;border-radius:8px;background:linear-gradient(135deg,#25d4e0,var(--accent));display:flex;align-items:center;justify-content:center;color:white;font-size:22px;font-weight:700;}
+
+  /* ---------- Écrans Ami(e)s / Profil (listes/scroll normal, contrairement au fil vidéo) ---------- */
+  .screen{position:fixed;inset:0;background:var(--bg);display:none;z-index:4;overflow-y:auto;padding-bottom:80px;}
+  .screen.show{display:block;}
+  .screenHeader{position:sticky;top:0;background:var(--bg);padding:16px 16px 10px;font-weight:800;font-size:18px;border-bottom:1px solid var(--border);z-index:1;}
+  .screenSubhead{padding:12px 16px;color:var(--muted);font-size:12.5px;}
+  .userRow{display:flex;align-items:center;gap:12px;padding:10px 16px;}
+  .userAvatar{width:44px;height:44px;border-radius:50%;background:var(--panel2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:18px;overflow:hidden;}
+  .userAvatar img{width:100%;height:100%;object-fit:cover;}
+  .userRowInfo{flex:1;min-width:0;}
+  .userRowName{font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .userRowMeta{font-size:12px;color:var(--muted);}
+  .followBtn{flex-shrink:0;padding:7px 16px;border-radius:8px;border:1px solid var(--accent);background:var(--accent);color:white;font-size:12.5px;font-weight:600;cursor:pointer;}
+  .followBtn.following{background:transparent;color:var(--text);border-color:var(--border);}
+  .profileHead{display:flex;flex-direction:column;align-items:center;padding:24px 16px 14px;text-align:center;}
+  .profileHead .userAvatar{width:78px;height:78px;font-size:30px;margin-bottom:10px;}
+  .profileName{font-size:17px;font-weight:700;margin-bottom:2px;}
+  .profilePhone{font-size:12.5px;color:var(--muted);margin-bottom:14px;}
+  .profileCounts{display:flex;gap:26px;margin-bottom:16px;}
+  .profileCounts div{text-align:center;}
+  .profileCounts b{display:block;font-size:16px;}
+  .profileCounts span{font-size:11.5px;color:var(--muted);}
+  #logoutBtn2{padding:9px 20px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13px;cursor:pointer;}
+  .myVideosGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;padding:2px;}
+  .myVideoThumb{position:relative;aspect-ratio:9/14;background:#000;overflow:hidden;}
+  .myVideoThumb img,.myVideoThumb video{width:100%;height:100%;object-fit:cover;}
+  .myVideoThumbLikes{position:absolute;left:4px;bottom:4px;color:white;font-size:11px;font-weight:600;text-shadow:0 1px 3px rgba(0,0,0,0.7);}
+  .screenEmpty{padding:40px 30px;text-align:center;color:var(--muted);font-size:13px;}
+
+  /* ---------- Modale de commentaires ---------- */
+  #commentsOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;justify-content:center;z-index:25;}
+  #commentsOverlay.hidden{display:none;}
+  #commentsPanel{width:100%;max-width:480px;max-height:72vh;background:var(--panel);border-radius:16px 16px 0 0;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom, 0);}
+  #commentsPanel h3{margin:0;padding:14px 16px;font-size:14.5px;text-align:center;border-bottom:1px solid var(--border);}
+  #commentsList{flex:1;overflow-y:auto;padding:6px 16px;}
+  .commentRow{padding:9px 0;border-bottom:1px solid rgba(255,255,255,0.05);}
+  .commentAuthor{font-size:12px;color:var(--muted);font-weight:600;margin-bottom:2px;}
+  .commentText{font-size:13.5px;white-space:pre-wrap;word-break:break-word;}
+  .commentsEmpty{padding:26px;text-align:center;color:var(--muted);font-size:13px;}
+  #commentsForm{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);}
+  #commentInput{flex:1;padding:10px 12px;border-radius:20px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;}
+  #commentSendBtn{padding:0 16px;border-radius:20px;border:none;background:var(--accent);color:white;font-weight:600;font-size:13px;cursor:pointer;}
+  #commentSendBtn:disabled{opacity:0.5;}
 
   /* ---------- Modale de publication ---------- */
   #uploadOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:30;padding:20px;}
@@ -145,15 +197,57 @@
   </div>
 
   <!-- ---------- Fil vidéo ---------- -->
-  <div id="feedScreen">
+  <div id="feedScreen" class="screenFeed show">
     <div id="topBar">
       <div class="topBarTitle">🎬 Diarala_Tiktak</div>
-      <button id="logoutBtn">Se déconnecter</button>
     </div>
     <div id="feed"></div>
     <div id="emptyFeed" class="hidden">Aucune publication pour l'instant.<br>Soyez le premier à publier une vidéo ou une photo avec le bouton "+".</div>
     <div id="loadingFeed" class="hidden">Chargement…</div>
-    <button id="uploadFab" title="Publier une vidéo">+</button>
+  </div>
+
+  <!-- ---------- Ami(e)s : suivre/ne plus suivre, façon TikTok (direct, sans demande à accepter) ---------- -->
+  <div id="friendsScreen" class="screen">
+    <div class="screenHeader">Ami(e)s</div>
+    <div class="screenSubhead" id="friendsCounts"></div>
+    <div id="friendsList"></div>
+  </div>
+
+  <!-- ---------- Profil ---------- -->
+  <div id="profileScreen" class="screen">
+    <div class="profileHead">
+      <div class="userAvatar" id="profileAvatar">👤</div>
+      <div class="profileName" id="profileName">—</div>
+      <div class="profilePhone" id="profilePhone"></div>
+      <div class="profileCounts">
+        <div><b id="profileVideosCount">0</b><span>Publications</span></div>
+        <div><b id="profileFollowersCount">0</b><span>Abonnés</span></div>
+        <div><b id="profileFollowingCount">0</b><span>Abonnements</span></div>
+      </div>
+      <button id="logoutBtn2">Se déconnecter</button>
+    </div>
+    <div class="myVideosGrid" id="myVideosGrid"></div>
+  </div>
+
+  <!-- ---------- Barre de navigation basse ---------- -->
+  <div id="bottomNav" class="hidden">
+    <button class="navBtn active" data-screen="feed"><span class="navIcon">🏠</span>Accueil</button>
+    <button class="navBtn" data-screen="friends"><span class="navIcon">👥</span>Ami(e)s</button>
+    <button class="navBtn navBtnPlus" id="navUploadBtn"><span class="navIcon">+</span></button>
+    <button class="navBtn" id="navMessagesBtn"><span class="navIcon">💬</span>Messages</button>
+    <button class="navBtn" data-screen="profile"><span class="navIcon">👤</span>Profil</button>
+  </div>
+
+  <!-- ---------- Commentaires ---------- -->
+  <div id="commentsOverlay" class="hidden">
+    <div id="commentsPanel">
+      <h3>Commentaires</h3>
+      <div id="commentsList"></div>
+      <form id="commentsForm">
+        <input id="commentInput" type="text" placeholder="Ajouter un commentaire…" maxlength="500">
+        <button id="commentSendBtn" type="submit" disabled>Envoyer</button>
+      </form>
+    </div>
   </div>
 
   <!-- ---------- Publier une vidéo ---------- -->
@@ -172,11 +266,11 @@
         </div>
       </div>
       <div id="uploadPreviewWrap">
-        <video id="uploadPreviewVideo" muted playsinline controls></video>
+        <video id="uploadPreviewVideo" playsinline controls></video>
         <img id="uploadPreviewImage" alt="Aperçu de la photo">
       </div>
       <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
-      <div id="uploadHint">Vidéo courte (30 secondes / 12 Mo maximum) ou photo (8 Mo maximum).</div>
+      <div id="uploadHint">Vidéo courte (60 secondes / 25 Mo maximum) ou photo (12 Mo maximum).</div>
       <div id="uploadMsg"></div>
       <div class="uploadRow">
         <button id="cancelUploadBtn">Annuler</button>
@@ -192,9 +286,9 @@
   // (voir backend/src/utils/limits.js, MAX_VIDEO_BYTES) ; la durée, elle,
   // n'est vérifiable qu'ici (pas de traitement vidéo côté serveur pour cette
   // première version).
-  const MAX_VIDEO_SECONDS = 30;
-  const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
-  const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+  const MAX_VIDEO_SECONDS = 60;
+  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+  const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 
   // Comme index.html : le token ne vit qu'en mémoire JS, jamais dans
   // localStorage — se reconnecter à chaque rechargement de page fait partie
@@ -207,6 +301,13 @@
   let pendingUploadFile = null;
   let pendingUploadKind = 'video'; // 'video' | 'photo'
   let pendingThumbnail = null; // { data, mime } ou null — vidéo uniquement
+
+  // Le son démarre coupé (obligatoire pour que la LECTURE AUTOMATIQUE au
+  // défilement soit autorisée par le navigateur, comme pour toute lecture
+  // automatique sans clic direct), mais dès que la personne appuie une fois
+  // sur le bouton son d'UNE vidéo, ça s'applique à TOUTES les vidéos du fil,
+  // comme TikTok — pas besoin de réactiver le son à chaque vidéo.
+  let globalSoundEnabled = false;
 
   async function api(path, opts = {}) {
     const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
@@ -394,7 +495,8 @@
       token = data.token;
       me = data.user;
       $('loginScreen').classList.add('hidden');
-      $('feedScreen').classList.add('show');
+      $('bottomNav').classList.remove('hidden');
+      showScreen('feed');
       loadFeed(true);
     } catch (err) {
       $('loginMsg').textContent = err.message;
@@ -405,7 +507,7 @@
   $('loginBtn').addEventListener('click', doLogin);
   $('loginPasswordInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
 
-  $('logoutBtn').addEventListener('click', () => {
+  function doLogout() {
     // Comme le bouton "Se déconnecter" de seourouApps : révoque aussi cet
     // appareil côté serveur (visible sinon indéfiniment dans "Appareils
     // connectés"), sans jamais bloquer la déconnexion locale si ça échoue.
@@ -415,13 +517,135 @@
     nextCursor = null;
     reachedEnd = false;
     $('feed').innerHTML = '';
-    $('feedScreen').classList.remove('show');
+    $('friendsList').innerHTML = '';
+    $('myVideosGrid').innerHTML = '';
+    $('bottomNav').classList.add('hidden');
+    document.querySelectorAll('.screen, .screenFeed').forEach((el) => el.classList.remove('show'));
+    $('feedScreen').classList.add('show');
     $('loginScreen').classList.remove('hidden');
     $('loginPasswordInput').value = '';
+  }
+  $('logoutBtn2').addEventListener('click', doLogout);
+
+  // ---------- Navigation entre écrans (Accueil / Ami(e)s / Profil) ----------
+  function showScreen(name) {
+    document.querySelectorAll('.screen, .screenFeed').forEach((el) => el.classList.remove('show'));
+    if (name === 'feed') {
+      $('feedScreen').classList.add('show');
+    } else if (name === 'friends') {
+      $('friendsScreen').classList.add('show');
+      loadFriends();
+    } else if (name === 'profile') {
+      $('profileScreen').classList.add('show');
+      loadProfile();
+    }
+    document.querySelectorAll('.navBtn[data-screen]').forEach((btn) => {
+      btn.classList.toggle('active', btn.dataset.screen === name);
+    });
+    // On coupe la lecture des vidéos du fil en le quittant — sinon le son
+    // continue en arrière-plan sur l'écran Ami(e)s/Profil.
+    if (name !== 'feed') document.querySelectorAll('.clip video').forEach((v) => v.pause());
+  }
+  document.querySelectorAll('.navBtn[data-screen]').forEach((btn) => {
+    btn.addEventListener('click', () => showScreen(btn.dataset.screen));
   });
+  $('navUploadBtn').addEventListener('click', openUploadOverlay);
+  // "Messages" ouvre la messagerie seourouApps existante (même compte) plutôt
+  // que de dupliquer toute une messagerie séparée pour Diarala_Tiktak — voir
+  // la discussion avec Lancine.
+  $('navMessagesBtn').addEventListener('click', () => { window.location.href = 'index.html'; });
+
+  // ---------- Ami(e)s : suivre/ne plus suivre (direct, façon TikTok) ----------
+  async function loadFriends() {
+    $('friendsList').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/follows/summary');
+      $('friendsCounts').textContent = `${data.myFollowersCount} abonné(s) · ${data.myFollowingCount} abonnement(s)`;
+      if (!data.users.length) {
+        $('friendsList').innerHTML = '<div class="screenEmpty">Aucun autre compte pour l\'instant.</div>';
+        return;
+      }
+      $('friendsList').innerHTML = '';
+      data.users.forEach((u) => $('friendsList').appendChild(renderFriendRow(u)));
+    } catch (err) {
+      $('friendsList').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  function renderFriendRow(u) {
+    const row = document.createElement('div');
+    row.className = 'userRow';
+    row.innerHTML = `
+      <div class="userAvatar">${u.avatarUrl ? `<img src="${u.avatarUrl}" alt="">` : '👤'}</div>
+      <div class="userRowInfo">
+        <div class="userRowName">${escapeHtml(u.name)}</div>
+        <div class="userRowMeta">${u.followersCount} abonné(s)</div>
+      </div>
+      <button class="followBtn${u.following ? ' following' : ''}">${u.following ? 'Abonné' : "S'abonner"}</button>
+    `;
+    const btn = row.querySelector('.followBtn');
+    btn.addEventListener('click', async () => {
+      const nowFollowing = !btn.classList.contains('following');
+      btn.disabled = true;
+      try {
+        await api('/api/follows/' + u.id, { method: nowFollowing ? 'POST' : 'DELETE' });
+        u.following = nowFollowing;
+        btn.classList.toggle('following', nowFollowing);
+        btn.textContent = nowFollowing ? 'Abonné' : "S'abonner";
+      } catch (err) {
+        alert('Erreur : ' + err.message);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+    return row;
+  }
+
+  // ---------- Profil ----------
+  async function loadProfile() {
+    $('profileName').textContent = me ? me.name : '—';
+    $('profilePhone').textContent = me ? me.phone : '';
+    $('profileAvatar').innerHTML = (me && me.avatarUrl) ? `<img src="${me.avatarUrl}" alt="">` : '👤';
+    $('myVideosGrid').innerHTML = '';
+    try {
+      const [followData, videosData] = await Promise.all([
+        api('/api/follows/summary'),
+        api('/api/videos/mine'),
+      ]);
+      $('profileFollowersCount').textContent = String(followData.myFollowersCount);
+      $('profileFollowingCount').textContent = String(followData.myFollowingCount);
+      $('profileVideosCount').textContent = String(videosData.videos.length);
+      if (!videosData.videos.length) {
+        $('myVideosGrid').innerHTML = '<div class="screenEmpty">Vous n\'avez encore rien publié.</div>';
+        return;
+      }
+      videosData.videos.forEach((v) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'myVideoThumb';
+        const mediaHtml = v.type === 'photo'
+          ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">`
+          : (v.thumbnailData
+            ? `<img src="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}" alt="">`
+            : `<video muted playsinline src="data:${v.videoMime};base64,${v.videoData}"></video>`);
+        thumb.innerHTML = mediaHtml + `<span class="myVideoThumbLikes">❤️ ${v.likesCount}</span>`;
+        $('myVideosGrid').appendChild(thumb);
+      });
+    } catch (err) {
+      $('myVideosGrid').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
 
   // ---------- Fil ----------
   let observer = null;
+
+  // Applique le son à TOUTES les vidéos déjà affichées dans le fil, pas
+  // seulement celle sur laquelle on vient d'appuyer — comme TikTok, "activer
+  // le son" est un réglage global de l'appli, pas propre à chaque vidéo.
+  function setGlobalSound(enabled) {
+    globalSoundEnabled = enabled;
+    document.querySelectorAll('.clip video').forEach((video) => { video.muted = !enabled; });
+    document.querySelectorAll('.clip .muteBtn').forEach((btn) => { btn.textContent = enabled ? '🔊' : '🔇'; });
+  }
 
   function setupObserver() {
     if (observer) observer.disconnect();
@@ -430,7 +654,14 @@
         const video = entry.target.querySelector('video');
         if (!video) return;
         if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-          video.play().catch(() => {});
+          // Le navigateur peut refuser une lecture automatique AVEC le son
+          // (déclenchée par le défilement, pas par un clic direct) même si
+          // globalSoundEnabled est activé — dans ce cas, on retente sans son
+          // plutôt que de laisser la vidéo bloquée sans jouer du tout.
+          video.play().catch(() => {
+            video.muted = true;
+            video.play().catch(() => {});
+          });
         } else {
           video.pause();
         }
@@ -479,13 +710,25 @@
       })();
     el.innerHTML = `
       ${mediaHtml}
-      ${isPhoto ? '' : '<button class="muteBtn" title="Activer/couper le son">🔇</button>'}
       ${isMine ? `<button class="clipDeleteBtn" title="Supprimer cette ${isPhoto ? 'photo' : 'vidéo'}">🗑️</button>` : ''}
       <div class="clipSide">
         <button class="sideBtn likeBtn${v.likedByMe ? ' liked' : ''}">
           <span class="likeIcon">${v.likedByMe ? '❤️' : '🤍'}</span>
           <span class="sideCount likeCount">${v.likesCount}</span>
         </button>
+        <button class="sideBtn commentBtn">
+          <span>💬</span>
+          <span class="sideCount commentCount">${v.commentsCount || 0}</span>
+        </button>
+        <button class="sideBtn saveBtn${v.savedByMe ? ' saved' : ''}">
+          <span class="saveIcon">${v.savedByMe ? '🔖' : '📑'}</span>
+          <span class="sideCount">Garder</span>
+        </button>
+        <button class="sideBtn shareBtn">
+          <span>↗️</span>
+          <span class="sideCount">Partager</span>
+        </button>
+        ${isPhoto ? '' : `<button class="sideBtn muteBtn" title="Activer/couper le son">🔇</button>`}
       </div>
       <div class="clipOverlay">
         <div class="clipAuthor">${escapeHtml(v.author ? v.author.name : '—')}</div>
@@ -494,16 +737,23 @@
     `;
     const videoEl = el.querySelector('video');
     if (videoEl) {
+      // Reflète l'état du son partagé par tout le fil (voir globalSoundEnabled) —
+      // pas "muet à chaque nouvelle vidéo" comme avant.
+      videoEl.muted = !globalSoundEnabled;
       const muteBtn = el.querySelector('.muteBtn');
-      muteBtn.addEventListener('click', () => {
-        videoEl.muted = !videoEl.muted;
-        muteBtn.textContent = videoEl.muted ? '🔇' : '🔊';
+      muteBtn.textContent = globalSoundEnabled ? '🔊' : '🔇';
+      muteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setGlobalSound(!globalSoundEnabled);
       });
       videoEl.addEventListener('click', () => {
         if (videoEl.paused) videoEl.play().catch(() => {}); else videoEl.pause();
       });
     }
     el.querySelector('.likeBtn').addEventListener('click', () => toggleLike(v, el));
+    el.querySelector('.commentBtn').addEventListener('click', () => openComments(v, el));
+    el.querySelector('.saveBtn').addEventListener('click', () => toggleSave(v, el));
+    el.querySelector('.shareBtn').addEventListener('click', () => shareVideo(v));
     const delBtn = el.querySelector('.clipDeleteBtn');
     if (delBtn) delBtn.addEventListener('click', () => deleteClip(v, el));
     return el;
@@ -531,6 +781,115 @@
       countEl.textContent = String(parseInt(countEl.textContent, 10) + (wasLiked ? 1 : -1));
     }
   }
+
+  async function toggleSave(v, el) {
+    const btn = el.querySelector('.saveBtn');
+    const icon = el.querySelector('.saveIcon');
+    const wasSaved = btn.classList.contains('saved');
+    // Optimiste, comme toggleLike.
+    btn.classList.toggle('saved', !wasSaved);
+    icon.textContent = wasSaved ? '📑' : '🔖';
+    v.savedByMe = !wasSaved;
+    try {
+      await api('/api/videos/' + v.id + '/' + (wasSaved ? 'unsave' : 'save'), { method: 'POST' });
+    } catch (err) {
+      btn.classList.toggle('saved', wasSaved);
+      icon.textContent = wasSaved ? '🔖' : '📑';
+      v.savedByMe = wasSaved;
+    }
+  }
+
+  // Partage natif du téléphone quand disponible (feuille de partage iOS/
+  // Android), sinon on copie juste un texte dans le presse-papier — pas de
+  // lien profond vers une vidéo précise pour cette première version (il
+  // faudrait une page publique sans connexion, hors sujet pour l'instant).
+  async function shareVideo(v) {
+    const text = v.caption
+      ? `"${v.caption}" — à voir sur Diarala_Tiktak`
+      : 'Une publication à voir sur Diarala_Tiktak';
+    if (navigator.share) {
+      try { await navigator.share({ title: 'Diarala_Tiktak', text }); } catch (err) { /* annulé par la personne, rien à faire */ }
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      alert('Texte copié — vous pouvez le coller où vous voulez le partager.');
+    } catch (err) {
+      alert(text);
+    }
+  }
+
+  // ---------- Commentaires ----------
+  let activeCommentsVideo = null;
+  let activeCommentsClipEl = null;
+
+  function closeComments() {
+    $('commentsOverlay').classList.add('hidden');
+    $('commentInput').value = '';
+    $('commentSendBtn').disabled = true;
+    activeCommentsVideo = null;
+    activeCommentsClipEl = null;
+  }
+  $('commentsOverlay').addEventListener('click', (e) => { if (e.target === $('commentsOverlay')) closeComments(); });
+  $('commentInput').addEventListener('input', () => {
+    $('commentSendBtn').disabled = !$('commentInput').value.trim();
+  });
+
+  function renderCommentRow(c) {
+    const row = document.createElement('div');
+    row.className = 'commentRow';
+    row.innerHTML = `
+      <div class="commentAuthor">${escapeHtml(c.author ? c.author.name : '—')}</div>
+      <div class="commentText"></div>
+    `;
+    row.querySelector('.commentText').textContent = c.text;
+    return row;
+  }
+
+  async function openComments(v, el) {
+    activeCommentsVideo = v;
+    activeCommentsClipEl = el;
+    $('commentsOverlay').classList.remove('hidden');
+    $('commentsList').innerHTML = '<div class="commentsEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/videos/' + v.id + '/comments');
+      $('commentsList').innerHTML = '';
+      if (!data.comments.length) {
+        $('commentsList').innerHTML = '<div class="commentsEmpty">Aucun commentaire pour l\'instant. Soyez le premier !</div>';
+      } else {
+        data.comments.forEach((c) => $('commentsList').appendChild(renderCommentRow(c)));
+        $('commentsList').scrollTop = $('commentsList').scrollHeight;
+      }
+    } catch (err) {
+      $('commentsList').innerHTML = '<div class="commentsEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  $('commentsForm').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const text = $('commentInput').value.trim();
+    if (!text || !activeCommentsVideo) return;
+    $('commentSendBtn').disabled = true;
+    try {
+      const data = await api('/api/videos/' + activeCommentsVideo.id + '/comments', {
+        method: 'POST',
+        body: JSON.stringify({ text }),
+      });
+      if ($('commentsList').querySelector('.commentsEmpty')) $('commentsList').innerHTML = '';
+      $('commentsList').appendChild(renderCommentRow(data.comment));
+      $('commentsList').scrollTop = $('commentsList').scrollHeight;
+      $('commentInput').value = '';
+      // Reflète le nouveau total sur le bouton "commentaire" du clip resté
+      // affiché derrière la modale.
+      if (activeCommentsClipEl) {
+        const countEl = activeCommentsClipEl.querySelector('.commentCount');
+        if (countEl) countEl.textContent = String(data.commentsCount);
+      }
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+      $('commentSendBtn').disabled = false;
+    }
+  });
 
   async function deleteClip(v, el) {
     if (!confirm('Supprimer définitivement cette vidéo ?')) return;
@@ -581,7 +940,6 @@
     if ($('uploadPreviewImage').src) URL.revokeObjectURL($('uploadPreviewImage').src);
     $('uploadPreviewImage').src = '';
   }
-  $('uploadFab').addEventListener('click', openUploadOverlay);
   $('cancelUploadBtn').addEventListener('click', closeUploadOverlay);
 
   // Point d'entrée commun, que la vidéo/photo vienne du sélecteur de fichier
@@ -814,10 +1172,26 @@
       closeUploadOverlay();
       // La publication qu'on vient de faire apparaît tout en haut du fil,
       // comme WhatsApp affiche un statut qu'on vient de publier en premier.
-      $('feed').prepend(renderClip(data.video));
+      const newClipEl = renderClip(data.video);
+      $('feed').prepend(newClipEl);
       $('feed').scrollTo({ top: 0 });
       $('emptyFeed').classList.add('hidden');
       setupObserver();
+      // setupObserver() recrée l'IntersectionObserver de façon asynchrone (il
+      // faut attendre que le navigateur calcule l'intersection avant que son
+      // callback déclenche video.play()) — sur certains appareils (constaté
+      // sur iPhone), ce délai fait que le clip qu'on vient de publier
+      // apparaît à l'écran sans démarrer. On force donc aussi une lecture
+      // immédiate ici, dès que le scroll en haut du fil est fait, sans
+      // attendre l'observer.
+      const newVideoEl = newClipEl.querySelector('video');
+      if (newVideoEl) {
+        newVideoEl.muted = !globalSoundEnabled;
+        newVideoEl.play().catch(() => {
+          newVideoEl.muted = true;
+          newVideoEl.play().catch(() => {});
+        });
+      }
     } catch (err) {
       $('uploadMsg').textContent = err.message;
       $('publishBtn').disabled = false;

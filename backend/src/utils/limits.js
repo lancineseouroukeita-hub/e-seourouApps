@@ -9,19 +9,21 @@
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 1024;
 
-// Taille max d'une vidéo "Clips" (avant encodage) : 12 Mo. Volontairement
+// Taille max d'une vidéo "Clips" (avant encodage) : 25 Mo (relevé depuis 12
+// Mo — trop juste à l'usage, voir la discussion avec Lancine). Volontairement
 // limité (voir schema.prisma, modèle Video) — stockée en base64 en base,
 // comme les pièces jointes de message, ce qui ne tient pas à grande échelle
 // pour des fichiers plus lourds. Combiné à une durée maximale imposée côté
-// client (30 secondes, voir public/videos.html), ça garde des fichiers
+// client (60 secondes, voir public/videos.html), ça garde des fichiers
 // raisonnables pour une vidéo courte compressée.
-const MAX_VIDEO_BYTES = 12 * 1024 * 1024;
+const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
 const MAX_VIDEO_BASE64_LENGTH = Math.ceil((MAX_VIDEO_BYTES * 4) / 3) + 1024;
 
-// Taille max d'une photo "Clips" (avant encodage) : 8 Mo — une publication
-// "Clips" peut être une photo au lieu d'une vidéo courte (voir
-// video.controller.js, schema.prisma modèle Video, champ "type").
-const MAX_PHOTO_BYTES = 8 * 1024 * 1024;
+// Taille max d'une photo "Clips" (avant encodage) : 12 Mo (relevé depuis 8
+// Mo, même raison que MAX_VIDEO_BYTES) — une publication "Clips" peut être
+// une photo au lieu d'une vidéo courte (voir video.controller.js,
+// schema.prisma modèle Video, champ "type").
+const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 const MAX_PHOTO_BASE64_LENGTH = Math.ceil((MAX_PHOTO_BYTES * 4) / 3) + 1024;
 
 module.exports = {
