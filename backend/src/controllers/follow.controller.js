@@ -1,5 +1,7 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
+const { awardCredits } = require('./wallet.controller');
+const { CREDITS_PER_FOLLOWER_GAINED } = require('../utils/limits');
 
 // Abonnements "Clips" (onglet "Ami(e)s" de Diarala_Tiktak) : comme TikTok,
 // suivre quelqu'un est immédiat, sans demande à accepter (contrairement à une
@@ -15,11 +17,17 @@ async function followUser(req, res) {
     const target = await prisma.user.findUnique({ where: { id: userId } });
     if (!target) return res.status(404).json({ error: 'Utilisateur introuvable.' });
 
-    await prisma.follow.upsert({
+    // Vérifié AVANT le upsert (pas juste "update: {}") pour savoir si cet
+    // abonnement est vraiment nouveau — sinon se désabonner/se réabonner en
+    // boucle permettrait de gagner des crédits "Solde" à l'infini (voir
+    // limits.js, CREDITS_PER_FOLLOWER_GAINED).
+    const alreadyFollowing = await prisma.follow.findUnique({
       where: { followerId_followingId: { followerId: req.user.id, followingId: userId } },
-      update: {},
-      create: { followerId: req.user.id, followingId: userId },
     });
+    if (!alreadyFollowing) {
+      await prisma.follow.create({ data: { followerId: req.user.id, followingId: userId } });
+      await awardCredits(userId, CREDITS_PER_FOLLOWER_GAINED, 'abonne_gagne');
+    }
     const followersCount = await prisma.follow.count({ where: { followingId: userId } });
     return res.json({ ok: true, followersCount });
   } catch (err) {

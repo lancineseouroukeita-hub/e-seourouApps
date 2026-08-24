@@ -1,8 +1,10 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
+const { awardCredits } = require('./wallet.controller');
 const {
   MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH, MAX_PHOTO_BYTES, MAX_PHOTO_BASE64_LENGTH,
   MAX_SOUND_BYTES, MAX_SOUND_BASE64_LENGTH,
+  CREDITS_PER_LIKE_RECEIVED, BOOST_COST_CREDITS, BOOST_DURATION_HOURS,
 } = require('../utils/limits');
 
 // Nombre de vidéos renvoyées par page du fil (voir listVideos) : assez pour
@@ -14,6 +16,34 @@ const FEED_PAGE_SIZE = 6;
 const MAX_CAPTION_LENGTH = 300;
 // Taille max d'un commentaire (même idée que MAX_CAPTION_LENGTH).
 const MAX_COMMENT_LENGTH = 500;
+
+// Un "boostedUntil" en base peut être dans le passé (voir listVideos, qui les
+// nettoie paresseusement à chaque lecture du fil, mais pas forcément dans les
+// autres endroits qui appellent serializeVideo, ex: listMyVideos) — jamais
+// annoncer une mise en avant expirée comme active au client.
+function activeBoostedUntil(video) {
+  return (video.boostedUntil && new Date(video.boostedUntil) > new Date()) ? video.boostedUntil : null;
+}
+
+// Découpe les 7 derniers jours (aujourd'hui inclus) en compartiments vides
+// {date: "YYYY-MM-DD", views: 0, likes: 0} — pour "TikTok Studio" (voir
+// getMyStats), rempli ensuite en comptant les événements existants
+// (VideoView/VideoLike) plutôt qu'un système d'analytique séparé.
+function buildLast7DaysBuckets() {
+  const buckets = [];
+  const today = new Date();
+  for (let i = 6; i >= 0; i -= 1) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    buckets.push({ date: d.toISOString().slice(0, 10), views: 0, likes: 0 });
+  }
+  return buckets;
+}
+function bumpBucket(buckets, createdAt, field) {
+  const key = new Date(createdAt).toISOString().slice(0, 10);
+  const bucket = buckets.find((b) => b.date === key);
+  if (bucket) bucket[field] += 1;
+}
 
 function serializeVideo(video, currentUserId, followingSet) {
   return {
@@ -55,6 +85,10 @@ function serializeVideo(video, currentUserId, followingSet) {
     // à afficher ou masquer le badge "+" de suivi rapide sur son avatar dans
     // le fil, comme TikTok (le badge disparaît une fois qu'on suit).
     followedByAuthor: followingSet ? followingSet.has(video.authorId) : false,
+    // "Promouvoir" (menu ☰) — voir boostVideo plus bas. Null si jamais
+    // boostée ou si la mise en avant a expiré.
+    boostedUntil: activeBoostedUntil(video),
+    viewsCount: video._count ? (video._count.views || 0) : (video.views ? video.views.length : 0),
   };
 }
 
@@ -67,35 +101,62 @@ function serializeVideo(video, currentUserId, followingSet) {
 // "Suivis", voir schema.prisma modèle Follow) au lieu de tout le monde
 // ("Pour toi", comportement par défaut).
 async function listVideos(req, res) {
+  // Nettoyage paresseux des mises en avant expirées ("Promouvoir", voir
+  // boostVideo) à chaque lecture du fil plutôt qu'une tâche planifiée
+  // séparée : ça garantit qu'un boostedUntil non-null lu juste après est
+  // TOUJOURS actif, ce qui simplifie énormément le tri ci-dessous (pas
+  // besoin de comparer des dates dans le ORDER BY).
+  await prisma.video.updateMany({
+    where: { boostedUntil: { lt: new Date() } },
+    data: { boostedUntil: null },
+  });
+
   const { before, onlyFollowing } = req.query;
   const where = {};
   if (before) where.createdAt = { lt: new Date(before) };
+
+  const myFollowing = await prisma.follow.findMany({
+    where: { followerId: req.user.id },
+    select: { followingId: true },
+  });
+  const followingIds = myFollowing.map((f) => f.followingId);
+  const followingSet = new Set(followingIds);
+
   if (onlyFollowing === '1' || onlyFollowing === 'true') {
-    const follows = await prisma.follow.findMany({
-      where: { followerId: req.user.id },
-      select: { followingId: true },
-    });
     // "in: []" renvoie bien zéro résultat plutôt que tout le monde — normal
     // quand on ne suit encore personne.
-    where.authorId = { in: follows.map((f) => f.followingId) };
+    where.authorId = { in: followingIds };
+  } else {
+    // Compte "privé" (Paramètres et confidentialité, voir
+    // schema.prisma User.videosPrivate) : ses publications ne doivent
+    // apparaître dans le "Pour toi" de personne d'autre que ses abonnés (et
+    // lui-même) — comme un compte TikTok privé.
+    where.OR = [
+      { author: { videosPrivate: false } },
+      { authorId: { in: [...followingIds, req.user.id] } },
+    ];
   }
 
-  const [videos, myFollowing] = await Promise.all([
-    prisma.video.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: FEED_PAGE_SIZE,
-      include: {
-        author: true,
-        sound: { select: { id: true, name: true } },
-        likes: { where: { userId: req.user.id } },
-        saves: { where: { userId: req.user.id } },
-        _count: { select: { likes: true, comments: true, saves: true } },
-      },
-    }),
-    prisma.follow.findMany({ where: { followerId: req.user.id }, select: { followingId: true } }),
-  ]);
-  const followingSet = new Set(myFollowing.map((f) => f.followingId));
+  const videos = await prisma.video.findMany({
+    where,
+    // La mise en avant ne fait remonter que la PREMIÈRE page (before absent)
+    // — mélanger un tri par boostedUntil avec la pagination par curseur
+    // createdAt au-delà de la première page rendrait le curseur incohérent
+    // (une vidéo boostée mais ancienne pourrait réapparaître ou disparaître
+    // entre deux pages). Sans compter que c'est la première page qui compte
+    // le plus pour la visibilité, comme sur TikTok.
+    orderBy: before
+      ? { createdAt: 'desc' }
+      : [{ boostedUntil: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
+    take: FEED_PAGE_SIZE,
+    include: {
+      author: true,
+      sound: { select: { id: true, name: true } },
+      likes: { where: { userId: req.user.id } },
+      saves: { where: { userId: req.user.id } },
+      _count: { select: { likes: true, comments: true, saves: true, views: true } },
+    },
+  });
 
   return res.json({
     videos: videos.map((v) => serializeVideo(v, req.user.id, followingSet)),
@@ -115,12 +176,203 @@ async function listMyVideos(req, res) {
       sound: { select: { id: true, name: true } },
       likes: { where: { userId: req.user.id } },
       saves: { where: { userId: req.user.id } },
-      _count: { select: { likes: true, comments: true, saves: true } },
+      _count: { select: { likes: true, comments: true, saves: true, views: true } },
     },
   });
   // Pas besoin de followingSet ici : ce sont mes propres vidéos, le badge
   // "suivre" ne s'affiche jamais sur ses propres publications côté client.
   return res.json({ videos: videos.map((v) => serializeVideo(v, req.user.id)) });
+}
+
+// GET /api/videos/saved — mes vidéos/photos enregistrées (bouton
+// marque-page) — alimente l'écran "Vidéos hors ligne" (menu ☰), qui propose
+// de les télécharger sur l'appareil pour les revoir sans connexion (voir
+// videos.html) : pas de vrai stockage "hors-ligne" séparé côté serveur, on
+// réutilise simplement les enregistrements existants (VideoSave).
+async function listSavedVideos(req, res) {
+  try {
+    const saves = await prisma.videoSave.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        video: {
+          include: {
+            author: true,
+            sound: { select: { id: true, name: true } },
+            likes: { where: { userId: req.user.id } },
+            saves: { where: { userId: req.user.id } },
+            _count: { select: { likes: true, comments: true, saves: true, views: true } },
+          },
+        },
+      },
+    });
+    // Une vidéo enregistrée peut avoir été supprimée depuis par son auteur
+    // (voir deleteVideo) : le signet reste alors orphelin (onDelete: Cascade
+    // sur VideoSave.videoId le supprimerait normalement, donc ce cas ne
+    // devrait pas arriver, mais on filtre par sécurité plutôt que de planter).
+    const videos = saves.map((s) => s.video).filter(Boolean);
+    return res.json({ videos: videos.map((v) => serializeVideo(v, req.user.id)) });
+  } catch (err) {
+    console.error('listSavedVideos error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+}
+
+// PATCH /api/videos/settings/privacy — "Paramètres et confidentialité" du
+// menu ☰ : body { videosPrivate: boolean }. Ne concerne QUE les publications
+// "Clips" (voir schema.prisma, User.videosPrivate) — pas les statuts ni les
+// messages de seourouApps, qui ont leurs propres réglages de confidentialité.
+async function updateVideoPrivacy(req, res) {
+  try {
+    const { videosPrivate } = req.body;
+    if (typeof videosPrivate !== 'boolean') {
+      return res.status(400).json({ error: 'videosPrivate (booléen) est requis.' });
+    }
+    await prisma.user.update({ where: { id: req.user.id }, data: { videosPrivate } });
+    return res.json({ ok: true, videosPrivate });
+  } catch (err) {
+    console.error('updateVideoPrivacy error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+}
+
+// GET /api/videos/settings/privacy — état actuel (pour afficher le bon état
+// du bouton "compte privé" à l'ouverture de l'écran Paramètres).
+async function getVideoPrivacy(req, res) {
+  try {
+    const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { videosPrivate: true } });
+    return res.json({ videosPrivate: user ? user.videosPrivate : false });
+  } catch (err) {
+    console.error('getVideoPrivacy error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+}
+
+// POST /api/videos/:id/view — enregistre une "vue" pour les statistiques
+// ("TikTok Studio", voir getMyStats) : une ligne par visionnage compté côté
+// client (voir videos.html, setupObserver — une seule fois par vidéo par
+// session, pas à chaque repassage devant elle en scrollant). Pas d'unicité
+// en base contrairement à VideoLike : plusieurs vues dans le temps sont
+// justement ce qui permet de tracer une courbe (voir buildLast7DaysBuckets).
+async function recordView(req, res) {
+  try {
+    const { id } = req.params;
+    const video = await prisma.video.findUnique({ where: { id }, select: { id: true } });
+    if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
+    await prisma.videoView.create({ data: { videoId: id, viewerId: req.user.id } });
+    return res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error('recordView error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+}
+
+// POST /api/videos/:id/boost — "Promouvoir" (menu ☰) : dépense
+// BOOST_COST_CREDITS crédits "Solde" (voir utils/limits.js) pour faire
+// remonter une de MES publications en tête du fil "Pour toi" (voir
+// listVideos) pendant BOOST_DURATION_HOURS. Coût fixe plutôt qu'un système
+// d'enchères — bien plus simple à comprendre pour un petit groupe de
+// testeurs, et ce sont des crédits internes, pas un vrai paiement (voir
+// schema.prisma, CreditTransaction).
+async function boostVideo(req, res) {
+  try {
+    const { id } = req.params;
+    const video = await prisma.video.findUnique({ where: { id } });
+    if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
+    if (video.authorId !== req.user.id) {
+      return res.status(403).json({ error: 'Vous ne pouvez promouvoir que vos propres publications.' });
+    }
+    const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { creditsBalance: true } });
+    const balance = user ? user.creditsBalance : 0;
+    if (balance < BOOST_COST_CREDITS) {
+      return res.status(400).json({
+        error: `Solde insuffisant : ${BOOST_COST_CREDITS} crédits nécessaires, ${balance} disponible(s). Gagnez des crédits en étant aimé(e)/suivi(e) (voir l'écran Solde).`,
+      });
+    }
+    const boostedUntil = new Date(Date.now() + BOOST_DURATION_HOURS * 60 * 60 * 1000);
+    const [, updatedUser] = await prisma.$transaction([
+      prisma.creditTransaction.create({
+        data: { userId: req.user.id, amount: -BOOST_COST_CREDITS, reason: 'boost_video', relatedVideoId: id },
+      }),
+      prisma.user.update({
+        where: { id: req.user.id },
+        data: { creditsBalance: { decrement: BOOST_COST_CREDITS } },
+      }),
+      prisma.video.update({ where: { id }, data: { boostedUntil } }),
+    ]);
+    return res.json({ ok: true, boostedUntil, balance: updatedUser.creditsBalance });
+  } catch (err) {
+    console.error('boostVideo error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la mise en avant.' });
+  }
+}
+
+// GET /api/videos/stats/mine — "TikTok Studio" (menu ☰) : vue d'ensemble de
+// mes publications (totaux + courbe des 7 derniers jours + classement par
+// vues) calculée à partir des événements déjà enregistrés (VideoView,
+// VideoLike) plutôt qu'un système d'analytique séparé.
+async function getMyStats(req, res) {
+  try {
+    const myVideos = await prisma.video.findMany({
+      where: { authorId: req.user.id },
+      select: {
+        id: true, caption: true, type: true, createdAt: true, boostedUntil: true,
+        thumbnailData: true, thumbnailMime: true, photoData: true, photoMime: true,
+        _count: { select: { likes: true, comments: true, saves: true, views: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    const videoIds = myVideos.map((v) => v.id);
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+    const [followersCount, sevenDayViews, sevenDayLikes] = await Promise.all([
+      prisma.follow.count({ where: { followingId: req.user.id } }),
+      videoIds.length
+        ? prisma.videoView.findMany({ where: { videoId: { in: videoIds }, createdAt: { gte: sevenDaysAgo } }, select: { createdAt: true } })
+        : Promise.resolve([]),
+      videoIds.length
+        ? prisma.videoLike.findMany({ where: { videoId: { in: videoIds }, createdAt: { gte: sevenDaysAgo } }, select: { createdAt: true } })
+        : Promise.resolve([]),
+    ]);
+
+    const last7Days = buildLast7DaysBuckets();
+    sevenDayViews.forEach((v) => bumpBucket(last7Days, v.createdAt, 'views'));
+    sevenDayLikes.forEach((l) => bumpBucket(last7Days, l.createdAt, 'likes'));
+
+    const totalViews = myVideos.reduce((sum, v) => sum + v._count.views, 0);
+    const totalLikes = myVideos.reduce((sum, v) => sum + v._count.likes, 0);
+    const totalComments = myVideos.reduce((sum, v) => sum + v._count.comments, 0);
+
+    return res.json({
+      totalViews,
+      totalLikes,
+      totalComments,
+      followersCount,
+      videosCount: myVideos.length,
+      last7Days,
+      topVideos: [...myVideos]
+        .sort((a, b) => b._count.views - a._count.views)
+        .slice(0, 10)
+        .map((v) => ({
+          id: v.id,
+          caption: v.caption,
+          type: v.type,
+          createdAt: v.createdAt,
+          boostedUntil: activeBoostedUntil(v),
+          viewsCount: v._count.views,
+          likesCount: v._count.likes,
+          commentsCount: v._count.comments,
+          savesCount: v._count.saves,
+          thumbnailData: v.type === 'photo' ? null : v.thumbnailData,
+          thumbnailMime: v.type === 'photo' ? null : v.thumbnailMime,
+          photoData: v.type === 'photo' ? v.photoData : null,
+          photoMime: v.type === 'photo' ? v.photoMime : null,
+        })),
+    });
+  } catch (err) {
+    console.error('getMyStats error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
 }
 
 // POST /api/videos — publie une vidéo OU une photo (comme les
@@ -235,11 +487,20 @@ async function likeVideo(req, res) {
     const video = await prisma.video.findUnique({ where: { id } });
     if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
 
-    await prisma.videoLike.upsert({
+    // Vérifié AVANT le upsert (pas juste "update: {}") pour savoir si ce like
+    // est vraiment nouveau — sinon aimer/retirer/ré-aimer la même vidéo en
+    // boucle permettrait de gagner des crédits "Solde" à l'infini (voir
+    // limits.js, CREDITS_PER_LIKE_RECEIVED).
+    const alreadyLiked = await prisma.videoLike.findUnique({
       where: { videoId_userId: { videoId: id, userId: req.user.id } },
-      update: {},
-      create: { videoId: id, userId: req.user.id },
     });
+    if (!alreadyLiked) {
+      await prisma.videoLike.create({ data: { videoId: id, userId: req.user.id } });
+      // Jamais de crédits pour soi-même (aimer sa propre vidéo).
+      if (video.authorId !== req.user.id) {
+        await awardCredits(video.authorId, CREDITS_PER_LIKE_RECEIVED, 'like_recu', id);
+      }
+    }
     const likesCount = await prisma.videoLike.count({ where: { videoId: id } });
     return res.json({ ok: true, likesCount });
   } catch (err) {
@@ -351,6 +612,7 @@ async function createComment(req, res) {
 }
 
 module.exports = {
-  listVideos, listMyVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
+  listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
   saveVideo, unsaveVideo, listComments, createComment,
+  recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 };

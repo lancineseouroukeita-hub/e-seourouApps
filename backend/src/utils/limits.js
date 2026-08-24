@@ -34,9 +34,20 @@ const MAX_PHOTO_BASE64_LENGTH = Math.ceil((MAX_PHOTO_BYTES * 4) / 3) + 1024;
 const MAX_SOUND_BYTES = 8 * 1024 * 1024;
 const MAX_SOUND_BASE64_LENGTH = Math.ceil((MAX_SOUND_BYTES * 4) / 3) + 1024;
 
+// "Solde" (crédits internes, PAS de l'argent réel — voir schema.prisma,
+// User.creditsBalance/CreditTransaction) : combien on gagne quand quelqu'un
+// interagit avec l'une de mes vidéos/mon compte, et combien coûte
+// "Promouvoir" une publication (voir video.controller.js, boostVideo).
+const CREDITS_PER_LIKE_RECEIVED = 1;
+const CREDITS_PER_FOLLOWER_GAINED = 3;
+const BOOST_COST_CREDITS = 50;
+const BOOST_DURATION_HOURS = 24;
+
 module.exports = {
   MAX_ATTACHMENT_BYTES, MAX_ATTACHMENT_BASE64_LENGTH,
   MAX_VIDEO_BYTES, MAX_VIDEO_BASE64_LENGTH,
   MAX_PHOTO_BYTES, MAX_PHOTO_BASE64_LENGTH,
   MAX_SOUND_BYTES, MAX_SOUND_BASE64_LENGTH,
+  CREDITS_PER_LIKE_RECEIVED, CREDITS_PER_FOLLOWER_GAINED,
+  BOOST_COST_CREDITS, BOOST_DURATION_HOURS,
 };
