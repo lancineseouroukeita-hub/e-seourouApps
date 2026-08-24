@@ -248,9 +248,25 @@
   .uploadRow .primaryBtn:hover{background:var(--accent2);}
   .uploadRow .primaryBtn:disabled{opacity:0.6;cursor:default;}
   #uploadMsg{min-height:16px;font-size:12px;color:#ff8a8a;margin-bottom:8px;}
+
+  /* ---------- Bouton "retour" vers seourouApps ---------- */
+  /* Diarala_Tiktak s'ouvre dans un onglet/fenêtre séparé (voir index.html,
+     OTHER_PRODUCTS) : sans ce bouton, une fois connecté, rien ne permet de
+     revenir à seourouApps (pas de bouton "retour" de navigateur visible en
+     PWA installée, voir la capture envoyée par Lancine). Un seul élément,
+     hors de #feedScreen/#friendsScreen/#profileScreen, pour rester visible
+     de façon identique sur les trois plutôt que de le dupliquer partout —
+     masqué/affiché en même temps que #bottomNav (voir doLogin/doLogout). */
+  #backToAppBtn{position:fixed;top:14px;left:14px;width:34px;height:34px;border-radius:50%;background:rgba(30,30,30,0.55);border:none;color:white;font-size:18px;line-height:1;cursor:pointer;z-index:16;display:flex;align-items:center;justify-content:center;}
+  #backToAppBtn.hidden{display:none;}
+  /* Espace réservé pour que ce bouton ne recouvre pas le contenu de chaque
+     écran (onglets Suivis/Pour toi sur le fil, "Ami(e)s" sur cet écran-là). */
+  #topBar{padding-left:54px;}
+  .screenHeader{padding-left:54px;}
 </style>
 </head>
 <body>
+  <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
   <div id="loginScreen">
@@ -694,6 +710,7 @@
       me = data.user;
       $('loginScreen').classList.add('hidden');
       $('bottomNav').classList.remove('hidden');
+      $('backToAppBtn').classList.remove('hidden');
       showScreen('feed');
       loadFeed(true);
     } catch (err) {
@@ -718,12 +735,21 @@
     $('friendsList').innerHTML = '';
     $('myVideosGrid').innerHTML = '';
     $('bottomNav').classList.add('hidden');
+    $('backToAppBtn').classList.add('hidden');
     document.querySelectorAll('.screen, .screenFeed').forEach((el) => el.classList.remove('show'));
     $('feedScreen').classList.add('show');
     $('loginScreen').classList.remove('hidden');
     $('loginPasswordInput').value = '';
   }
   $('logoutBtn2').addEventListener('click', doLogout);
+
+  // Diarala_Tiktak s'ouvre dans un ONGLET/FENÊTRE séparé de seourouApps (voir
+  // OTHER_PRODUCTS, index.html — lien target="_blank"), donc sans le moindre
+  // bouton "retour" de navigateur visible en PWA installée. Ce bouton ramène
+  // simplement vers seourouApps dans cette même fenêtre plutôt que d'essayer
+  // window.close() (qui échoue silencieusement si la fenêtre n'a pas été
+  // ouverte par du script, ce qui est le cas ici).
+  $('backToAppBtn').addEventListener('click', () => { window.location.href = 'index.html'; });
 
   // ---------- Navigation entre écrans (Accueil / Ami(e)s / Profil) ----------
   function showScreen(name) {
@@ -1380,10 +1406,23 @@
     return candidates.find((c) => MediaRecorder.isTypeSupported(c)) || '';
   }
 
+  // Limite la résolution demandée à la caméra (voir startCameraStream) : sans
+  // ça, le navigateur filme souvent en 1080p ou plus par défaut, ce qui donne
+  // des fichiers bien plus gros qu'utile pour un clip court affiché en petit
+  // sur un téléphone — et donc plus lents à convertir en base64, à envoyer,
+  // et à écrire en base (voir aussi videoBitsPerSecond dans
+  // startCameraRecording). "ideal" plutôt que "exact"/"min" : dégrade en
+  // douceur sur un appareil qui ne peut pas atteindre cette résolution,
+  // plutôt que de faire échouer complètement l'accès à la caméra.
+  const CAMERA_IDEAL_WIDTH = 720;
+
   async function startCameraStream() {
     if (cameraStream) { cameraStream.getTracks().forEach((t) => t.stop()); cameraStream = null; }
     try {
-      cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: cameraFacingMode }, audio: true });
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: cameraFacingMode, width: { ideal: CAMERA_IDEAL_WIDTH } },
+        audio: true,
+      });
     } catch (err) {
       alert('Impossible d\'accéder à la caméra/au micro : ' + err.message);
       closeCameraScreen();
@@ -1623,8 +1662,16 @@
   function startCameraRecording() {
     cameraChunks = [];
     const mimeType = pickVideoMimeType();
+    // Débit plafonné (voir CAMERA_IDEAL_WIDTH plus haut, même raison) : sans
+    // ça, MediaRecorder choisit un débit par défaut souvent bien plus élevé
+    // que nécessaire pour un clip court affiché en petit sur un téléphone —
+    // ce qui ralentit toute la suite (conversion en base64, envoi, écriture
+    // en base). 1,2 Mbit/s vidéo + 96 kbit/s audio reste largement suffisant
+    // en 720p pour quelques dizaines de secondes.
+    const recorderOptions = { videoBitsPerSecond: 1200000, audioBitsPerSecond: 96000 };
+    if (mimeType) recorderOptions.mimeType = mimeType;
     try {
-      cameraRecorder = mimeType ? new MediaRecorder(cameraStream, { mimeType }) : new MediaRecorder(cameraStream);
+      cameraRecorder = new MediaRecorder(cameraStream, recorderOptions);
     } catch (err) {
       alert('Impossible de démarrer l\'enregistrement : ' + err.message);
       return;
