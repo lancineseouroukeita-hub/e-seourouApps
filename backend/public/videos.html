@@ -285,8 +285,18 @@
   #cameraScreen video{width:100%;height:100%;object-fit:cover;background:#000;}
   #cameraTopBar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px;padding-top:calc(16px + env(safe-area-inset-top, 0));}
   #cameraTopBar button{background:rgba(30,30,30,0.55);border:none;color:white;width:38px;height:38px;border-radius:50%;font-size:17px;cursor:pointer;}
+  #cameraTopBarRight{display:flex;align-items:center;gap:10px;}
+  /* Minuteur actif (3s/10s choisi, voir cameraTimerDelaySeconds) : même
+     couleur d'accent que le reste de l'appli, pour que ce soit visible d'un
+     coup d'œil que le prochain appui sur l'obturateur sera différé. */
+  #cameraTimerBtn.active{background:var(--accent, #ff2d55);font-size:12px;font-weight:700;}
   #cameraTimer{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.6);color:white;padding:5px 14px;border-radius:14px;font-size:13px;}
   #cameraTimer.hidden{display:none;}
+  /* Décompte plein écran du minuteur (voir runCameraCountdown) — un grand
+     chiffre centré, semi-transparent par-dessus l'aperçu caméra en direct. */
+  #cameraCountdownOverlay{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.35);pointer-events:none;}
+  #cameraCountdownOverlay.hidden{display:none;}
+  #cameraCountdownNumber{font-size:104px;font-weight:800;color:#fff;text-shadow:0 2px 16px rgba(0,0,0,0.6);}
   #cameraBottomBar{position:absolute;left:0;right:0;bottom:0;padding:14px 20px calc(24px + env(safe-area-inset-bottom, 0));display:flex;flex-direction:column;align-items:center;gap:16px;background:linear-gradient(to top, rgba(0,0,0,0.6), rgba(0,0,0,0));}
   .cameraModeRow{display:flex;gap:22px;}
   .cameraModeBtn{background:none;border:none;color:rgba(255,255,255,0.6);font-size:13.5px;font-weight:600;cursor:pointer;padding:4px 2px;border-bottom:2px solid transparent;}
@@ -381,6 +391,9 @@
   #uploadPreviewWrap video,#uploadPreviewWrap img{width:100%;max-height:220px;border-radius:8px;background:#000;object-fit:contain;display:none;}
   #uploadPreviewWrap.kind-video video{display:block;}
   #uploadPreviewWrap.kind-photo img{display:block;}
+  #uploadChangeSoundBtn{display:none;align-items:center;gap:6px;margin:8px auto 0;padding:7px 14px;border-radius:16px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:12.5px;cursor:pointer;max-width:100%;overflow:hidden;}
+  #uploadChangeSoundBtn span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #uploadPreviewWrap.kind-video #uploadChangeSoundBtn{display:flex;}
   #uploadHint{font-size:11.5px;color:var(--muted);margin-bottom:12px;line-height:1.5;}
   .uploadRow{display:flex;gap:10px;}
   .uploadRow button{flex:1;padding:11px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;cursor:pointer;}
@@ -606,7 +619,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v32</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v34</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -984,8 +997,20 @@
     <video id="cameraLiveVideo" autoplay muted playsinline></video>
     <div id="cameraTopBar">
       <button id="cameraCloseBtn" type="button" title="Fermer">✕</button>
-      <button id="cameraFlipBtn" type="button" title="Retourner la caméra">🔄</button>
+      <div id="cameraTopBarRight">
+        <!-- Minuteur (voir la demande de Lancine, 25/08/2026 : "exactement
+             comme TikTok") : décompte avant que l'enregistrement/la photo ne
+             commence VRAIMENT, pour avoir le temps de se placer — voir
+             runCameraCountdown et cameraTimerDelaySeconds. -->
+        <button id="cameraTimerBtn" type="button" title="Minuteur">⏱</button>
+        <button id="cameraFlipBtn" type="button" title="Retourner la caméra">🔄</button>
+      </div>
     </div>
+    <!-- Décompte plein écran pendant le minuteur (voir runCameraCountdown) —
+         élément DISTINCT de #cameraTimer juste en dessous, qui affiche lui
+         le temps ÉCOULÉ pendant l'enregistrement (00:00 qui monte), pas le
+         décompte AVANT de commencer. -->
+    <div id="cameraCountdownOverlay" class="hidden"><span id="cameraCountdownNumber"></span></div>
     <div id="cameraTimer" class="hidden">00:00</div>
     <!-- Masqué pendant l'enregistrement (comme cameraTimer, mais en sens
          inverse) — voir cameraShutterBtn plus bas. -->
@@ -1107,6 +1132,17 @@
              jamais affiché — signalé manquant par Lancine (25/08/2026), cet
              aperçu restait silencieux pour le son choisi. -->
         <audio id="uploadPreviewAudio" loop></audio>
+        <!-- Permet de changer (ou retirer) le son APRÈS avoir filmé, sans
+             perdre le clip déjà enregistré — demande de Lancine (25/08/2026) :
+             "si cela ne convient pas je change moi-même dans la liste des
+             musiques" (au cas où le choix automatique, voir
+             autoPickDefaultSound, ne plairait pas). Réutilise le même
+             sélecteur que le bouton de l'écran caméra (voir openSoundPicker),
+             visible ici UNIQUEMENT pour une vidéo (jamais une photo, voir la
+             règle CSS #uploadPreviewWrap.kind-video). -->
+        <button id="uploadChangeSoundBtn" type="button" class="uploadChangeSoundBtn">
+          <span aria-hidden="true">🎵</span><span id="uploadChangeSoundLabel">Ajouter un son</span>
+        </button>
       </div>
       <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
       <div id="uploadHint">Vidéo (5 minutes / 80 Mo maximum) ou photo (12 Mo maximum).</div>
@@ -2195,6 +2231,51 @@
   // #friendsFeed, voir plus bas), sinon un observer avec root:#feed
   // n'observerait jamais correctement les clips de #friendsFeed (et
   // inversement).
+  // Empêche l'écran de s'éteindre PENDANT qu'une vidéo joue vraiment dans le
+  // fil (Écran → Suivis → Ami(e)s → profil, les trois observateurs
+  // partagent tous onClipIntersect ci-dessous) — signalé par Lancine
+  // (25/08/2026) : l'écran s'éteignait comme sur n'importe quelle page
+  // inactive (aucune raison pour le navigateur de deviner qu'une vidéo
+  // continue de jouer), et une fois éteint, la vidéo restait invisible
+  // (normal, l'écran est éteint) mais le SON continuait — ce dernier point
+  // reste attendu (comme la musique de fond d'une appli de streaming
+  // audio), le vrai problème est que l'écran ne devrait pas s'éteindre du
+  // tout tant qu'on regarde activement une vidéo.
+  let screenWakeLock = null;
+  async function acquireScreenWakeLock() {
+    // Non supporté par tous les navigateurs (ex: Safari avant iOS 16.4) —
+    // échec silencieux dans ce cas, pas pire qu'avant ce correctif.
+    if (!('wakeLock' in navigator) || screenWakeLock) return;
+    try {
+      screenWakeLock = await navigator.wakeLock.request('screen');
+      // Le système (PAS ce code) peut libérer le verrou tout seul dans
+      // certains cas (ex: batterie faible) — on remet juste la référence à
+      // jour pour qu'un prochain appel sache qu'il doit en redemander un.
+      screenWakeLock.addEventListener('release', () => { screenWakeLock = null; });
+    } catch (err) {
+      // Échec attendu si l'onglet est en arrière-plan au moment de la
+      // demande, ou sur un appareil qui refuse (batterie faible...) — pas la
+      // peine d'alerter, la vidéo continue de jouer normalement, seul cet
+      // avantage-là est perdu ponctuellement.
+      screenWakeLock = null;
+    }
+  }
+  function releaseScreenWakeLock() {
+    if (screenWakeLock) { screenWakeLock.release().catch(() => {}); screenWakeLock = null; }
+  }
+  // Le verrou est automatiquement relâché par le navigateur dès que l'onglet
+  // passe en arrière-plan (changement d'appli, verrouillage MANUEL du
+  // téléphone par la personne elle-même...) — normal, pas la peine de le
+  // ré-acquérir dans ce cas précis. Par contre, quand on REVIENT sur
+  // l'onglet alors qu'une vidéo est toujours censée jouer (voir
+  // data-should-play, posé par onClipIntersect ci-dessous), il faut le
+  // redemander nous-mêmes : le navigateur ne le fait jamais spontanément.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible') return;
+    const anyPlaying = document.querySelector('.clip[data-should-play="1"]');
+    if (anyPlaying) acquireScreenWakeLock();
+  });
+
   function onClipIntersect(entries) {
     entries.forEach((entry) => {
       const video = entry.target.querySelector('video');
@@ -2219,6 +2300,9 @@
           try { audio.currentTime = video.currentTime; } catch (err) { /* ignoré */ }
           audio.play().catch(() => {});
         }
+        // Voir acquireScreenWakeLock plus haut : l'écran ne doit pas
+        // s'éteindre tant qu'une vidéo joue vraiment.
+        acquireScreenWakeLock();
         // Vue comptée pour "Studio de création" (voir getMyStats côté
         // serveur) : une seule fois par publication et par session (le
         // Set viewedVideoIds), pas à chaque repassage devant elle en
@@ -2233,6 +2317,12 @@
         entry.target.dataset.shouldPlay = '0';
         video.pause();
         if (audio) audio.pause();
+        // Relâche le verrou UNIQUEMENT si plus AUCUN clip ne joue nulle part
+        // (voir acquireScreenWakeLock) — sur un défilement rapide, un
+        // nouveau clip devient parfois visible avant que l'ancien n'ait fini
+        // de se marquer comme quitté, mieux vaut vérifier l'état réel du DOM
+        // que de relâcher puis redemander inutilement à chaque transition.
+        if (!document.querySelector('.clip[data-should-play="1"]')) releaseScreenWakeLock();
       }
     });
   }
@@ -2928,6 +3018,12 @@
     if ($('uploadPreviewImage').src) URL.revokeObjectURL($('uploadPreviewImage').src);
     $('uploadPreviewImage').src = '';
     detachPreviewSound();
+    // Invalide toute résolution autoPickDefaultSound encore en cours pour
+    // CETTE publication (annulée ou publiée, peu importe — dans les deux
+    // cas cette tentative est terminée) : un choix automatique qui
+    // arriverait après coup ne doit jamais s'appliquer à la PROCHAINE
+    // publication, sans rapport.
+    autoSoundAttemptSeq += 1;
     pendingUploadFile = null;
     pendingThumbnail = null;
     // Que ce soit après une publication réussie ou une annulation, le son
@@ -3038,6 +3134,21 @@
   let cameraStartTs = null;
   let cameraTimerInterval = null;
   let cameraFacingMode = 'user';
+  // Minuteur AVANT de commencer à filmer/photographier (voir
+  // runCameraCountdown, cameraTimerBtn) — 0 = désactivé. À NE PAS confondre
+  // avec cameraTimerInterval juste au-dessus, qui affiche le temps ÉCOULÉ
+  // PENDANT l'enregistrement (00:00 qui monte) : deux minuteurs différents,
+  // qui ne se déclenchent jamais en même temps.
+  let cameraTimerDelaySeconds = 0;
+  const CAMERA_TIMER_OPTIONS = [0, 3, 10];
+  let cameraCountdownCancelled = false;
+  // Compteur de "tentative" pour le choix automatique de musique (voir
+  // autoPickDefaultSound) — incrémenté à chaque nouvel enregistrement ET à
+  // chaque fermeture de l'aperçu avant publication (voir closeUploadOverlay),
+  // pour qu'une résolution réseau périmée (recherche+téléchargement plus
+  // lents qu'un enregistrement court, ou publication déjà abandonnée
+  // entre-temps) sache se reconnaître comme telle et ne rien appliquer.
+  let autoSoundAttemptSeq = 0;
   // Lecture du son choisi (pendingSoundChoice) PENDANT l'enregistrement, pour
   // pouvoir se synchroniser dessus (danser, faire du playback...) comme sur
   // le vrai TikTok — signalé manquant par Lancine (25/08/2026). Ne modifie
@@ -3139,6 +3250,11 @@
   }
 
   function closeCameraScreen() {
+    // Annule un décompte du minuteur éventuellement en cours (voir
+    // runCameraCountdown) — fermer l'écran caméra pendant le décompte ne
+    // doit jamais déclencher un enregistrement/une photo après coup.
+    cameraCountdownCancelled = true;
+    $('cameraCountdownOverlay').classList.add('hidden');
     if (cameraRecording && cameraRecorder && cameraRecorder.state !== 'inactive') {
       // Arrêter proprement déclenche onCameraRecordingStopped, qui referme
       // déjà cet écran — pas besoin de le refaire ici.
@@ -3154,6 +3270,45 @@
     $('cameraShutterBtn').classList.remove('recording');
     $('cameraSoundBtn').classList.toggle('hidden', cameraMode === 'photo');
   }
+
+  // Décompte plein écran avant de VRAIMENT commencer à filmer/photographier
+  // (voir cameraTimerBtn/cameraTimerDelaySeconds) — resolve(true) si le
+  // décompte est allé à son terme, resolve(false) s'il a été annulé en
+  // cours de route (voir closeCameraScreen, cameraCountdownCancelled), pour
+  // que l'appelant (voir cameraShutterBtn) sache s'il doit vraiment lancer
+  // l'enregistrement/la photo ensuite.
+  function runCameraCountdown(seconds) {
+    return new Promise((resolve) => {
+      cameraCountdownCancelled = false;
+      let remaining = seconds;
+      const overlay = $('cameraCountdownOverlay');
+      const numberEl = $('cameraCountdownNumber');
+      overlay.classList.remove('hidden');
+      numberEl.textContent = String(remaining);
+      const tick = () => {
+        if (cameraCountdownCancelled) { overlay.classList.add('hidden'); resolve(false); return; }
+        remaining -= 1;
+        if (remaining <= 0) { overlay.classList.add('hidden'); resolve(true); return; }
+        numberEl.textContent = String(remaining);
+        setTimeout(tick, 1000);
+      };
+      setTimeout(tick, 1000);
+    });
+  }
+
+  function updateCameraTimerBtnLabel() {
+    const btn = $('cameraTimerBtn');
+    btn.textContent = cameraTimerDelaySeconds > 0 ? (cameraTimerDelaySeconds + 's') : '⏱';
+    btn.classList.toggle('active', cameraTimerDelaySeconds > 0);
+  }
+  // Un appui fait défiler Désactivé → 3s → 10s → Désactivé... (comme TikTok),
+  // plutôt qu'un menu séparé — reste choisi tant que l'écran caméra reste
+  // ouvert (pas remis à zéro entre deux prises, comme sur TikTok).
+  $('cameraTimerBtn').addEventListener('click', () => {
+    const idx = CAMERA_TIMER_OPTIONS.indexOf(cameraTimerDelaySeconds);
+    cameraTimerDelaySeconds = CAMERA_TIMER_OPTIONS[(idx + 1) % CAMERA_TIMER_OPTIONS.length];
+    updateCameraTimerBtnLabel();
+  });
 
   $('navUploadBtn').addEventListener('click', openCameraScreen);
   $('cameraCloseBtn').addEventListener('click', () => {
@@ -3175,11 +3330,32 @@
     closeCameraScreen();
     $('videoFileInput').click();
   });
-  $('cameraShutterBtn').addEventListener('click', () => {
-    if (cameraMode === 'photo') capturePhotoFromCamera();
-    else if (cameraMode === 'live') startGoingLive();
-    else if (!cameraRecording) startCameraRecording();
-    else stopCameraRecording();
+  $('cameraShutterBtn').addEventListener('click', async () => {
+    // Le minuteur (voir cameraTimerBtn) ne retarde QUE le DÉMARRAGE d'une
+    // photo/d'un enregistrement, jamais son arrêt (voir stopCameraRecording
+    // ci-dessous, hors du bloc concerné) — sinon appuyer une seconde fois
+    // pour arrêter de filmer se remettrait absurdement à décompter.
+    if (cameraMode === 'photo') {
+      if (cameraTimerDelaySeconds > 0) {
+        $('cameraShutterBtn').disabled = true;
+        const proceed = await runCameraCountdown(cameraTimerDelaySeconds);
+        $('cameraShutterBtn').disabled = false;
+        if (!proceed) return;
+      }
+      capturePhotoFromCamera();
+    } else if (cameraMode === 'live') {
+      startGoingLive();
+    } else if (!cameraRecording) {
+      if (cameraTimerDelaySeconds > 0) {
+        $('cameraShutterBtn').disabled = true;
+        const proceed = await runCameraCountdown(cameraTimerDelaySeconds);
+        $('cameraShutterBtn').disabled = false;
+        if (!proceed) return;
+      }
+      startCameraRecording();
+    } else {
+      stopCameraRecording();
+    }
   });
 
   // ---------- "LIVE" (direct en streaming, voir la demande de Lancine :
@@ -3439,6 +3615,29 @@
 
   function updateCameraSoundLabel() {
     $('cameraSoundLabel').textContent = pendingSoundChoice ? pendingSoundChoice.name : 'Ajouter un son';
+    // Le bouton "Changer le son" de l'aperçu avant publication (voir
+    // #uploadChangeSoundBtn) affiche le même texte que le bouton de l'écran
+    // caméra — un seul et même choix, juste accessible depuis deux endroits.
+    const changeBtn = $('uploadChangeSoundLabel');
+    if (changeBtn) changeBtn.textContent = pendingSoundChoice ? pendingSoundChoice.name : 'Ajouter un son';
+  }
+
+  // Appelé partout où pendingSoundChoice vient d'être modifié par un choix
+  // EXPLICITE de la personne (bibliothèque, import personnel, recherche en
+  // ligne, ou "Aucun son") — jamais par le choix AUTOMATIQUE au démarrage de
+  // l'enregistrement (voir autoPickDefaultSound, qui gère elle-même son
+  // propre cas). Met à jour les étiquettes ET, si l'aperçu avant publication
+  // est actuellement ouvert (voir #uploadChangeSoundBtn — permet de changer
+  // le son APRÈS avoir filmé, sans perdre le clip déjà enregistré, demande
+  // de Lancine du 25/08/2026 : "si cela ne convient pas je change moi-même
+  // dans la liste des musiques"), rebranche aussi #uploadPreviewAudio sur le
+  // nouveau choix.
+  function onSoundChoiceChanged() {
+    updateCameraSoundLabel();
+    if (!$('uploadOverlay').classList.contains('hidden') && pendingUploadKind === 'video') {
+      detachPreviewSound();
+      attachPreviewSound();
+    }
   }
 
   function stopSoundPreview() {
@@ -3465,7 +3664,7 @@
     noneRow.innerHTML = '<span class="soundPickerRowName">Aucun son (garder le son original)</span>';
     noneRow.addEventListener('click', () => {
       pendingSoundChoice = null;
-      updateCameraSoundLabel();
+      onSoundChoiceChanged();
       closeSoundPicker();
     });
     list.appendChild(noneRow);
@@ -3501,7 +3700,7 @@
       });
       row.querySelector('.soundPickerChooseBtn').addEventListener('click', () => {
         pendingSoundChoice = { type: 'library', id: s.id, name: s.name };
-        updateCameraSoundLabel();
+        onSoundChoiceChanged();
         closeSoundPicker();
       });
       const delBtn = row.querySelector('.soundPickerDeleteBtn');
@@ -3582,7 +3781,7 @@
             mime: data.audioMime,
             name: data.name,
           };
-          updateCameraSoundLabel();
+          onSoundChoiceChanged();
           closeSoundPicker();
         } catch (err) {
           alert('Erreur : ' + err.message);
@@ -3636,6 +3835,7 @@
   }
 
   $('cameraSoundBtn').addEventListener('click', openSoundPicker);
+  $('uploadChangeSoundBtn').addEventListener('click', openSoundPicker);
   $('soundPickerOverlay').addEventListener('click', (e) => { if (e.target === $('soundPickerOverlay')) closeSoundPicker(); });
 
   // Son personnel importé juste pour CETTE publication (pas ajouté à la
@@ -3649,7 +3849,7 @@
       file,
       name: (file.name || 'Son personnel').replace(/\.[^.]+$/, '').slice(0, 60) || 'Son personnel',
     };
-    updateCameraSoundLabel();
+    onSoundChoiceChanged();
     closeSoundPicker();
   });
 
@@ -3764,6 +3964,83 @@
     }
   }
 
+  // Termes génériques utilisés pour proposer une musique "populaire" par
+  // défaut quand l'enregistrement commence sans qu'aucune n'ait été choisie
+  // (voir autoPickDefaultSound ci-dessous) — un vrai classement des
+  // tendances n'est pas disponible via l'API iTunes publique utilisée ici
+  // (voir sound.controller.js) sans clé payante, donc ceci reste un choix
+  // raisonnable plutôt qu'un vrai "top des tendances". Un terme est tiré au
+  // sort à chaque fois (pas toujours le même) pour varier les propositions.
+  const DEFAULT_SOUND_SEARCH_TERMS = [
+    'pop hits', 'afrobeats hits', 'dance hits', 'rnb hits', 'hits 2024', 'top songs',
+  ];
+
+  // Choisit et applique automatiquement une musique quand l'enregistrement
+  // commence SANS qu'aucune n'ait été choisie via "Ajouter un son" (voir
+  // startCameraRecording) — demande de Lancine (25/08/2026), "exactement
+  // comme TikTok" : Lancine peut ensuite la remplacer à tout moment (pendant
+  // le filmage, ou même après via #uploadChangeSoundBtn dans l'aperçu avant
+  // publication) si elle ne convient pas. Réutilise telles quelles les
+  // routes déjà en place pour un choix manuel (recherche + téléchargement en
+  // ligne, voir sound.controller.js) plutôt que d'en ajouter une nouvelle —
+  // même fiabilité déjà éprouvée, juste déclenchée automatiquement avec un
+  // terme de recherche tiré au sort au lieu d'être tapé. Ne bloque JAMAIS le
+  // démarrage réel de l'enregistrement (appelée sans await depuis
+  // startCameraRecording) : l'enregistrement commence tout de suite, cette
+  // musique le rejoint dès qu'elle est prête — même si ça arrive APRÈS la
+  // fin de l'enregistrement (fréquent pour un clip court : la recherche +
+  // le téléchargement prennent souvent plus longtemps que quelques secondes
+  // de vidéo), voir le rattrapage plus bas — ou jamais si ça échoue (échec
+  // silencieux, voir le catch), exactement comme si "Aucun son" avait été
+  // choisi. "seq" (voir autoSoundAttemptSeq) permet de reconnaître une
+  // résolution devenue périmée entre-temps.
+  async function autoPickDefaultSound(seq) {
+    const term = DEFAULT_SOUND_SEARCH_TERMS[Math.floor(Math.random() * DEFAULT_SOUND_SEARCH_TERMS.length)];
+    try {
+      const searchData = await api('/api/sounds/search-online?q=' + encodeURIComponent(term));
+      const results = searchData.results || [];
+      if (!results.length) return;
+      const pick = results[Math.floor(Math.random() * results.length)];
+      const previewData = await api('/api/sounds/online-preview', {
+        method: 'POST',
+        body: JSON.stringify({ previewUrl: pick.previewUrl, trackName: pick.trackName, artistName: pick.artistName }),
+      });
+      // Une musique a été choisie MANUELLEMENT entre-temps (le bouton
+      // "Ajouter un son" reste accessible pendant ce temps), ou cette
+      // tentative est devenue périmée (nouvel enregistrement démarré, ou
+      // aperçu avant publication déjà fermé/publié entre-temps, voir
+      // autoSoundAttemptSeq et closeUploadOverlay) — ne jamais écraser un
+      // choix devenu entre-temps réel, ni ressusciter un son sur une
+      // publication déjà abandonnée.
+      if (pendingSoundChoice || seq !== autoSoundAttemptSeq) return;
+      pendingSoundChoice = {
+        type: 'online',
+        dataBase64: previewData.audioData,
+        mime: previewData.audioMime,
+        name: previewData.name,
+      };
+      updateCameraSoundLabel();
+      if (cameraRecording) {
+        // Encore en train de filmer : rejoint la lecture en direct, comme un
+        // son choisi à l'avance (voir startCameraSoundPreview).
+        startCameraSoundPreview();
+      } else if (!$('uploadOverlay').classList.contains('hidden') && pendingUploadKind === 'video') {
+        // Filmage déjà terminé, aperçu avant publication déjà ouvert :
+        // rattrapage en branchant directement cet aperçu-là (voir
+        // attachPreviewSound), plutôt que de perdre ce choix.
+        detachPreviewSound();
+        attachPreviewSound();
+      }
+    } catch (err) {
+      console.error('autoPickDefaultSound error:', err);
+      // Échec silencieux volontaire : l'enregistrement continue simplement
+      // sans musique, comme si "Aucun son" avait été choisi — pas la peine
+      // d'interrompre ou d'alerter pour un choix qui n'était de toute façon
+      // pas explicite (Lancine peut toujours en choisir une elle-même via
+      // "Ajouter un son").
+    }
+  }
+
   function startCameraRecording() {
     cameraChunks = [];
     const mimeType = pickVideoMimeType();
@@ -3786,9 +4063,14 @@
     cameraRecorder.start();
     cameraRecording = true;
     cameraStartTs = Date.now();
-    // Sans await volontairement (voir le commentaire de la fonction) :
-    // l'enregistrement ne doit jamais attendre la musique pour démarrer.
-    startCameraSoundPreview();
+    // Sans await volontairement (voir le commentaire des fonctions
+    // appelées) : l'enregistrement ne doit jamais attendre la musique pour
+    // démarrer, qu'elle ait déjà été choisie (voir startCameraSoundPreview)
+    // ou qu'elle doive être choisie automatiquement (voir
+    // autoPickDefaultSound, demande de Lancine du 25/08/2026 : une musique
+    // se propose automatiquement, remplaçable ensuite via "Ajouter un son").
+    if (pendingSoundChoice) startCameraSoundPreview();
+    else autoPickDefaultSound(++autoSoundAttemptSeq);
     $('cameraShutterBtn').classList.add('recording');
     $('cameraTimer').textContent = '00:00';
     $('cameraTimer').classList.remove('hidden');
