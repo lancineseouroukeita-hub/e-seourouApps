@@ -2,6 +2,7 @@ require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
+const compression = require('compression');
 const http = require('http');
 const { Server } = require('socket.io');
 
@@ -46,6 +47,14 @@ const corsOriginEnv = process.env.CORS_ORIGIN || '*';
 const corsOrigin = corsOriginEnv === '*' ? '*' : corsOriginEnv.split(',');
 
 app.use(cors({ origin: corsOrigin }));
+// Compresse (gzip/brotli selon ce que le client accepte) toutes les réponses
+// HTTP — surtout utile ici pour les réponses JSON contenant du contenu
+// encodé en base64 (photos, sons, et désormais UNIQUEMENT le contenu vidéo
+// réel via GET /api/videos/:id/media, voir video.controller.js), qui
+// compresse raisonnablement bien même si la vidéo/l'image d'origine est déjà
+// elle-même compressée. Sans impact sur Socket.io (compression HTTP
+// classique, pas liée à la négociation WebSocket).
+app.use(compression());
 // Limite par défaut d'express.json() : 100 Ko, trop petit pour la photo de
 // profil (jusqu'à ~2 Mo, voir user.controller.js), une photo de statut
 // (jusqu'à 5 Mo, voir status.controller.js) ou une vidéo "Clips" (jusqu'à

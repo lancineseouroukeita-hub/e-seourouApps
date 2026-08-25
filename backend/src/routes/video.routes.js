@@ -1,7 +1,7 @@
 const express = require('express');
 const {
   listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
-  saveVideo, unsaveVideo, listComments, createComment, reportVideo, shareVideo,
+  saveVideo, unsaveVideo, listComments, createComment, reportVideo, shareVideo, getVideoMedia,
   recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 } = require('../controllers/video.controller');
 const { requireAuth } = require('../middleware/auth');
@@ -29,6 +29,10 @@ router.post('/:id/unlike', requireAuth, asyncHandler(unlikeVideo));
 router.post('/:id/save', requireAuth, asyncHandler(saveVideo));
 router.post('/:id/unsave', requireAuth, asyncHandler(unsaveVideo));
 router.get('/:id/comments', requireAuth, asyncHandler(listComments));
+// Contenu binaire réel d'UNE vidéo, récupéré à la demande (voir
+// video.controller.js, getVideoMedia et VIDEO_LIST_SELECT) — jamais renvoyé
+// par les listings (fil, profil, enregistrées) pour rester rapides.
+router.get('/:id/media', requireAuth, asyncHandler(getVideoMedia));
 router.post('/:id/comments', requireAuth, asyncHandler(createComment));
 // Vue comptée pour "TikTok Studio" (voir getMyStats) — une par visionnage,
 // pas idempotent comme like/save (voir video.controller.js, recordView).

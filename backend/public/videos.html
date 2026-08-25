@@ -549,7 +549,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v22</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v23</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -1259,20 +1259,58 @@
     }
   }
 
-  // Pose le src d'un <video> de renderClip une fois la conversion base64 ->
-  // blob (voir base64ToBlobUrl) terminée — c'est-à-dire "en tâche de fond",
-  // sans bloquer l'affichage du clip (poster déjà visible entre-temps).
-  // Comme cette conversion est asynchrone, le clip peut déjà être devenu
-  // visible (voir setupObserver) avant qu'elle ne se termine : dans ce cas
-  // l'appel play() fait par l'observer échoue silencieusement (aucun src
-  // posé encore) et rien ne le relance jamais tout seul, ce qui laissait le
-  // clip bloqué sur son "poster" — donnant l'impression trompeuse que la
-  // vidéo "s'est transformée en photo". On relit donc ici dataset.shouldPlay
-  // (posé par l'observer) pour relancer play() nous-mêmes si besoin, une
-  // fois le src enfin prêt.
+  // Récupère le contenu binaire RÉEL d'une vidéo à la demande, un seul clip à
+  // la fois (voir GET /api/videos/:id/media, video.controller.js) — les
+  // listings (fil, profil, enregistrées) ne renvoient plus jamais videoData
+  // directement (voir VIDEO_LIST_SELECT côté serveur) pour rester rapides,
+  // même sur une connexion mobile faible : avant ce correctif, CHAQUE page du
+  // fil (jusqu'à 6 vidéos) transférait pour rien le contenu binaire complet
+  // de vidéos jamais regardées, ce qui explique une bonne partie des lenteurs
+  // signalées par Lancine. Mémorise le résultat directement sur l'objet "v"
+  // (partagé avec le reste de renderClip/ce module) pour ne jamais
+  // re-télécharger deux fois la même vidéo pendant la session, même si son
+  // clip ressort et revient dans le DOM (ex: en rescrollant).
+  async function fetchVideoMedia(v) {
+    if (v.videoData) return v;
+    if (!v._mediaFetchPromise) {
+      v._mediaFetchPromise = api('/api/videos/' + v.id + '/media').then((data) => {
+        v.videoData = data.videoData;
+        v.videoMime = data.videoMime || v.videoMime;
+      }).catch((err) => {
+        console.error('fetchVideoMedia error:', err);
+        // Permet de réessayer au prochain appel (ex: nouvel affichage du
+        // clip) plutôt que de rester bloqué sur un échec définitif.
+        v._mediaFetchPromise = null;
+      });
+    }
+    await v._mediaFetchPromise;
+    return v;
+  }
+
+  // Pose le src d'un <video> de renderClip une fois le contenu récupéré
+  // (fetchVideoMedia ci-dessus) ET converti en blob (voir base64ToBlobUrl)
+  // — c'est-à-dire "en tâche de fond", sans bloquer l'affichage du clip
+  // (poster déjà visible entre-temps). Comme tout ceci est asynchrone, le
+  // clip peut déjà être devenu visible (voir setupObserver) avant que ça ne
+  // se termine : dans ce cas l'appel play() fait par l'observer échoue
+  // silencieusement (aucun src posé encore) et rien ne le relance jamais
+  // tout seul, ce qui laissait le clip bloqué sur son "poster" — donnant
+  // l'impression trompeuse que la vidéo "s'est transformée en photo". On
+  // relit donc ici dataset.shouldPlay (posé par l'observer) pour relancer
+  // play() nous-mêmes si besoin, une fois le src enfin prêt.
   async function attachVideoSrc(v, el) {
     const videoEl = el.querySelector('video');
     if (!videoEl) return;
+    await fetchVideoMedia(v);
+    if (!videoEl.isConnected) return;
+    if (!v.videoData) {
+      const errEl = el.querySelector('.clipPlaybackError');
+      if (errEl) {
+        errEl.classList.remove('hidden');
+        errEl.querySelector('.clipPlaybackErrorDetail').textContent = `(téléchargement échoué — ${v.videoMime || 'format inconnu'})`;
+      }
+      return;
+    }
     const blobUrl = await base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime));
     // Le clip a pu être retiré du fil (rechargement, suppression) pendant
     // que la conversion tournait encore — ne rien poser sur un élément mort.
@@ -1692,8 +1730,15 @@
         $('myVideosGrid').appendChild(thumb);
         if (needsBlobVideo) {
           const videoEl = thumb.querySelector('video');
-          base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime)).then((blobUrl) => {
-            if (videoEl && blobUrl) videoEl.src = blobUrl;
+          // fetchVideoMedia (pas directement v.videoData, plus jamais inclus
+          // dans /api/videos/mine — voir VIDEO_LIST_SELECT côté serveur) :
+          // ne concerne de toute façon que le cas rare d'une vidéo SANS
+          // vignette (needsBlobVideo), pas toute la grille à la fois.
+          fetchVideoMedia(v).then(() => {
+            if (!v.videoData) return;
+            base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime)).then((blobUrl) => {
+              if (videoEl && blobUrl) videoEl.src = blobUrl;
+            });
           });
         }
       });
@@ -3767,6 +3812,10 @@
           blobUrl = await base64ToBlobUrl(v.photoData, baseMimeType(v.photoMime));
           filename = 'diarala_' + v.id + '.jpg';
         } else {
+          // fetchVideoMedia : v.videoData n'est plus inclus dans /api/videos/
+          // saved (voir VIDEO_LIST_SELECT côté serveur) — récupéré ici à la
+          // demande, exactement au moment où "Télécharger" est pressé.
+          await fetchVideoMedia(v);
           blobUrl = await base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime));
           filename = 'diarala_' + v.id + '.mp4';
         }

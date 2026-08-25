@@ -8,9 +8,40 @@ const {
 } = require('../utils/limits');
 
 // Nombre de vidéos renvoyées par page du fil (voir listVideos) : assez pour
-// remplir l'écran sans recharger une page trop lourde d'un coup — chaque
-// entrée peut peser plusieurs Mo une fois son contenu vidéo inclus.
+// remplir l'écran sans recharger une page trop lourde d'un coup.
 const FEED_PAGE_SIZE = 6;
+
+// Champs de Video à renvoyer pour un LISTING (fil, profil, enregistrées...) —
+// EXPLICITEMENT sans "videoData" (voir schema.prisma : jusqu'à 25 Mo par
+// vidéo, encodée en base64 donc environ +33% une fois transmise). Avant ce
+// correctif, chaque prisma.video.findMany() utilisait "include" (qui renvoie
+// TOUTES les colonnes scalaires par défaut, y compris videoData) même quand
+// serializeVideo ne renvoyait ensuite jamais ce champ au client pour une
+// LISTE de plusieurs vidéos à la fois — la base de données ET le serveur
+// transféraient donc pour rien plusieurs dizaines de Mo à chaque page du fil
+// (jusqu'à 6 vidéos × ~33 Mo), ce qui explique une bonne partie des lenteurs
+// signalées par Lancine, en particulier sur une connexion mobile faible.
+// Le contenu vidéo réel se récupère maintenant à la demande, un seul clip à
+// la fois, via GET /api/videos/:id/media (voir getVideoMedia plus bas et
+// videos.html, fetchVideoMedia) — jamais embarqué dans un listing.
+const VIDEO_LIST_SELECT = {
+  id: true,
+  authorId: true,
+  caption: true,
+  type: true,
+  videoMime: true,
+  photoData: true,
+  photoMime: true,
+  thumbnailData: true,
+  thumbnailMime: true,
+  duration: true,
+  personalSoundData: true,
+  personalSoundMime: true,
+  personalSoundName: true,
+  createdAt: true,
+  boostedUntil: true,
+  sharesCount: true,
+};
 
 // Taille max de la légende (comme les autres champs texte courts de l'appli).
 const MAX_CAPTION_LENGTH = 300;
@@ -52,7 +83,11 @@ function serializeVideo(video, currentUserId, followingSet) {
     // "video" (par défaut, y compris les publications créées avant l'ajout
     // des photos) ou "photo" — voir schema.prisma, modèle Video.
     type: video.type || 'video',
-    videoData: video.videoData || null,
+    // Jamais videoData ici (voir VIDEO_LIST_SELECT plus haut et getVideoMedia
+    // plus bas) — même quand l'objet "video" en mémoire le contient encore
+    // (ex: juste après prisma.video.create dans createVideo), pour que le
+    // client passe TOUJOURS par le même chemin (fetchVideoMedia côté
+    // videos.html), sans cas particulier à gérer juste après une publication.
     videoMime: video.videoMime || null,
     photoData: video.photoData || null,
     photoMime: video.photoMime || null,
@@ -161,7 +196,10 @@ async function listVideos(req, res) {
       ? { createdAt: 'desc' }
       : [{ boostedUntil: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
     take: FEED_PAGE_SIZE,
-    include: {
+    // select (pas include) : voir VIDEO_LIST_SELECT plus haut — exclut
+    // videoData de la requête SQL elle-même, pas seulement de la réponse.
+    select: {
+      ...VIDEO_LIST_SELECT,
       author: true,
       sound: { select: { id: true, name: true } },
       likes: { where: { userId: req.user.id } },
@@ -183,7 +221,9 @@ async function listMyVideos(req, res) {
   const videos = await prisma.video.findMany({
     where: { authorId: req.user.id },
     orderBy: { createdAt: 'desc' },
-    include: {
+    // select (pas include) : voir VIDEO_LIST_SELECT plus haut.
+    select: {
+      ...VIDEO_LIST_SELECT,
       author: true,
       sound: { select: { id: true, name: true } },
       likes: { where: { userId: req.user.id } },
@@ -207,8 +247,10 @@ async function listSavedVideos(req, res) {
       where: { userId: req.user.id },
       orderBy: { createdAt: 'desc' },
       include: {
+        // select (pas include) sur "video" : voir VIDEO_LIST_SELECT plus haut.
         video: {
-          include: {
+          select: {
+            ...VIDEO_LIST_SELECT,
             author: true,
             sound: { select: { id: true, name: true } },
             likes: { where: { userId: req.user.id } },
@@ -260,6 +302,31 @@ async function getVideoPrivacy(req, res) {
   }
 }
 
+// GET /api/videos/:id/media — contenu binaire RÉEL d'UNE vidéo (jamais une
+// photo : voir isPhoto côté client, qui n'appelle jamais cette route puisque
+// photoData reste embarqué directement dans le listing, bien plus léger).
+// Séparé de listVideos/listMyVideos/listSavedVideos (voir VIDEO_LIST_SELECT
+// plus haut) pour ne transférer le contenu vidéo (jusqu'à ~33 Mo encodé)
+// qu'une vidéo à la fois, au moment où le client en a réellement besoin
+// (voir videos.html, fetchVideoMedia — appelé quand un clip devient visible,
+// pas pour toute une page de résultats d'un coup).
+async function getVideoMedia(req, res) {
+  try {
+    const { id } = req.params;
+    const video = await prisma.video.findUnique({
+      where: { id },
+      select: { id: true, type: true, videoData: true, videoMime: true },
+    });
+    if (!video || video.type !== 'video' || !video.videoData) {
+      return res.status(404).json({ error: 'Vidéo introuvable.' });
+    }
+    return res.json({ videoData: video.videoData, videoMime: video.videoMime });
+  } catch (err) {
+    console.error('getVideoMedia error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+}
+
 // POST /api/videos/:id/view — enregistre une "vue" pour les statistiques
 // ("TikTok Studio", voir getMyStats) : une ligne par visionnage compté côté
 // client (voir videos.html, setupObserver — une seule fois par vidéo par
@@ -289,7 +356,9 @@ async function recordView(req, res) {
 async function boostVideo(req, res) {
   try {
     const { id } = req.params;
-    const video = await prisma.video.findUnique({ where: { id } });
+    // select : juste de quoi vérifier la propriété (jusqu'à 25 Mo de
+    // videoData sinon renvoyés pour rien, voir VIDEO_LIST_SELECT plus haut).
+    const video = await prisma.video.findUnique({ where: { id }, select: { id: true, authorId: true } });
     if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
     if (video.authorId !== req.user.id) {
       return res.status(403).json({ error: 'Vous ne pouvez promouvoir que vos propres publications.' });
@@ -310,7 +379,10 @@ async function boostVideo(req, res) {
         where: { id: req.user.id },
         data: { creditsBalance: { decrement: BOOST_COST_CREDITS } },
       }),
-      prisma.video.update({ where: { id }, data: { boostedUntil } }),
+      // select : le résultat de cette mise à jour n'est même pas utilisé plus
+      // bas (voir la déstructuration "[, updatedUser]" ci-dessus) — inutile
+      // de faire revenir tout videoData avec, comme ailleurs dans ce fichier.
+      prisma.video.update({ where: { id }, data: { boostedUntil }, select: { id: true } }),
     ]);
     return res.json({ ok: true, boostedUntil, balance: updatedUser.creditsBalance });
   } catch (err) {
@@ -438,7 +510,10 @@ async function createVideo(req, res) {
     let finalPersonalSoundMime = null;
     let finalPersonalSoundName = null;
     if (soundId && typeof soundId === 'string') {
-      const sound = await prisma.sound.findUnique({ where: { id: soundId } });
+      // select: juste l'existence du son (jusqu'à 8 Mo d'audioData sinon
+      // renvoyés pour rien, voir schema.prisma modèle Sound — même raison que
+      // VIDEO_LIST_SELECT plus haut).
+      const sound = await prisma.sound.findUnique({ where: { id: soundId }, select: { id: true } });
       if (sound) finalSoundId = sound.id;
     } else if (personalSoundData && typeof personalSoundData === 'string') {
       if (!personalSoundMime || typeof personalSoundMime !== 'string' || !personalSoundMime.startsWith('audio/')) {
@@ -467,7 +542,18 @@ async function createVideo(req, res) {
         personalSoundMime: finalPersonalSoundMime,
         personalSoundName: finalPersonalSoundName,
       },
-      include: { author: true, sound: { select: { id: true, name: true } }, likes: true },
+      // select (pas include) : évite de faire revenir le videoData tout
+      // juste écrit (jusqu'à ~33 Mo une fois encodé) alors que serializeVideo
+      // ne le renvoie de toute façon jamais (voir VIDEO_LIST_SELECT plus
+      // haut) — le client le récupérera à la demande via GET
+      // /api/videos/:id/media dès qu'il affichera ce clip (voir videos.html,
+      // fetchVideoMedia).
+      select: {
+        ...VIDEO_LIST_SELECT,
+        author: true,
+        sound: { select: { id: true, name: true } },
+        likes: true,
+      },
     });
 
     return res.status(201).json({ video: serializeVideo(video, req.user.id) });
@@ -496,7 +582,9 @@ async function deleteVideo(req, res) {
 async function likeVideo(req, res) {
   try {
     const { id } = req.params;
-    const video = await prisma.video.findUnique({ where: { id } });
+    // select : voir VIDEO_LIST_SELECT plus haut — seul authorId est vraiment
+    // utilisé ci-dessous (jamais besoin du contenu vidéo pour un like).
+    const video = await prisma.video.findUnique({ where: { id }, select: { id: true, authorId: true } });
     if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
 
     // Vérifié AVANT le upsert (pas juste "update: {}") pour savoir si ce like
@@ -539,7 +627,8 @@ async function unlikeVideo(req, res) {
 async function saveVideo(req, res) {
   try {
     const { id } = req.params;
-    const video = await prisma.video.findUnique({ where: { id } });
+    // select : juste l'existence (voir VIDEO_LIST_SELECT plus haut).
+    const video = await prisma.video.findUnique({ where: { id }, select: { id: true } });
     if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
 
     await prisma.videoSave.upsert({
@@ -647,7 +736,8 @@ async function createComment(req, res) {
     const text = String(req.body.text || '').trim().slice(0, MAX_COMMENT_LENGTH);
     if (!text) return res.status(400).json({ error: 'Le commentaire ne peut pas être vide.' });
 
-    const video = await prisma.video.findUnique({ where: { id } });
+    // select : juste l'existence (voir VIDEO_LIST_SELECT plus haut).
+    const video = await prisma.video.findUnique({ where: { id }, select: { id: true } });
     if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
 
     const comment = await prisma.videoComment.create({
@@ -672,6 +762,6 @@ async function createComment(req, res) {
 
 module.exports = {
   listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
-  saveVideo, unsaveVideo, listComments, createComment, reportVideo, shareVideo,
+  saveVideo, unsaveVideo, listComments, createComment, reportVideo, shareVideo, getVideoMedia,
   recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 };
