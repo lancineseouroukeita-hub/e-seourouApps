@@ -596,7 +596,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v27</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v28</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -2252,8 +2252,17 @@
       nextCursor = data.nextCursor;
       if (!data.nextCursor) reachedEnd = true;
       if (reset && data.videos.length === 0) {
+        // BUG CORRIGÉ : ce message renvoyait vers l'onglet "Ami(e)s" pour
+        // s'abonner — vrai quand ce message a été écrit, mais "Ami(e)s" est
+        // depuis devenu un vrai fil vidéo (mes publications + comptes
+        // suivis, voir loadFriendsFeed), plus la liste "S'abonner" elle-même
+        // (déplacée vers la recherche 🔍, voir openAccountSearch). Le
+        // message pointait donc vers un endroit qui n'a plus de bouton
+        // "S'abonner" du tout — source probable de confusion signalée par
+        // Lancine ("j'ai appuyé sur abonné mais je ne vois pas les
+        // publications").
         $('emptyFeed').textContent = feedMode === 'following'
-          ? "Vous ne suivez encore personne, ou les comptes que vous suivez n'ont rien publié. Allez voir l'onglet \"Ami(e)s\" pour vous abonner."
+          ? "Vous ne suivez encore personne, ou les comptes que vous suivez n'ont rien publié. Utilisez la recherche 🔍 en haut pour trouver et suivre des comptes."
           : "Aucune publication pour l'instant.\nSoyez le premier à publier une vidéo ou une photo avec le bouton \"+\".";
         $('emptyFeed').classList.remove('hidden');
       }
