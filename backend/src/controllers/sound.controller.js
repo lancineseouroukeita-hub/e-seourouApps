@@ -71,6 +71,11 @@ async function searchOnlineMusic(req, res) {
         artistName: r.artistName || 'Artiste inconnu',
         artworkUrl: r.artworkUrl100 || r.artworkUrl60 || null,
         previewUrl: r.previewUrl,
+        // Durée du morceau COMPLET (en secondes, arrondi) — juste indicatif
+        // côté client (voir renderOnlineSoundResults dans videos.html) :
+        // l'extrait réellement téléchargé (voir fetchOnlinePreview) fait
+        // toujours ~30s, pas cette durée-là.
+        duration: r.trackTimeMillis ? Math.round(r.trackTimeMillis / 1000) : null,
       }));
     return res.json({ results });
   } catch (err) {

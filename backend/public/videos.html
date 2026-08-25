@@ -290,8 +290,12 @@
   #cameraBeautyCanvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;pointer-events:none;}
   #cameraBeautyCanvas.hidden{display:none;}
   #cameraTopBar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px;padding-top:calc(16px + env(safe-area-inset-top, 0));}
-  #cameraTopBar button{background:rgba(30,30,30,0.55);border:none;color:white;width:38px;height:38px;border-radius:50%;font-size:17px;cursor:pointer;}
-  #cameraTopBarRight{display:flex;align-items:center;gap:10px;}
+  #cameraTopBar button,
+  #cameraSideToolbar button{background:rgba(30,30,30,0.55);border:none;color:white;width:38px;height:38px;border-radius:50%;font-size:17px;cursor:pointer;}
+  /* Colonne verticale sur le bord droit, comme la capture TikTok de Lancine
+     (voir le commentaire HTML) — repose sous #cameraTopBar (top:90px) pour
+     ne jamais chevaucher le bouton "Fermer". */
+  #cameraSideToolbar{position:absolute;top:calc(90px + env(safe-area-inset-top, 0));right:14px;display:flex;flex-direction:column;align-items:center;gap:18px;z-index:4;}
   /* Minuteur actif (3s/10s choisi, voir cameraTimerDelaySeconds) : même
      couleur d'accent que le reste de l'appli, pour que ce soit visible d'un
      coup d'œil que le prochain appui sur l'obturateur sera différé. */
@@ -299,7 +303,12 @@
   /* Mode beauté actif (voir beautyModeOn) — même traitement visuel que le
      minuteur actif, pour rester cohérent. */
   #cameraBeautyBtn.active{background:var(--accent, #ff2d55);}
-  #cameraTimer{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.6);color:white;padding:5px 14px;border-radius:14px;font-size:13px;}
+  /* Repositionné juste au-dessus de l'obturateur (demande de Lancine,
+     25/08/2026 : "exactement comme ça", capture d'écran TikTok) — texte
+     simple sans pastille, ancré depuis le BAS de l'écran (indépendant de la
+     hauteur de #cameraBottomBar, voir sa valeur "bottom" ci-dessous : marge
+     basse + hauteur de l'obturateur (70px) + petit espace). */
+  #cameraTimer{position:absolute;left:50%;bottom:calc(24px + env(safe-area-inset-bottom, 0) + 70px + 14px);transform:translateX(-50%);color:white;font-size:15px;font-weight:700;text-shadow:0 1px 4px rgba(0,0,0,0.65);}
   #cameraTimer.hidden{display:none;}
   /* Décompte plein écran du minuteur (voir runCameraCountdown) — un grand
      chiffre centré, semi-transparent par-dessus l'aperçu caméra en direct. */
@@ -355,30 +364,48 @@
   #soundPickerOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;justify-content:center;z-index:31;}
   #soundPickerOverlay.hidden{display:none;}
   #soundPickerPanel{width:100%;max-width:480px;max-height:72vh;background:var(--panel);border-radius:16px 16px 0 0;display:flex;flex-direction:column;padding-bottom:env(safe-area-inset-bottom, 0);}
-  #soundPickerPanel .screenHeader{padding:14px 16px;border-bottom:1px solid var(--border);}
+  /* Titre + icône recherche sur la même ligne (voir soundSearchToggleBtn) —
+     demande de Lancine, 25/08/2026, capture TikTok à l'appui. */
+  #soundPickerPanel .screenHeader{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;}
+  #soundSearchToggleBtn{background:none;border:none;color:var(--text);font-size:17px;cursor:pointer;padding:4px;line-height:1;}
+  #soundSearchToggleBtn.active{color:var(--accent);}
   .soundPickerImportRow{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;font-size:13.5px;}
   .soundPickerImportRow:hover{background:var(--panel2);}
   .soundPickerImportRow.hidden{display:none;}
   .soundPickerImportIcon{font-size:16px;}
   #soundPickerList{flex:1;overflow-y:auto;padding:4px 0;}
-  .soundPickerRow{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid rgba(255,255,255,0.05);}
+  /* Rangée façon TikTok (vignette + titre/sous-titre empilés + contrôles) —
+     voir renderSoundPickerList/renderOnlineSoundResults pour le contenu
+     exact généré dans cette structure. */
+  .soundPickerRow{display:flex;align-items:center;gap:10px;padding:8px 16px;border-bottom:1px solid rgba(255,255,255,0.05);}
   .soundPickerRow.noneRow{cursor:pointer;}
   .soundPickerRow.noneRow:hover{background:var(--panel2);}
   .soundPickerPreviewBtn{width:30px;height:30px;flex-shrink:0;border-radius:50%;border:none;background:var(--panel2);color:var(--text);cursor:pointer;font-size:12px;}
   .soundPickerPreviewBtn.playing{background:var(--accent);color:white;}
+  .soundPickerRowTextCol{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px;}
   .soundPickerRowName{flex:1;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  /* Sous-titre (durée, + artiste pour un résultat en ligne) — voir
+     formatSoundDuration : discret, comme sur la capture de référence. */
+  .soundPickerRowSubtitle{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
   .soundPickerChooseBtn{padding:6px 12px;border-radius:14px;border:1px solid var(--accent);background:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
   .soundPickerDeleteBtn{background:none;border:none;font-size:14px;cursor:pointer;flex-shrink:0;opacity:0.7;}
   .soundPickerDeleteBtn:hover{opacity:1;}
-  /* Recherche de musiques en ligne (extraits 30s) — voir onlineSoundSearchInput. */
+  /* Recherche de musiques en ligne (extraits 30s) — voir onlineSoundSearchInput.
+     Masquée par défaut (voir soundSearchToggleBtn) : ne s'affiche qu'après
+     un appui sur l'icône 🔎 du titre, plutôt qu'un champ toujours visible. */
   .onlineSoundSearchRow{padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .onlineSoundSearchRow.hidden{display:none;}
   .onlineSoundSearchRow input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;}
   .onlineSoundSearchRow input:focus{outline:none;border-color:var(--accent);}
   /* Vide (aucune recherche en cours) : ni bordure ni espace réservé, pour ne
      pas laisser un vide visuel entre la recherche et la bibliothèque. */
   #onlineSoundResults:empty{border:none;}
   #onlineSoundResults{border-bottom:1px solid var(--border);}
-  .soundPickerRowArtwork{width:30px;height:30px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--panel2);}
+  /* Vignette carrée à gauche (comme la capture TikTok) — pour la
+     bibliothèque partagée (sans vignette propre, voir Sound côté serveur),
+     retombe sur une case ♪ générique plutôt qu'un carré vide. */
+  .soundPickerRowArtwork{width:40px;height:40px;border-radius:6px;object-fit:cover;flex-shrink:0;background:var(--panel2);}
+  .soundPickerRowArtworkPlaceholder{width:40px;height:40px;border-radius:6px;flex-shrink:0;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:15px;color:var(--muted);}
   .onlineSoundHint{padding:10px 16px;font-size:12.5px;color:var(--muted);}
 
   /* ---------- Nom du son sous la légende, dans le bas de l'écran (voir
@@ -1014,22 +1041,31 @@
     <canvas id="cameraBeautyCanvas" class="hidden"></canvas>
     <div id="cameraTopBar">
       <button id="cameraCloseBtn" type="button" title="Fermer">✕</button>
-      <div id="cameraTopBarRight">
-        <!-- Mode "beauté" (demande de Lancine, 25/08/2026) : PAS une vraie
-             détection de visage (trop lourd/risqué à faire fonctionner de
-             façon fiable sur iPhone sans pouvoir tester en direct dans cet
-             environnement, voir la discussion) — un adoucissement léger de
-             toute l'image à la place (voir applyBeautySoftening), un
-             compromis simple et fiable annoncé à Lancine en connaissance de
-             cause plutôt qu'un vrai lissage sélectif du visage. -->
-        <button id="cameraBeautyBtn" type="button" title="Beauté">✨</button>
-        <!-- Minuteur (voir la demande de Lancine, 25/08/2026 : "exactement
-             comme TikTok") : décompte avant que l'enregistrement/la photo ne
-             commence VRAIMENT, pour avoir le temps de se placer — voir
-             runCameraCountdown et cameraTimerDelaySeconds. -->
-        <button id="cameraTimerBtn" type="button" title="Minuteur">⏱</button>
-        <button id="cameraFlipBtn" type="button" title="Retourner la caméra">🔄</button>
-      </div>
+    </div>
+    <!-- Colonne verticale sur le bord droit (demande répétée de Lancine,
+         25/08/2026, capture d'écran TikTok à l'appui) — remplace l'ancienne
+         rangée horizontale #cameraTopBarRight : mêmes boutons, juste
+         réarrangés pour ressembler exactement à la capture. Le flash et les
+         filtres/collage ne sont PAS dans cette colonne : le flash n'est pas
+         pilotable depuis une page web sur iPhone (limitation Safari, déjà
+         expliquée à Lancine) et filtres/collage restent à construire (voir
+         la discussion — Lancine a choisi de commencer par la beauté, déjà
+         faite ci-dessous). -->
+    <div id="cameraSideToolbar">
+      <button id="cameraFlipBtn" type="button" title="Retourner la caméra">🔄</button>
+      <!-- Minuteur (voir la demande de Lancine, 25/08/2026 : "exactement
+           comme TikTok") : décompte avant que l'enregistrement/la photo ne
+           commence VRAIMENT, pour avoir le temps de se placer — voir
+           runCameraCountdown et cameraTimerDelaySeconds. -->
+      <button id="cameraTimerBtn" type="button" title="Minuteur">⏱</button>
+      <!-- Mode "beauté" (demande de Lancine, 25/08/2026) : PAS une vraie
+           détection de visage (trop lourd/risqué à faire fonctionner de
+           façon fiable sur iPhone sans pouvoir tester en direct dans cet
+           environnement, voir la discussion) — un adoucissement léger de
+           toute l'image à la place (voir applyBeautySoftening), un
+           compromis simple et fiable annoncé à Lancine en connaissance de
+           cause plutôt qu'un vrai lissage sélectif du visage. -->
+      <button id="cameraBeautyBtn" type="button" title="Beauté">✨</button>
     </div>
     <!-- Décompte plein écran pendant le minuteur (voir runCameraCountdown) —
          élément DISTINCT de #cameraTimer juste en dessous, qui affiche lui
@@ -1118,7 +1154,15 @@
   <!-- ---------- Sélecteur de son ("Ajouter un son", comme TikTok) ---------- -->
   <div id="soundPickerOverlay" class="hidden">
     <div id="soundPickerPanel">
-      <div class="screenHeader">Ajouter un son</div>
+      <!-- Icône de recherche à droite du titre (demande de Lancine,
+           25/08/2026, capture TikTok) au lieu d'un champ toujours visible —
+           voir soundSearchToggleBtn : révèle/masque .onlineSoundSearchRow
+           juste en dessous, sans rien changer au fonctionnement de la
+           recherche elle-même. -->
+      <div class="screenHeader" id="soundPickerHeader">
+        <span>Ajouter un son</span>
+        <button type="button" id="soundSearchToggleBtn" title="Rechercher une musique en ligne">🔎</button>
+      </div>
       <label class="soundPickerImportRow">
         <span class="soundPickerImportIcon">📁</span>
         <span>Importer un son personnel (juste pour cette publication)</span>
@@ -1137,8 +1181,8 @@
            en tapant ici ; les résultats s'affichent dans #onlineSoundResults,
            juste au-dessus de la bibliothèque partagée habituelle, qui reste
            visible/inchangée en dessous. -->
-      <div class="onlineSoundSearchRow">
-        <input id="onlineSoundSearchInput" type="text" placeholder="🔎 Rechercher une musique en ligne (extrait 30s)">
+      <div class="onlineSoundSearchRow hidden">
+        <input id="onlineSoundSearchInput" type="text" placeholder="Rechercher une musique en ligne (extrait 30s)">
       </div>
       <div id="onlineSoundResults"></div>
       <div id="soundPickerList"></div>
@@ -3763,6 +3807,22 @@
     // de laisser les résultats d'une recherche précédente sans rapport.
     $('onlineSoundSearchInput').value = '';
     $('onlineSoundResults').innerHTML = '';
+    // Cache aussi le champ lui-même (voir soundSearchToggleBtn) — repart
+    // masqué comme à l'ouverture initiale du tout premier appui sur 🔎.
+    $('onlineSoundSearchRow').classList.add('hidden');
+    $('soundSearchToggleBtn').classList.remove('active');
+  }
+
+  // "0:07" / "1:30" — jamais d'heures (durée d'un son/extrait, toujours
+  // largement sous 60 minutes) : voir curatedSounds (Sound.duration, en
+  // secondes) et les résultats iTunes (voir sound.controller.js,
+  // searchOnlineMusic, champ "duration" ajouté pour cet affichage). null/
+  // NaN -> chaîne vide plutôt que "0:00" trompeur (durée simplement inconnue,
+  // ex: un ancien son de bibliothèque ajouté avant qu'on suive la durée).
+  function formatSoundDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds <= 0) return '';
+    const total = Math.round(seconds);
+    return Math.floor(total / 60) + ':' + String(total % 60).padStart(2, '0');
   }
 
   function renderSoundPickerList() {
@@ -3790,9 +3850,16 @@
     curatedSounds.forEach((s) => {
       const row = document.createElement('div');
       row.className = 'soundPickerRow';
+      // Pas de vignette propre pour un son de bibliothèque (voir Sound côté
+      // serveur, aucun champ artwork) — case ♪ générique à la place, plutôt
+      // qu'un carré vide.
       row.innerHTML = `
+        <span class="soundPickerRowArtworkPlaceholder" aria-hidden="true">♪</span>
         <button type="button" class="soundPickerPreviewBtn" title="Écouter">▶</button>
-        <span class="soundPickerRowName">${escapeHtml(s.name)}</span>
+        <span class="soundPickerRowTextCol">
+          <span class="soundPickerRowName">${escapeHtml(s.name)}</span>
+          <span class="soundPickerRowSubtitle">${escapeHtml(formatSoundDuration(s.duration))}</span>
+        </span>
         <button type="button" class="soundPickerChooseBtn">Choisir</button>
         ${(me && me.isAdmin) ? `<button type="button" class="soundPickerDeleteBtn" title="Supprimer">🗑️</button>` : ''}
       `;
@@ -3856,10 +3923,19 @@
     results.forEach((r) => {
       const row = document.createElement('div');
       row.className = 'soundPickerRow';
+      // Durée = celle du morceau COMPLET renvoyée par iTunes (voir
+      // sound.controller.js, searchOnlineMusic), pas celle de l'extrait de
+      // 30s réellement utilisé (voir fetchOnlinePreview) — indicatif
+      // seulement, comme sur la capture de référence.
       row.innerHTML = `
-        ${r.artworkUrl ? `<img class="soundPickerRowArtwork" src="${r.artworkUrl}" alt="">` : ''}
+        ${r.artworkUrl
+          ? `<img class="soundPickerRowArtwork" src="${r.artworkUrl}" alt="">`
+          : '<span class="soundPickerRowArtworkPlaceholder" aria-hidden="true">♪</span>'}
         <button type="button" class="soundPickerPreviewBtn" title="Écouter l'extrait">▶</button>
-        <span class="soundPickerRowName">${escapeHtml(r.trackName)} — ${escapeHtml(r.artistName)}</span>
+        <span class="soundPickerRowTextCol">
+          <span class="soundPickerRowName">${escapeHtml(r.trackName)}</span>
+          <span class="soundPickerRowSubtitle">${escapeHtml(r.artistName)}${r.duration ? ' · ' + escapeHtml(formatSoundDuration(r.duration)) : ''}</span>
+        </span>
         <button type="button" class="soundPickerChooseBtn">Choisir</button>
       `;
       row.querySelector('.soundPickerPreviewBtn').addEventListener('click', (e) => {
@@ -3948,6 +4024,14 @@
   $('cameraSoundBtn').addEventListener('click', openSoundPicker);
   $('uploadChangeSoundBtn').addEventListener('click', openSoundPicker);
   $('soundPickerOverlay').addEventListener('click', (e) => { if (e.target === $('soundPickerOverlay')) closeSoundPicker(); });
+  // Révèle/masque le champ de recherche en ligne (voir onlineSoundSearchRow,
+  // masqué par défaut) au lieu d'un champ toujours visible — demande de
+  // Lancine, 25/08/2026, capture TikTok à l'appui.
+  $('soundSearchToggleBtn').addEventListener('click', () => {
+    const nowHidden = $('onlineSoundSearchRow').classList.toggle('hidden');
+    $('soundSearchToggleBtn').classList.toggle('active', !nowHidden);
+    if (!nowHidden) $('onlineSoundSearchInput').focus();
+  });
 
   // Son personnel importé juste pour CETTE publication (pas ajouté à la
   // bibliothèque partagée) — voir createVideo, champ personalSoundData.
