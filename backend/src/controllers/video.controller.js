@@ -89,6 +89,9 @@ function serializeVideo(video, currentUserId, followingSet) {
     // boostée ou si la mise en avant a expiré.
     boostedUntil: activeBoostedUntil(video),
     viewsCount: video._count ? (video._count.views || 0) : (video.views ? video.views.length : 0),
+    // Icône flèche du fil (comme TikTok, voir videos.html/recordShare) —
+    // simple colonne dénormalisée sur Video, pas une relation à compter ici.
+    sharesCount: video.sharesCount || 0,
   };
 }
 
@@ -590,6 +593,28 @@ async function reportVideo(req, res) {
   }
 }
 
+// POST /api/videos/:id/share — icône flèche du fil (comme TikTok) : appelé à
+// chaque partage RÉEL (copier le lien, WhatsApp, Telegram, Messenger, envoi
+// à un contact — voir videos.html, recordShare), jamais juste à l'ouverture
+// de la feuille "Envoyer à". Pas idempotent (contrairement à like/save) :
+// partager la même vidéo plusieurs fois incrémente à chaque fois, comme un
+// vrai compteur de partages.
+async function shareVideo(req, res) {
+  try {
+    const { id } = req.params;
+    const video = await prisma.video.update({
+      where: { id },
+      data: { sharesCount: { increment: 1 } },
+      select: { sharesCount: true },
+    }).catch(() => null);
+    if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
+    return res.json({ ok: true, sharesCount: video.sharesCount });
+  } catch (err) {
+    console.error('shareVideo error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+}
+
 // GET /api/videos/:id/comments — liste simple, du plus ancien au plus récent
 // (comme une discussion), pas de pagination pour cette première version : le
 // volume de commentaires sur "Clips" devrait rester modeste au démarrage.
@@ -647,6 +672,6 @@ async function createComment(req, res) {
 
 module.exports = {
   listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
-  saveVideo, unsaveVideo, listComments, createComment, reportVideo,
+  saveVideo, unsaveVideo, listComments, createComment, reportVideo, shareVideo,
   recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 };

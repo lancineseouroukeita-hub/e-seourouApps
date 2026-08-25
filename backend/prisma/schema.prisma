@@ -585,6 +585,14 @@ model Video {
   // video.controller.js, boostVideo). Null/passé = pas boostée.
   boostedUntil DateTime?
 
+  // Compteur de partages (icône flèche du fil "Pour toi"/"Suivis", comme
+  // TikTok — voir videos.html, recordShare) : incrémenté à chaque partage
+  // RÉEL (copier le lien, WhatsApp, Telegram, Messenger, envoi à un contact),
+  // pas juste à l'ouverture de la feuille "Envoyer à". Simple compteur
+  // dénormalisé (pas de ligne par partage, contrairement à VideoView) : on
+  // n'a pas besoin ici de courbe dans le temps, juste d'un total affiché.
+  sharesCount Int @default(0)
+
   author User        @relation(fields: [authorId], references: [id], onDelete: Cascade)
   likes    VideoLike[]
   saves    VideoSave[]

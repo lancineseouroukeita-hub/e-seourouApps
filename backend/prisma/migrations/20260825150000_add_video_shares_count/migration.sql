@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Video" ADD COLUMN "sharesCount" INTEGER NOT NULL DEFAULT 0;

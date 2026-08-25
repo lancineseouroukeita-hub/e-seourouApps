@@ -1,7 +1,7 @@
 const express = require('express');
 const {
   listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
-  saveVideo, unsaveVideo, listComments, createComment, reportVideo,
+  saveVideo, unsaveVideo, listComments, createComment, reportVideo, shareVideo,
   recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 } = require('../controllers/video.controller');
 const { requireAuth } = require('../middleware/auth');
@@ -37,5 +37,7 @@ router.post('/:id/view', requireAuth, asyncHandler(recordView));
 router.post('/:id/boost', requireAuth, asyncHandler(boostVideo));
 // "Signaler" (menu d'appui long sur une publication) — voir video.controller.js, reportVideo.
 router.post('/:id/report', requireAuth, asyncHandler(reportVideo));
+// Icône flèche du fil (compteur de partages, comme TikTok) — voir video.controller.js, shareVideo.
+router.post('/:id/share', requireAuth, asyncHandler(shareVideo));
 
 module.exports = router;
