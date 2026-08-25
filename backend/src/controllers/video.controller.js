@@ -125,7 +125,16 @@ async function listVideos(req, res) {
   if (onlyFollowing === '1' || onlyFollowing === 'true') {
     // "in: []" renvoie bien zéro résultat plutôt que tout le monde — normal
     // quand on ne suit encore personne.
-    where.authorId = { in: followingIds };
+    // includeMine=1 (onglet "Ami(e)s", voir videos.html loadFriendsFeed) :
+    // en plus des comptes suivis, inclut MES PROPRES publications — TikTok
+    // affiche "mes publications + celles des ami(e)s" sur cet onglet-là,
+    // contrairement à "Suivis" (voir videos.html feedTab data-feed=
+    // "following") qui reste, lui, restreint aux seuls comptes suivis.
+    const { includeMine } = req.query;
+    const authorIds = (includeMine === '1' || includeMine === 'true')
+      ? [...followingIds, req.user.id]
+      : followingIds;
+    where.authorId = { in: authorIds };
   } else {
     // Compte "privé" (Paramètres et confidentialité, voir
     // schema.prisma User.videosPrivate) : ses publications ne doivent
@@ -556,6 +565,31 @@ async function unsaveVideo(req, res) {
   }
 }
 
+// POST /api/videos/:id/report — "Signaler" (menu d'appui long, comme
+// TikTok) : body { reason }. N'empêche jamais la vidéo de rester visible
+// (pas de suppression/masquage automatique au premier signalement, trop
+// facile à détourner pour faire disparaître le contenu de quelqu'un
+// d'autre) — juste une trace en base pour une modération manuelle
+// ultérieure (voir schema.prisma, VideoReport). Toujours idempotent côté
+// client (le bouton "Signaler" se referme immédiatement, voir videos.html),
+// mais volontairement PAS idempotent côté serveur comme un like : la même
+// personne peut signaler plusieurs fois la même vidéo sans que ça échoue.
+const VALID_REPORT_REASONS = ['contenu_inapproprie', 'spam', 'violence', 'faux_compte', 'autre'];
+async function reportVideo(req, res) {
+  try {
+    const { id } = req.params;
+    const video = await prisma.video.findUnique({ where: { id }, select: { id: true } });
+    if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
+
+    const reason = VALID_REPORT_REASONS.includes(req.body.reason) ? req.body.reason : 'autre';
+    await prisma.videoReport.create({ data: { videoId: id, reporterId: req.user.id, reason } });
+    return res.status(201).json({ ok: true });
+  } catch (err) {
+    console.error('reportVideo error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors du signalement.' });
+  }
+}
+
 // GET /api/videos/:id/comments — liste simple, du plus ancien au plus récent
 // (comme une discussion), pas de pagination pour cette première version : le
 // volume de commentaires sur "Clips" devrait rester modeste au démarrage.
@@ -613,6 +647,6 @@ async function createComment(req, res) {
 
 module.exports = {
   listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
-  saveVideo, unsaveVideo, listComments, createComment,
+  saveVideo, unsaveVideo, listComments, createComment, reportVideo,
   recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 };

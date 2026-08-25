@@ -20,6 +20,7 @@ const videoRoutes = require('./routes/video.routes');
 const followRoutes = require('./routes/follow.routes');
 const soundRoutes = require('./routes/sound.routes');
 const walletRoutes = require('./routes/wallet.routes');
+const liveRoutes = require('./routes/live.routes');
 const { setupSocket } = require('./sockets');
 const prisma = require('./config/prisma');
 
@@ -70,6 +71,7 @@ app.use('/api/videos', videoRoutes);
 app.use('/api/follows', followRoutes);
 app.use('/api/sounds', soundRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/live', liveRoutes);
 
 // Sert l'application web (testeur/PWA) : le dossier public/ contient index.html,
 // le manifest PWA, le service worker et les icônes. Comme c'est servi par ce même
@@ -124,5 +126,20 @@ server.listen(PORT, () => {
     if (res.count > 0) console.log(`${res.count} appel(s) "en cours" obsolète(s) (avant redémarrage) clôturé(s).`);
   }).catch((err) => {
     console.error('Clôture des appels obsolètes échouée :', err);
+  });
+
+  // Même raisonnement que les appels ci-dessus : les directs "LIVE" en cours
+  // (activeLives, voir sockets/live.js) ne vivent qu'en mémoire et sont donc
+  // vidés à chaque redémarrage/redéploiement — un LiveSession encore marqué
+  // "actif" (endedAt: null) en base à ce moment-là est forcément obsolète
+  // (plus aucun socket ne le referme jamais), sinon il resterait affiché
+  // indéfiniment dans la liste "LIVE" de tout le monde.
+  prisma.liveSession.updateMany({
+    where: { endedAt: null },
+    data: { endedAt: new Date() },
+  }).then((res) => {
+    if (res.count > 0) console.log(`${res.count} direct(s) "LIVE" obsolète(s) (avant redémarrage) clôturé(s).`);
+  }).catch((err) => {
+    console.error('Clôture des directs obsolètes échouée :', err);
   });
 });

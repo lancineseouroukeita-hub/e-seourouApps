@@ -153,6 +153,24 @@
   #topSearchBtn{pointer-events:auto;background:rgba(30,30,30,0.55);border:none;color:white;width:34px;height:34px;border-radius:50%;font-size:14.5px;cursor:pointer;}
 
   #emptyFeed,#loadingFeed{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13.5px;text-align:center;padding:0 90px 60px;white-space:pre-line;}
+
+  /* ---------- Ami(e)s : fil vidéo (mes publications + comptes suivis), même
+     structure plein écran que #feedScreen ci-dessus. ---------- */
+  #friendsScreen{position:fixed;inset:0;background:var(--bg);display:none;}
+  #friendsScreen.show{display:block;}
+  #friendsFeed{height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scroll-behavior:smooth;}
+  #friendsTopBar{position:fixed;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:14px 14px 0;padding-top:calc(14px + env(safe-area-inset-top, 0));z-index:5;pointer-events:none;}
+  .friendsTopBarTitle{pointer-events:auto;color:white;font-weight:800;font-size:16.5px;text-shadow:0 1px 4px rgba(0,0,0,0.6);}
+  #friendsSearchBtn{pointer-events:auto;background:rgba(30,30,30,0.55);border:none;color:white;width:34px;height:34px;border-radius:50%;font-size:14.5px;cursor:pointer;}
+  #emptyFriendsFeed,#loadingFriendsFeed{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:13.5px;text-align:center;padding:0 90px 60px;white-space:pre-line;}
+
+  /* ---------- Recherche/suivi de comptes (ancien contenu de l'écran
+     "Ami(e)s", voir plus haut) : overlay plein écran par-dessus tout,
+     ouvert/fermé indépendamment de showScreen (pas un onglet de la barre du
+     bas). ---------- */
+  #accountSearchOverlay{position:fixed;inset:0;z-index:40;}
+  #accountSearchOverlay.hidden{display:none;}
+  #accountSearchScreen{position:fixed;inset:0;background:var(--bg);overflow-y:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom, 0));}
   #emptyFeed.hidden,#loadingFeed.hidden{display:none;}
 
   /* ---------- Barre de navigation basse (Accueil / Ami(e)s / + / Messages / Profil) ---------- */
@@ -274,6 +292,35 @@
      (comme sur TikTok), voir la logique de #cameraShutterBtn plus bas. */
   .cameraSoundPill{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.55);border:none;color:white;padding:7px 14px;border-radius:16px;font-size:12.5px;display:flex;align-items:center;gap:6px;cursor:pointer;max-width:230px;}
   .cameraSoundPill.hidden{display:none;}
+
+  /* ---------- Barre de diffusion "LIVE" (voir startGoingLive) : remplace
+     cameraBottomBar pendant un direct actif. ---------- */
+  #liveBroadcastBar{position:absolute;left:0;right:0;bottom:0;padding:14px 20px calc(24px + env(safe-area-inset-bottom, 0));display:flex;align-items:center;gap:12px;background:linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0));}
+  #liveBroadcastBar.hidden{display:none;}
+  #liveBroadcastDot{color:var(--accent);font-weight:700;font-size:13px;}
+  #liveBroadcastViewerCount{flex:1;color:white;font-size:13px;}
+  #endLiveBtn{background:var(--accent);border:none;color:white;font-weight:600;font-size:13px;padding:9px 16px;border-radius:20px;cursor:pointer;}
+
+  /* ---------- Onglet "LIVE" : liste des directs en cours (voir
+     loadLiveList/renderLiveCard) — grille de vignettes façon TikTok. ---------- */
+  #liveList{height:100%;overflow-y:auto;padding:calc(64px + env(safe-area-inset-top, 0)) 12px 16px;box-sizing:border-box;display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  #liveList.hidden{display:none;}
+  .liveCard{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text);cursor:pointer;}
+  .liveCardAvatar{width:56px;height:56px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:22px;overflow:hidden;border:2px solid var(--accent);}
+  .liveCardAvatar img{width:100%;height:100%;object-fit:cover;}
+  .liveCardBadge{background:var(--accent);color:white;font-size:10px;font-weight:700;padding:2px 8px;border-radius:8px;letter-spacing:0.02em;}
+  .liveCardName{font-size:13px;font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .liveCardViewers{font-size:11.5px;color:var(--muted);}
+
+  /* ---------- Visionnage d'un direct (voir joinLive) ---------- */
+  #liveViewOverlay{position:fixed;inset:0;background:#000;z-index:27;}
+  #liveViewOverlay.hidden{display:none;}
+  #liveViewVideo{width:100%;height:100%;object-fit:cover;background:#000;}
+  #liveViewStatus{position:absolute;top:50%;left:0;right:0;transform:translateY(-50%);text-align:center;color:var(--muted);font-size:13px;pointer-events:none;}
+  #liveViewTopBar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;gap:10px;padding:16px;padding-top:calc(16px + env(safe-area-inset-top, 0));background:linear-gradient(to bottom, rgba(0,0,0,0.55), rgba(0,0,0,0));}
+  #liveViewCloseBtn{background:rgba(30,30,30,0.55);border:none;color:white;width:36px;height:36px;border-radius:50%;font-size:16px;cursor:pointer;flex-shrink:0;}
+  #liveViewHostName{flex:1;color:white;font-weight:700;font-size:14.5px;text-shadow:0 1px 4px rgba(0,0,0,0.6);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  #liveViewViewerCount{color:white;font-size:12.5px;text-shadow:0 1px 4px rgba(0,0,0,0.6);flex-shrink:0;}
   #cameraSoundLabel{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 
   /* ---------- Sélecteur de son ("Ajouter un son") ---------- */
@@ -343,6 +390,7 @@
   /* Espace réservé pour que ce bouton ne recouvre pas le contenu de chaque
      écran (onglets Suivis/Pour toi sur le fil, "Ami(e)s" sur cet écran-là). */
   #topBar{padding-left:54px;}
+  #friendsTopBar{padding-left:54px;}
   .screenHeader{padding-left:54px;}
   .profileTopBar{padding-left:54px;}
 
@@ -467,6 +515,30 @@
   .shareActionIcon{width:46px;height:46px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:19px;}
   .shareActionBtn.hidden{display:none;}
   .shareActionDelete{color:var(--accent);}
+
+  /* ---------- Menu contextuel "appui long" sur une publication (comme
+     TikTok : Télécharger, Pas intéressé(e), Signaler, Vitesse...) ---------- */
+  #clipOptionsOverlay{position:fixed;inset:0;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;justify-content:center;z-index:32;}
+  #clipOptionsOverlay.hidden{display:none;}
+  #clipOptionsPanel{width:100%;max-width:480px;max-height:80vh;overflow-y:auto;background:var(--panel);border-radius:16px 16px 0 0;padding-bottom:calc(10px + env(safe-area-inset-bottom, 0));}
+  .clipOptionsHandle{width:36px;height:4px;border-radius:2px;background:var(--border);margin:10px auto 6px;}
+  /* Ligne "Vitesse" : pas un bouton cliquable comme les autres .menuRow (le
+     clic se fait sur les pastilles 0.5x/1.0x/1.5x/2.0x elles-mêmes). */
+  .clipOptSpeedRow{cursor:default;}
+  .clipOptSpeedRow:active{background:none;}
+  .clipOptSpeedLabel{flex:1;}
+  .clipSpeedOptions{display:flex;gap:6px;flex-shrink:0;}
+  .clipSpeedBtn{background:var(--panel2);border:1px solid var(--border);color:var(--text);border-radius:14px;padding:5px 10px;font-size:12px;font-weight:700;cursor:pointer;}
+  .clipSpeedBtn.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+  /* Interrupteur "Défilement automatique" — même idée qu'un <input
+     type="checkbox"> mais stylé à la main pour rester cohérent avec le reste
+     de l'appli (aucun <input> natif utilisé ailleurs dans ces menus). */
+  .clipOptToggle{margin-left:auto;width:34px;height:20px;border-radius:10px;background:var(--panel2);border:1px solid var(--border);position:relative;flex-shrink:0;}
+  .clipOptToggle::after{content:'';position:absolute;top:1px;left:1px;width:16px;height:16px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s;}
+  .clipOptToggle.on{background:var(--accent);border-color:var(--accent);}
+  .clipOptToggle.on::after{transform:translateX(14px);background:#fff;}
+  .clipReportHeader{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;font-size:15px;}
+  .clipReportBackBtn{background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;padding:0;}
 </style>
 </head>
 <body>
@@ -477,7 +549,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v19</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v21</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -499,23 +571,62 @@
   <!-- ---------- Fil vidéo ---------- -->
   <div id="feedScreen" class="screenFeed show">
     <div id="topBar">
+      <!-- "LIVE" et "Communauté" ajoutés ici, à côté de Suivis/Pour toi,
+           exactement comme demandé par Lancine ("en haut de l'onglet
+           accueil, exactement comme TikTok") — "Communauté" navigue
+           directement vers seourouApps (voir communityTabBtn plus bas, la
+           fonctionnalité "Communautés" existe déjà là-bas, pas de raison de
+           la dupliquer ici) ; "LIVE" est un vrai troisième mode de fil (voir
+           feedMode/loadLiveList plus bas), pas une simple redirection. -->
       <div class="feedTabs">
         <button class="feedTab" data-feed="following" type="button">Suivis</button>
         <button class="feedTab active" data-feed="foryou" type="button">Pour toi</button>
+        <button class="feedTab" data-feed="live" type="button">LIVE</button>
+        <button class="feedTab" id="communityTabBtn" type="button">Communauté</button>
       </div>
       <button id="topSearchBtn" type="button" title="Rechercher des comptes">🔍</button>
     </div>
     <div id="feed"></div>
     <div id="emptyFeed" class="hidden">Aucune publication pour l'instant.<br>Soyez le premier à publier une vidéo ou une photo avec le bouton "+".</div>
     <div id="loadingFeed" class="hidden">Chargement…</div>
+    <!-- Onglet "LIVE" (voir ci-dessus) : liste des directs en cours, voir
+         loadLiveList — masqué par défaut, affiché à la place de #feed (jamais
+         les deux en même temps, voir le gestionnaire de clic des feedTab). -->
+    <div id="liveList" class="hidden"></div>
   </div>
 
-  <!-- ---------- Ami(e)s : suivre/ne plus suivre, façon TikTok (direct, sans demande à accepter) ---------- -->
-  <div id="friendsScreen" class="screen">
-    <div class="screenHeader">Ami(e)s</div>
-    <div class="screenSubhead" id="friendsCounts"></div>
-    <input id="friendsSearchInput" type="text" placeholder="Rechercher un compte…" class="friendsSearchInput">
-    <div id="friendsList"></div>
+  <!-- ---------- Ami(e)s : vrai fil vidéo (mes publications + celles des
+       comptes suivis), façon TikTok (voir la capture envoyée par Lancine) —
+       remplace l'ancienne liste "S'abonner" qui occupait cet écran avant.
+       Réutilise entièrement renderClip/le même défilement plein écran que le
+       fil principal (voir loadFriendsFeed plus bas), juste avec une requête
+       différente (onlyFollowing=1&includeMine=1, voir video.controller.js).
+       La recherche/suivi de comptes (ancien contenu de cet écran) reste
+       disponible, déplacée derrière l'icône 🔍 ci-dessous — voir
+       accountSearchOverlay. -->
+  <div id="friendsScreen" class="screenFeed">
+    <div id="friendsTopBar">
+      <span class="friendsTopBarTitle">Ami(e)s</span>
+      <button id="friendsSearchBtn" type="button" title="Rechercher des comptes">🔍</button>
+    </div>
+    <div id="friendsFeed"></div>
+    <div id="emptyFriendsFeed" class="hidden">Vous ne suivez encore personne, ou personne n'a rien publié.<br>Utilisez 🔍 pour trouver des comptes à suivre.</div>
+    <div id="loadingFriendsFeed" class="hidden">Chargement…</div>
+  </div>
+
+  <!-- ---------- Recherche/suivi de comptes (ancien écran "Ami(e)s", voir
+       plus haut) : accessible depuis 🔍 (Accueil ou Ami(e)s) et depuis
+       "Trouver des ami(e)s" sur le profil. ---------- -->
+  <div id="accountSearchOverlay" class="hidden">
+    <div id="accountSearchScreen">
+      <div class="subScreenHeader">
+        <button class="subScreenBackBtn" id="accountSearchBackBtn" type="button">←</button>
+        <span class="subScreenTitle">Trouver des ami(e)s</span>
+      </div>
+      <div class="screenSubhead" id="friendsCounts"></div>
+      <input id="friendsSearchInput" type="text" placeholder="Rechercher un compte…" class="friendsSearchInput">
+      <div id="friendsList"></div>
+    </div>
   </div>
 
   <!-- ---------- Messages (liste des discussions, façon TikTok, voir la
@@ -627,6 +738,51 @@
              menu de gestion — masqué par défaut, affiché uniquement pour ma
              propre vidéo/photo (voir openShareSheet). -->
         <button class="shareActionBtn shareActionDelete hidden" data-action="delete" type="button" id="shareDeleteBtn"><span class="shareActionIcon">🗑️</span>Supprimer</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ---------- Menu contextuel "appui long" sur une publication (comme
+       TikTok, voir openClipOptionsMenu) ---------- -->
+  <div id="clipOptionsOverlay" class="hidden">
+    <div id="clipOptionsPanel">
+      <div class="clipOptionsHandle"></div>
+      <div id="clipOptionsMainView">
+        <button class="menuRow" id="clipOptDownload" type="button"><span class="menuRowIcon">⬇️</span>Télécharger</button>
+        <button class="menuRow" id="clipOptNotInterested" type="button"><span class="menuRowIcon">🚫</span>Pas intéressé(e)</button>
+        <button class="menuRow" id="clipOptReport" type="button"><span class="menuRowIcon">⚠️</span>Signaler</button>
+        <div class="menuDivider"></div>
+        <div class="menuRow clipOptSpeedRow">
+          <span class="menuRowIcon">⏱️</span>
+          <span class="clipOptSpeedLabel">Vitesse</span>
+          <div class="clipSpeedOptions" id="clipSpeedOptions">
+            <button class="clipSpeedBtn" data-speed="0.5" type="button">0.5x</button>
+            <button class="clipSpeedBtn" data-speed="1" type="button">1.0x</button>
+            <button class="clipSpeedBtn" data-speed="1.5" type="button">1.5x</button>
+            <button class="clipSpeedBtn" data-speed="2" type="button">2.0x</button>
+          </div>
+        </div>
+        <button class="menuRow" id="clipOptLighten" type="button"><span class="menuRowIcon">💡</span>Alléger l'affichage</button>
+        <button class="menuRow" id="clipOptAutoscroll" type="button">
+          <span class="menuRowIcon">⏭️</span>Défilement automatique
+          <span class="clipOptToggle" id="clipOptAutoscrollToggle"></span>
+        </button>
+        <button class="menuRow" id="clipOptCaptions" type="button"><span class="menuRowIcon">💬</span>Légendes et traductions</button>
+        <button class="menuRow" id="clipOptPip" type="button"><span class="menuRowIcon">🖼️</span>Image en incrustation</button>
+        <button class="menuRow" id="clipOptBgSound" type="button"><span class="menuRowIcon">🎧</span>Son en arrière-plan</button>
+        <div class="menuDivider"></div>
+        <button class="menuRow" id="clipOptLinkPost" type="button"><span class="menuRowIcon">🔗</span>Lien avec publication</button>
+      </div>
+      <div id="clipReportView" class="hidden">
+        <div class="clipReportHeader">
+          <button class="clipReportBackBtn" id="clipReportBackBtn" type="button">←</button>
+          <span>Signaler cette publication</span>
+        </div>
+        <button class="menuRow" data-reason="contenu_inapproprie" type="button">Contenu inapproprié</button>
+        <button class="menuRow" data-reason="spam" type="button">Spam ou trompeur</button>
+        <button class="menuRow" data-reason="violence" type="button">Violence ou contenu choquant</button>
+        <button class="menuRow" data-reason="faux_compte" type="button">Faux compte</button>
+        <button class="menuRow" data-reason="autre" type="button">Autre raison</button>
       </div>
     </div>
   </div>
@@ -776,6 +932,12 @@
       <div class="cameraModeRow">
         <button class="cameraModeBtn active" data-mode="video" type="button">Vidéo</button>
         <button class="cameraModeBtn" data-mode="photo" type="button">Photo</button>
+        <!-- Troisième mode "LIVE" (voir la demande de Lancine, "exactement
+             comme TikTok") : contrairement à Vidéo/Photo, le bouton central
+             ne filme pas un clip mais démarre un vrai direct en streaming
+             (voir startGoingLive plus bas) — l'écran bascule alors en mode
+             "diffusion" (voir liveBroadcastBar ci-dessous). -->
+        <button class="cameraModeBtn" data-mode="live" type="button">LIVE</button>
       </div>
       <div class="cameraControlsRow">
         <button id="cameraGalleryBtn" type="button" title="Choisir depuis la galerie">🖼️</button>
@@ -783,11 +945,32 @@
         <span class="cameraControlsSpacer"></span>
       </div>
     </div>
+    <!-- Barre affichée UNIQUEMENT pendant un direct actif (voir
+         startGoingLive/stopGoingLiveCleanup) : remplace visuellement
+         cameraBottomBar (masqué pendant ce temps) — pas de mode/galerie/
+         obturateur pendant qu'on diffuse, juste le nombre de spectateurs et
+         le bouton pour arrêter. -->
+    <div id="liveBroadcastBar" class="hidden">
+      <span id="liveBroadcastDot">🔴 EN DIRECT</span>
+      <span id="liveBroadcastViewerCount">0 spectateur(s)</span>
+      <button id="endLiveBtn" type="button">Terminer le direct</button>
+    </div>
   </div>
   <!-- Sélecteur de fichier caché, déclenché par #cameraGalleryBtn — plus de
        bouton "Choisir le fichier" visible séparément, voir la discussion avec
        Lancine ("+" doit ouvrir directement la caméra, comme TikTok). -->
   <input id="videoFileInput" type="file" accept="video/*,image/*" style="display:none">
+
+  <!-- ---------- Visionnage d'un direct "LIVE" (voir joinLive) ---------- -->
+  <div id="liveViewOverlay" class="hidden">
+    <video id="liveViewVideo" autoplay playsinline></video>
+    <div id="liveViewStatus"></div>
+    <div id="liveViewTopBar">
+      <button id="liveViewCloseBtn" type="button" title="Fermer">✕</button>
+      <span id="liveViewHostName"></span>
+      <span id="liveViewViewerCount">👁️ 0</span>
+    </div>
+  </div>
 
   <!-- ---------- Vue individuelle d'une publication depuis la grille du
        profil (comme TikTok : on appuie sur une vignette du profil pour voir
@@ -809,6 +992,14 @@
        bibliothèque elle-même, donc on dessine nous-mêmes case par case à
        partir de qr.isDark(row, col). -->
   <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.js"></script>
+
+  <!-- ---------- Socket.io (temps réel) : uniquement pour la signalisation
+       WebRTC des directs "LIVE" (voir sockets/live.js et connectLiveSocket
+       plus bas) — servi par ce même serveur (même origine), exactement comme
+       index.html. Diarala_Tiktak n'avait jusqu'ici aucune connexion temps
+       réel (tout passait par l'API REST classique, voir la fonction api()) :
+       "LIVE" est la première fonctionnalité qui en a réellement besoin. ---------- -->
+  <script src="/socket.io/socket.io.js"></script>
 
   <!-- ---------- Sélecteur de son ("Ajouter un son", comme TikTok) ---------- -->
   <div id="soundPickerOverlay" class="hidden">
@@ -865,6 +1056,11 @@
   // du modèle de sécurité de l'application, pas un oubli.
   let token = null;
   let me = null;
+  // Connexion Socket.io (voir connectLiveSocket) — uniquement pour la
+  // signalisation WebRTC des directs "LIVE" (voir sockets/live.js) ; établie
+  // juste après la connexion (doLogin) et fermée à la déconnexion (doLogout),
+  // comme le socket de seourouApps dans index.html.
+  let liveSocket = null;
   let nextCursor = null;
   let loadingMore = false;
   let reachedEnd = false;
@@ -885,6 +1081,40 @@
   // sur le bouton son d'UNE vidéo, ça s'applique à TOUTES les vidéos du fil,
   // comme TikTok — pas besoin de réactiver le son à chaque vidéo.
   let globalSoundEnabled = false;
+
+  // ---------- Préférences du menu d'appui long (Vitesse, Défilement
+  // automatique, Pas intéressé(e)) ----------
+  // Contrairement à globalSoundEnabled ci-dessus (remis à zéro à chaque
+  // rechargement, comme le token), celles-ci sont volontairement persistées
+  // dans localStorage : ce sont de simples préférences d'affichage sans
+  // aucune donnée sensible (contrairement au token d'authentification, voir
+  // le commentaire plus haut sur "jamais localStorage"), et une personne qui
+  // masque une vidéo ou choisit une vitesse de lecture s'attend à ce que ça
+  // reste ainsi la prochaine fois qu'elle ouvre l'application. Préfixées
+  // "diarala_" pour ne jamais entrer en collision avec les clés
+  // "seourou_..." de l'autre application (même origine, donc même
+  // localStorage partagé — voir index.html).
+  function loadHiddenVideoIds() {
+    try {
+      return new Set(JSON.parse(localStorage.getItem('diarala_hidden_video_ids') || '[]'));
+    } catch (err) {
+      return new Set();
+    }
+  }
+  let hiddenVideoIds = loadHiddenVideoIds();
+  function persistHiddenVideoIds() {
+    try { localStorage.setItem('diarala_hidden_video_ids', JSON.stringify([...hiddenVideoIds])); } catch (err) { /* ignoré */ }
+  }
+  // Vitesse de lecture (0.5x/1.0x/1.5x/2.0x, menu d'appui long) : globale
+  // comme globalSoundEnabled (une seule vitesse pour tout le fil, pas par
+  // vidéo) — appliquée à chaque nouveau clip rendu (voir renderClip) et
+  // immédiatement à ceux déjà affichés (voir updateClipOptionsUI/le
+  // gestionnaire de clic sur .clipSpeedBtn).
+  let globalPlaybackRate = parseFloat(localStorage.getItem('diarala_playback_rate') || '1') || 1;
+  // "Défilement automatique" (menu d'appui long) : quand activé, une vidéo
+  // qui se termine passe à la suivante au lieu de rejouer en boucle (voir
+  // renderClip, videoEl.loop et l'écouteur "ended").
+  let autoScrollEnabled = localStorage.getItem('diarala_autoscroll_enabled') === '1';
 
   // Icônes du bouton son en SVG plutôt qu'en émoji (🔇/🔊) : l'émoji rendait
   // de façon très inconsistante/moche selon les téléphones (capture envoyée
@@ -1267,6 +1497,7 @@
       const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) });
       token = data.token;
       me = data.user;
+      connectLiveSocket();
       $('loginScreen').classList.add('hidden');
       $('bottomNav').classList.remove('hidden');
       $('backToAppBtn').classList.remove('hidden');
@@ -1291,6 +1522,7 @@
     // appareil côté serveur (visible sinon indéfiniment dans "Appareils
     // connectés"), sans jamais bloquer la déconnexion locale si ça échoue.
     api('/api/devices/logout-self', { method: 'POST' }).catch(() => {});
+    if (liveSocket) { liveSocket.disconnect(); liveSocket = null; }
     token = null;
     me = null;
     nextCursor = null;
@@ -1328,8 +1560,11 @@
     if (name === 'feed') {
       $('feedScreen').classList.add('show');
     } else if (name === 'friends') {
+      // Ami(e)s est maintenant un vrai fil vidéo (mes publications + comptes
+      // suivis, voir loadFriendsFeed) — plus l'ancienne liste "S'abonner"
+      // (voir accountSearchOverlay/loadFriends, ouvert via 🔍).
       $('friendsScreen').classList.add('show');
-      loadFriends();
+      loadFriendsFeed(true);
     } else if (name === 'profile') {
       $('profileScreen').classList.add('show');
       loadProfile();
@@ -1340,9 +1575,19 @@
     document.querySelectorAll('.navBtn[data-screen]').forEach((btn) => {
       btn.classList.toggle('active', btn.dataset.screen === name);
     });
-    // On coupe la lecture des vidéos du fil en le quittant — sinon le son
-    // continue en arrière-plan sur l'écran Ami(e)s/Profil/Messages.
-    if (name !== 'feed') document.querySelectorAll('.clip video').forEach((v) => v.pause());
+    // On coupe la lecture de toute vidéo qui n'appartient PAS au fil
+    // maintenant affiché — sinon le son continue en arrière-plan (ancien
+    // comportement : couper "tout" dès qu'on quittait #feed, ce qui
+    // suffisait tant que #feed était le SEUL fil ; "friends" est maintenant
+    // un second fil vidéo, voir loadFriendsFeed ci-dessus, donc il faut
+    // distinguer PAR CONTENEUR plutôt que par simple "on est sur #feed ou
+    // pas" : couper aveuglément aurait aussi coupé le clip qu'on vient tout
+    // juste d'afficher en arrivant sur Ami(e)s).
+    const activeFeedContainer = name === 'feed' ? $('feed') : (name === 'friends' ? $('friendsFeed') : null);
+    document.querySelectorAll('.clip video').forEach((v) => {
+      if (activeFeedContainer && activeFeedContainer.contains(v)) return;
+      v.pause();
+    });
   }
   document.querySelectorAll('.navBtn[data-screen]').forEach((btn) => {
     btn.addEventListener('click', () => showScreen(btn.dataset.screen));
@@ -1573,25 +1818,59 @@
 
   // ---------- Fil ----------
   let observer = null;
-  // 'foryou' (tout le monde, par défaut) ou 'following' (onglet "Suivis" —
-  // seulement les comptes que je suis, voir loadFeed).
+  // 'foryou' (tout le monde, par défaut), 'following' (onglet "Suivis" —
+  // seulement les comptes que je suis, voir loadFeed) ou 'live' (onglet
+  // "LIVE" — liste des directs en cours, voir loadLiveList plus bas ; ce
+  // n'est PAS un fil vidéo comme les deux autres, #feed reste alors masqué
+  // au profit de #liveList).
   let feedMode = 'foryou';
 
-  document.querySelectorAll('.feedTab').forEach((btn) => {
+  // Seuls les boutons AVEC data-feed changent le fil (voir ci-dessus) —
+  // "Communauté" (communityTabBtn plus bas) partage la même classe .feedTab
+  // pour un style visuel cohérent, mais navigue simplement vers seourouApps,
+  // sans toucher à feedMode.
+  document.querySelectorAll('.feedTab[data-feed]').forEach((btn) => {
     btn.addEventListener('click', () => {
       if (btn.dataset.feed === feedMode) return;
-      document.querySelectorAll('.feedTab').forEach((b) => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.feedTab[data-feed]').forEach((b) => b.classList.toggle('active', b === btn));
       feedMode = btn.dataset.feed;
-      loadFeed(true);
+      $('feed').classList.toggle('hidden', feedMode === 'live');
+      $('liveList').classList.toggle('hidden', feedMode !== 'live');
+      if (feedMode === 'live') {
+        // On quitte le fil vidéo normal : couper le son de tout ce qui y
+        // jouait encore (repris automatiquement par setupObserver si on y
+        // revient, voir plus haut).
+        document.querySelectorAll('#feed .clip video').forEach((v) => v.pause());
+        loadLiveList();
+      } else {
+        loadFeed(true);
+      }
     });
   });
-  // Pas d'écran de recherche dédié pour cette première version : on réutilise
-  // la liste "Ami(e)s" (qui a déjà un champ de recherche par nom) plutôt que
-  // de dupliquer un deuxième écran de recherche de comptes.
-  $('topSearchBtn').addEventListener('click', () => {
-    showScreen('friends');
-    $('friendsSearchInput').focus();
+  // "Communauté" (voir la demande de Lancine, "exactement comme TikTok") :
+  // la fonctionnalité existe déjà dans seourouApps (voir index.html,
+  // #communitiesScreen) — pas de raison de la reconstruire ici, on y navigue
+  // directement (voir index.html, maybeOpenPendingScreen).
+  $('communityTabBtn').addEventListener('click', () => {
+    window.location.href = 'index.html?screen=communities';
   });
+  // Recherche/suivi de comptes : ancien contenu de l'écran "Ami(e)s" (voir
+  // plus haut, accountSearchOverlay), maintenant un overlay ouvert par-dessus
+  // l'écran courant plutôt qu'un onglet à part entière — Ami(e)s étant
+  // désormais un vrai fil vidéo (voir loadFriendsFeed), pas la liste
+  // "S'abonner" elle-même. Accessible depuis 🔍 (Accueil ou Ami(e)s) et
+  // depuis "Trouver des ami(e)s" sur le profil (voir plus bas).
+  function openAccountSearch() {
+    $('accountSearchOverlay').classList.remove('hidden');
+    loadFriends();
+    $('friendsSearchInput').focus();
+  }
+  function closeAccountSearch() {
+    $('accountSearchOverlay').classList.add('hidden');
+  }
+  $('topSearchBtn').addEventListener('click', openAccountSearch);
+  $('friendsSearchBtn').addEventListener('click', openAccountSearch);
+  $('accountSearchBackBtn').addEventListener('click', closeAccountSearch);
 
   // Applique le son à TOUTES les vidéos déjà affichées dans le fil, pas
   // seulement celle sur laquelle on vient d'appuyer — comme TikTok, "activer
@@ -1609,50 +1888,67 @@
     document.querySelectorAll('.clip .muteBtn .discVolumeBadge').forEach((badge) => { badge.innerHTML = enabled ? VOLUME_ON_SVG : VOLUME_OFF_SVG; });
   }
 
+  // Extrait de setupObserver (voir plus bas) pour être partagé avec
+  // setupFriendsObserver — même logique de lecture/pause/vue comptée, juste
+  // un IntersectionObserver distinct par fil (racine différente : #feed ou
+  // #friendsFeed, voir plus bas), sinon un observer avec root:#feed
+  // n'observerait jamais correctement les clips de #friendsFeed (et
+  // inversement).
+  function onClipIntersect(entries) {
+    entries.forEach((entry) => {
+      const video = entry.target.querySelector('video');
+      if (!video) return;
+      const audio = entry.target.querySelector('.clipAudio');
+      if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
+        // Mémorisé sur l'élément (et pas seulement en local ici) : la
+        // conversion base64 -> blob (voir attachVideoSrc/base64ToBlobUrl)
+        // est asynchrone et peut encore être en cours quand ce clip devient
+        // visible — c'est ce flag qu'attachVideoSrc relit pour savoir s'il
+        // doit lancer play() lui-même une fois le src enfin posé.
+        entry.target.dataset.shouldPlay = '1';
+        // Le navigateur peut refuser une lecture automatique AVEC le son
+        // (déclenchée par le défilement, pas par un clic direct) même si
+        // globalSoundEnabled est activé — dans ce cas, on retente sans son
+        // plutôt que de laisser la vidéo bloquée sans jouer du tout.
+        video.play().catch(() => {
+          video.muted = true;
+          video.play().catch(() => {});
+        });
+        if (audio && audio.src) {
+          try { audio.currentTime = video.currentTime; } catch (err) { /* ignoré */ }
+          audio.play().catch(() => {});
+        }
+        // Vue comptée pour "Studio de création" (voir getMyStats côté
+        // serveur) : une seule fois par publication et par session (le
+        // Set viewedVideoIds), pas à chaque repassage devant elle en
+        // scrollant dans le fil — sinon les stats exploseraient sans rien
+        // représenter de réel.
+        const viewedVideoId = entry.target.dataset.videoId;
+        if (viewedVideoId && !viewedVideoIds.has(viewedVideoId)) {
+          viewedVideoIds.add(viewedVideoId);
+          api('/api/videos/' + viewedVideoId + '/view', { method: 'POST' }).catch(() => {});
+        }
+      } else {
+        entry.target.dataset.shouldPlay = '0';
+        video.pause();
+        if (audio) audio.pause();
+      }
+    });
+  }
+
   function setupObserver() {
     if (observer) observer.disconnect();
-    observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        const video = entry.target.querySelector('video');
-        if (!video) return;
-        const audio = entry.target.querySelector('.clipAudio');
-        if (entry.isIntersecting && entry.intersectionRatio > 0.6) {
-          // Mémorisé sur l'élément (et pas seulement en local ici) : la
-          // conversion base64 -> blob (voir attachVideoSrc/base64ToBlobUrl)
-          // est asynchrone et peut encore être en cours quand ce clip devient
-          // visible — c'est ce flag qu'attachVideoSrc relit pour savoir s'il
-          // doit lancer play() lui-même une fois le src enfin posé.
-          entry.target.dataset.shouldPlay = '1';
-          // Le navigateur peut refuser une lecture automatique AVEC le son
-          // (déclenchée par le défilement, pas par un clic direct) même si
-          // globalSoundEnabled est activé — dans ce cas, on retente sans son
-          // plutôt que de laisser la vidéo bloquée sans jouer du tout.
-          video.play().catch(() => {
-            video.muted = true;
-            video.play().catch(() => {});
-          });
-          if (audio && audio.src) {
-            try { audio.currentTime = video.currentTime; } catch (err) { /* ignoré */ }
-            audio.play().catch(() => {});
-          }
-          // Vue comptée pour "Studio de création" (voir getMyStats côté
-          // serveur) : une seule fois par publication et par session (le
-          // Set viewedVideoIds), pas à chaque repassage devant elle en
-          // scrollant dans le fil — sinon les stats exploseraient sans rien
-          // représenter de réel.
-          const viewedVideoId = entry.target.dataset.videoId;
-          if (viewedVideoId && !viewedVideoIds.has(viewedVideoId)) {
-            viewedVideoIds.add(viewedVideoId);
-            api('/api/videos/' + viewedVideoId + '/view', { method: 'POST' }).catch(() => {});
-          }
-        } else {
-          entry.target.dataset.shouldPlay = '0';
-          video.pause();
-          if (audio) audio.pause();
-        }
-      });
-    }, { root: $('feed'), threshold: [0, 0.6, 1] });
-    document.querySelectorAll('.clip').forEach((el) => observer.observe(el));
+    observer = new IntersectionObserver(onClipIntersect, { root: $('feed'), threshold: [0, 0.6, 1] });
+    document.querySelectorAll('#feed .clip').forEach((el) => observer.observe(el));
+  }
+
+  // Second fil vidéo (Ami(e)s, voir loadFriendsFeed) : même logique
+  // (onClipIntersect) qu'setupObserver, juste une racine différente.
+  let friendsObserver = null;
+  function setupFriendsObserver() {
+    if (friendsObserver) friendsObserver.disconnect();
+    friendsObserver = new IntersectionObserver(onClipIntersect, { root: $('friendsFeed'), threshold: [0, 0.6, 1] });
+    document.querySelectorAll('#friendsFeed .clip').forEach((el) => friendsObserver.observe(el));
   }
 
   async function loadFeed(reset) {
@@ -1675,7 +1971,10 @@
       if (feedMode === 'following') params.push('onlyFollowing=1');
       const qs = params.length ? ('?' + params.join('&')) : '';
       const data = await api('/api/videos' + qs);
-      data.videos.forEach((v) => $('feed').appendChild(renderClip(v)));
+      // "Pas intéressé(e)" (menu d'appui long) : filtré côté client, la vidéo
+      // reste normalement visible pour tout le monde d'autre (pas une
+      // suppression ni un signalement, voir hiddenVideoIds plus haut).
+      data.videos.filter((v) => !hiddenVideoIds.has(v.id)).forEach((v) => $('feed').appendChild(renderClip(v)));
       nextCursor = data.nextCursor;
       if (!data.nextCursor) reachedEnd = true;
       if (reset && data.videos.length === 0) {
@@ -1692,6 +1991,49 @@
       $('loadingFeed').classList.add('hidden');
     }
   }
+
+  // ---------- Fil "Ami(e)s" (mes publications + comptes suivis, voir
+  // video.controller.js listVideos : onlyFollowing=1&includeMine=1) — même
+  // principe de pagination par curseur que loadFeed, juste sa propre
+  // variable d'état (friendsNextCursor etc.) et son propre conteneur
+  // (#friendsFeed), pour ne jamais interférer avec le fil "Pour toi"/"Suivis"
+  // pendant qu'on navigue entre les deux. ----------
+  let friendsNextCursor = null;
+  let friendsLoadingMore = false;
+  let friendsReachedEnd = false;
+  async function loadFriendsFeed(reset) {
+    if (friendsLoadingMore || (friendsReachedEnd && !reset)) return;
+    friendsLoadingMore = true;
+    if (reset) {
+      friendsReachedEnd = false;
+      friendsNextCursor = null;
+      revokeClipBlobUrls($('friendsFeed'));
+      $('friendsFeed').innerHTML = '';
+    }
+    $('loadingFriendsFeed').classList.remove('hidden');
+    $('emptyFriendsFeed').classList.add('hidden');
+    try {
+      const params = ['onlyFollowing=1', 'includeMine=1'];
+      if (friendsNextCursor) params.push('before=' + encodeURIComponent(friendsNextCursor));
+      const data = await api('/api/videos?' + params.join('&'));
+      data.videos.filter((v) => !hiddenVideoIds.has(v.id)).forEach((v) => $('friendsFeed').appendChild(renderClip(v)));
+      friendsNextCursor = data.nextCursor;
+      if (!data.nextCursor) friendsReachedEnd = true;
+      if (reset && data.videos.length === 0) {
+        $('emptyFriendsFeed').classList.remove('hidden');
+      }
+      setupFriendsObserver();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      friendsLoadingMore = false;
+      $('loadingFriendsFeed').classList.add('hidden');
+    }
+  }
+  $('friendsFeed').addEventListener('scroll', () => {
+    const el = $('friendsFeed');
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 400) loadFriendsFeed(false);
+  });
 
   // Pose la source réelle de l'élément <audio> d'un clip (voir renderClip,
   // hasAttachedSound) une fois insérée dans le DOM — séparé de renderClip
@@ -1743,7 +2085,10 @@
         // certains téléphones — voir base64ToBlobUrl. Le src est posé juste
         // après, une fois l'élément <video> réellement créé.
         const posterAttr = v.thumbnailData ? ` poster="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}"` : '';
-        return `<video loop muted playsinline${posterAttr}></video>`;
+        // Pas de "loop" fixé ici en dur : posé dynamiquement juste après
+        // (videoEl.loop) selon autoScrollEnabled (menu d'appui long,
+        // "Défilement automatique") — voir plus bas.
+        return `<video muted playsinline${posterAttr}></video>`;
       })();
     // Icônes en trait façon TikTok (voir la référence envoyée par Lancine) —
     // pas de pastille sombre derrière : juste l'icône blanche + le compteur,
@@ -1825,6 +2170,18 @@
       // src dès que la conversion est prête et relance play() si besoin (cf.
       // dataset.shouldPlay posé par l'observer plus haut).
       attachVideoSrc(v, el);
+      // "Défilement automatique" et "Vitesse" (menu d'appui long) : réglages
+      // globaux (voir plus haut), appliqués à CHAQUE nouveau clip rendu —
+      // mis à jour immédiatement sur les clips déjà affichés quand la
+      // personne change l'un ou l'autre depuis le menu (voir
+      // updateClipOptionsUI et les gestionnaires de clic correspondants).
+      videoEl.loop = !autoScrollEnabled;
+      videoEl.playbackRate = globalPlaybackRate;
+      videoEl.addEventListener('ended', () => {
+        if (!autoScrollEnabled) return;
+        const next = el.nextElementSibling;
+        if (next) next.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
       const audioEl = hasAttachedSound ? el.querySelector('.clipAudio') : null;
       // Quand un son a été ajouté, la vidéo reste TOUJOURS muette (voir plus
       // haut) : c'est l'élément <audio> séparé qui porte le son, et lui seul
@@ -1896,7 +2253,69 @@
         }
       });
     }
+    // Menu contextuel "appui long" (Télécharger, Pas intéressé(e), Signaler,
+    // Vitesse... — voir openClipOptionsMenu plus bas) : posé sur le clip
+    // ENTIER (pas juste la vidéo/photo) pour marcher pareil sur une vidéo et
+    // sur une photo, comme TikTok.
+    attachLongPress(el, v);
     return el;
+  }
+
+  // ---------- Menu contextuel "appui long" sur une publication ----------
+  // Détection d'un appui long générique via Pointer Events (fonctionne aussi
+  // bien au doigt qu'à la souris, contrairement à un simple "contextmenu" qui
+  // n'existe pas sur mobile) : un minuteur de LONG_PRESS_MS démarre au
+  // pointerdown et se déclenche seul si le doigt ne bouge pas de plus de
+  // LONG_PRESS_MOVE_THRESHOLD px et ne se relève pas avant — exactement le
+  // même principe qu'un appui long natif (contacts, messages...).
+  const LONG_PRESS_MS = 500;
+  const LONG_PRESS_MOVE_THRESHOLD = 10;
+  function attachLongPress(el, v) {
+    let timer = null;
+    let startX = 0;
+    let startY = 0;
+    const clearTimer = () => { if (timer) { clearTimeout(timer); timer = null; } };
+    el.addEventListener('pointerdown', (e) => {
+      // Ignore le clic droit/central à la souris (e.button !== 0) — seul un
+      // vrai appui (doigt, ou clic gauche) déclenche le menu.
+      if (typeof e.button === 'number' && e.button !== 0) return;
+      startX = e.clientX;
+      startY = e.clientY;
+      clearTimer();
+      timer = setTimeout(() => {
+        timer = null;
+        // Empêche le "click" qui suivra le relâchement du doigt de aussi
+        // déclencher lecture/pause de la vidéo (voir videoEl.addEventListener
+        // ('click', ...) plus haut) — capté en phase de capture ci-dessous.
+        el.dataset.suppressClick = '1';
+        if (navigator.vibrate) { try { navigator.vibrate(15); } catch (err) { /* ignoré */ } }
+        openClipOptionsMenu(v, el);
+      }, LONG_PRESS_MS);
+    });
+    el.addEventListener('pointermove', (e) => {
+      if (!timer) return;
+      const dx = e.clientX - startX;
+      const dy = e.clientY - startY;
+      // Bouger le doigt (ex: pour scroller vers le clip suivant) annule
+      // l'appui long en cours — sinon scroller déclencherait le menu par
+      // erreur à chaque changement de vidéo.
+      if (Math.sqrt(dx * dx + dy * dy) > LONG_PRESS_MOVE_THRESHOLD) clearTimer();
+    });
+    ['pointerup', 'pointercancel', 'pointerleave'].forEach((evt) => el.addEventListener(evt, clearTimer));
+    // Désactive le menu contextuel natif du navigateur (clic droit / appui
+    // long par défaut sur certains navigateurs mobiles) qui ferait doublon
+    // avec notre propre menu.
+    el.addEventListener('contextmenu', (e) => e.preventDefault());
+    // Capture (pas bubble) : intercepte le "click" AVANT qu'il n'atteigne la
+    // vidéo/l'image cible elle-même, donc avant que videoEl ne bascule
+    // lecture/pause juste après un appui long qui vient d'ouvrir le menu.
+    el.addEventListener('click', (e) => {
+      if (el.dataset.suppressClick === '1') {
+        delete el.dataset.suppressClick;
+        e.stopPropagation();
+        e.preventDefault();
+      }
+    }, true);
   }
 
   async function toggleLike(v, el) {
@@ -2040,10 +2459,12 @@
       // dans le fil principal (voir openProfileClipView) — inutile (et
       // trompeur) de toucher à #emptyFeed dans ce cas.
       const wasInFeed = $('feed').contains(el);
+      const wasInFriendsFeed = $('friendsFeed').contains(el);
       await api('/api/videos/' + v.id, { method: 'DELETE' });
       revokeClipBlobUrls(el);
       el.remove();
       if (wasInFeed && !$('feed').children.length) $('emptyFeed').classList.remove('hidden');
+      if (wasInFriendsFeed && !$('friendsFeed').children.length) $('emptyFriendsFeed').classList.remove('hidden');
       if (onDeleted) onDeleted();
     } catch (err) {
       alert('Erreur : ' + err.message);
@@ -2151,8 +2572,20 @@
   $('videoFileInput').addEventListener('change', async () => {
     const file = $('videoFileInput').files[0];
     if (!file) return;
+    // Toujours afficher l'aperçu, même en cas d'échec (fichier trop gros,
+    // vidéo trop longue...) : avant ce correctif, acceptMediaBlob() écrivait
+    // bien un message d'erreur dans #uploadMsg, mais comme showPublishOverlay
+    // n'était appelée QUE si pendingUploadFile était posé (donc jamais en cas
+    // d'échec), ce message restait invisible (#uploadOverlay caché) — la
+    // personne choisissait un fichier dans la galerie et n'avait strictement
+    // AUCUN retour, comme si rien ne s'était passé (signalé par Lancine :
+    // "on peut sélectionner la vidéo/photo mais il n'envoie pas pour la
+    // publication"). En pratique, une vraie photo/vidéo de galerie dépasse très
+    // souvent MAX_PHOTO_BYTES/MAX_VIDEO_BYTES (12/25 Mo) ou MAX_VIDEO_SECONDS,
+    // contrairement à une capture caméra qui respecte déjà ces limites — d'où
+    // un bug qui ne se voyait quasiment que via la galerie.
     await acceptMediaBlob(file, file.type.startsWith('image/') ? 'photo' : 'video');
-    if (pendingUploadFile) showPublishOverlay();
+    showPublishOverlay();
   });
 
   // ---------- Caméra plein écran (webcam + micro du navigateur) ----------
@@ -2234,9 +2667,10 @@
   function setCameraMode(mode) {
     cameraMode = mode;
     document.querySelectorAll('.cameraModeBtn').forEach((btn) => btn.classList.toggle('active', btn.dataset.mode === mode));
-    // "Ajouter un son" n'a de sens que pour une vidéo (une photo "Clips" n'a
-    // pas de disque/bande son, voir renderClip) — masqué en mode Photo.
-    $('cameraSoundBtn').classList.toggle('hidden', mode === 'photo');
+    // "Ajouter un son" n'a de sens ni pour une photo (pas de bande son, voir
+    // renderClip) ni pour un direct (pas de publication différée à laquelle
+    // l'attacher) — masqué dans les deux cas.
+    $('cameraSoundBtn').classList.toggle('hidden', mode === 'photo' || mode === 'live');
   }
 
   async function openCameraScreen() {
@@ -2270,7 +2704,14 @@
   }
 
   $('navUploadBtn').addEventListener('click', openCameraScreen);
-  $('cameraCloseBtn').addEventListener('click', closeCameraScreen);
+  $('cameraCloseBtn').addEventListener('click', () => {
+    // Un direct actif doit d'abord être arrêté PROPREMENT (prévenir les
+    // spectateurs, fermer les connexions WebRTC, voir endGoingLive plus bas)
+    // — sinon closeCameraScreen coupe juste cameraStream sous leurs pieds
+    // sans jamais les prévenir que le direct est terminé.
+    if (broadcastLiveId) { endGoingLive(); return; }
+    closeCameraScreen();
+  });
   $('cameraFlipBtn').addEventListener('click', () => {
     cameraFacingMode = cameraFacingMode === 'user' ? 'environment' : 'user';
     startCameraStream();
@@ -2284,9 +2725,261 @@
   });
   $('cameraShutterBtn').addEventListener('click', () => {
     if (cameraMode === 'photo') capturePhotoFromCamera();
+    else if (cameraMode === 'live') startGoingLive();
     else if (!cameraRecording) startCameraRecording();
     else stopCameraRecording();
   });
+
+  // ---------- "LIVE" (direct en streaming, voir la demande de Lancine :
+  // "exactement comme TikTok") ----------
+  // Topologie "étoile" côté diffuseur : une RTCPeerConnection PAR spectateur
+  // (broadcastPeers), chacune recevant directement les pistes de
+  // cameraStream — voir sockets/live.js pour la signalisation serveur, et le
+  // commentaire au-dessus de registerSignalingHandlers (sockets/signaling.js)
+  // pour la topologie "mesh" utilisée par les appels, différente (mesh entre
+  // TOUS les participants) puisqu'il n'y a ici qu'un seul diffuseur.
+  let broadcastLiveId = null;
+  let broadcastPeers = new Map(); // socketId (spectateur) -> RTCPeerConnection
+  // Visionnage (spectateur) : une seule RTCPeerConnection à la fois, vers le
+  // diffuseur du direct actuellement affiché en plein écran (voir joinLive).
+  let viewerPc = null;
+  let viewerLiveId = null;
+  let viewerHostSocketId = null;
+
+  // Serveurs STUN/TURN : réutilise l'endpoint déjà existant pour les appels
+  // (voir call.controller.js, getIceServers) plutôt que d'en dupliquer un
+  // pour "LIVE" — la configuration réseau est la même. Mis en cache pour la
+  // session (ne change jamais en cours de route).
+  let cachedIceServers = null;
+  async function getLiveIceServers() {
+    if (cachedIceServers) return cachedIceServers;
+    const data = await api('/api/calls/ice-servers');
+    cachedIceServers = data.iceServers;
+    return cachedIceServers;
+  }
+
+  // Connexion Socket.io, établie une seule fois après le login (voir
+  // doLogin) — uniquement utilisée pour "LIVE" (voir le commentaire sur la
+  // déclaration de liveSocket plus haut). Tous les gestionnaires d'événements
+  // "live:*" sont enregistrés ICI (une seule fois par connexion) plutôt qu'à
+  // chaque ouverture d'écran, pour ne jamais les empiler en double.
+  function connectLiveSocket() {
+    if (liveSocket) return;
+    liveSocket = io({ auth: { token } });
+
+    // Un direct a démarré ou s'est terminé QUELQUE PART (pas forcément le
+    // mien) : on se contente de rafraîchir la liste si elle est à l'écran,
+    // plutôt que de recevoir le détail ici — reste toujours cohérent avec la
+    // base sans payload à maintenir à jour côté serveur.
+    liveSocket.on('live:list-changed', () => {
+      if (feedMode === 'live' && $('feedScreen').classList.contains('show')) loadLiveList();
+    });
+
+    liveSocket.on('live:viewer-count', ({ liveId, count }) => {
+      if (broadcastLiveId === liveId) $('liveBroadcastViewerCount').textContent = `${count} spectateur(s)`;
+      if (viewerLiveId === liveId) $('liveViewViewerCount').textContent = `👁️ ${count}`;
+    });
+
+    // Un nouveau spectateur vient de rejoindre MON direct (voir live:join
+    // côté serveur) : je lui crée une connexion dédiée et lui envoie une
+    // offre — c'est TOUJOURS le diffuseur qui initie l'offre.
+    liveSocket.on('live:viewer-joined', async ({ liveId, socketId }) => {
+      if (broadcastLiveId !== liveId || !cameraStream) return;
+      try {
+        const iceServers = await getLiveIceServers();
+        const pc = new RTCPeerConnection({ iceServers });
+        cameraStream.getTracks().forEach((t) => pc.addTrack(t, cameraStream));
+        pc.onicecandidate = (e) => {
+          if (e.candidate) {
+            liveSocket.emit('live:signal', { liveId, to: socketId, signal: { type: 'ice-candidate', candidate: e.candidate } });
+          }
+        };
+        broadcastPeers.set(socketId, pc);
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        liveSocket.emit('live:signal', { liveId, to: socketId, signal: pc.localDescription });
+      } catch (err) {
+        console.error('live:viewer-joined (créer une offre) error:', err);
+      }
+    });
+
+    // Un spectateur est parti (voir live:leave côté serveur) : sa connexion
+    // dédiée ne sert plus à rien, on la ferme pour libérer les ressources.
+    liveSocket.on('live:viewer-left', ({ liveId, socketId }) => {
+      if (broadcastLiveId !== liveId) return;
+      const pc = broadcastPeers.get(socketId);
+      if (pc) { pc.close(); broadcastPeers.delete(socketId); }
+    });
+
+    // Relais SDP/ICE (voir sockets/live.js, live:signal) — un seul
+    // gestionnaire pour les DEUX rôles (diffuseur ET spectateur), distingués
+    // par liveId : je ne peux être qu'UN SEUL des deux à la fois pour un
+    // liveId donné (soit je le diffuse, soit je le regarde), jamais les deux.
+    liveSocket.on('live:signal', async ({ liveId, from, signal }) => {
+      try {
+        if (broadcastLiveId === liveId && broadcastPeers.has(from)) {
+          // Je diffuse : "from" est un spectateur, je reçois sa réponse ou
+          // ses candidats ICE (jamais une offre — c'est moi qui l'envoie).
+          const pc = broadcastPeers.get(from);
+          if (signal.type === 'answer') {
+            await pc.setRemoteDescription(new RTCSessionDescription(signal));
+          } else if (signal.type === 'ice-candidate' && signal.candidate) {
+            await pc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          }
+        } else if (viewerLiveId === liveId && viewerPc) {
+          // Je regarde : je reçois l'offre du diffuseur (à laquelle je
+          // réponds), ou ses candidats ICE.
+          if (signal.type === 'offer') {
+            await viewerPc.setRemoteDescription(new RTCSessionDescription(signal));
+            const answer = await viewerPc.createAnswer();
+            await viewerPc.setLocalDescription(answer);
+            liveSocket.emit('live:signal', { liveId, to: from, signal: viewerPc.localDescription });
+          } else if (signal.type === 'ice-candidate' && signal.candidate) {
+            await viewerPc.addIceCandidate(new RTCIceCandidate(signal.candidate));
+          }
+        }
+      } catch (err) {
+        console.error('live:signal error:', err);
+      }
+    });
+
+    // Le direct qu'on diffuse OU qu'on regarde s'est terminé (bouton
+    // "Terminer le direct" du diffuseur, ou déconnexion de son côté, voir
+    // sockets/live.js).
+    liveSocket.on('live:ended', ({ liveId }) => {
+      if (viewerLiveId === liveId) {
+        alert('Ce direct est terminé.');
+        closeLiveView();
+      }
+      if (broadcastLiveId === liveId) {
+        stopGoingLiveCleanup();
+        closeCameraScreen();
+      }
+    });
+  }
+
+  // Démarre un direct (bouton central de l'écran caméra en mode "LIVE").
+  async function startGoingLive() {
+    if (!liveSocket || !liveSocket.connected) {
+      alert('Connexion temps réel indisponible pour le moment — réessayez dans un instant.');
+      return;
+    }
+    const title = (prompt('Titre du direct (facultatif) :') || '').trim();
+    liveSocket.emit('live:start', { title }, (res) => {
+      if (!res || res.error) {
+        alert(res && res.error ? res.error : 'Impossible de démarrer le direct.');
+        return;
+      }
+      broadcastLiveId = res.liveId;
+      broadcastPeers = new Map();
+      $('cameraBottomBar').classList.add('hidden');
+      $('cameraFlipBtn').classList.add('hidden');
+      $('liveBroadcastBar').classList.remove('hidden');
+      $('liveBroadcastViewerCount').textContent = '0 spectateur(s)';
+    });
+  }
+
+  // Fin volontaire d'un direct (bouton "Terminer le direct").
+  function endGoingLive() {
+    if (!broadcastLiveId) { closeCameraScreen(); return; }
+    liveSocket.emit('live:end', { liveId: broadcastLiveId });
+    stopGoingLiveCleanup();
+    closeCameraScreen();
+  }
+  $('endLiveBtn').addEventListener('click', endGoingLive);
+
+  // Remet l'écran caméra dans son état normal après un direct (terminé
+  // volontairement ou parce que le serveur a prévenu qu'il l'était, voir
+  // live:ended plus haut) — ne referme PAS l'écran caméra lui-même (voir
+  // closeCameraScreen, appelé séparément par endGoingLive).
+  function stopGoingLiveCleanup() {
+    broadcastPeers.forEach((pc) => pc.close());
+    broadcastPeers = new Map();
+    broadcastLiveId = null;
+    $('cameraBottomBar').classList.remove('hidden');
+    $('cameraFlipBtn').classList.remove('hidden');
+    $('liveBroadcastBar').classList.add('hidden');
+  }
+
+  // ---------- Onglet "LIVE" : liste des directs en cours ----------
+  async function loadLiveList() {
+    $('liveList').innerHTML = '<div class="screenEmpty">Chargement…</div>';
+    try {
+      const data = await api('/api/live');
+      if (!data.lives.length) {
+        $('liveList').innerHTML = '<div class="screenEmpty">Aucun direct en cours pour l\'instant.</div>';
+        return;
+      }
+      $('liveList').innerHTML = '';
+      data.lives.forEach((l) => $('liveList').appendChild(renderLiveCard(l)));
+    } catch (err) {
+      $('liveList').innerHTML = '<div class="screenEmpty">Erreur de chargement.</div>';
+    }
+  }
+
+  function renderLiveCard(l) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'liveCard';
+    card.innerHTML = `
+      <div class="liveCardAvatar">${l.host.avatarUrl ? `<img src="${l.host.avatarUrl}" alt="">` : '👤'}</div>
+      <div class="liveCardBadge">EN DIRECT</div>
+      <div class="liveCardName">${escapeHtml(l.host.name)}</div>
+      <div class="liveCardViewers">👁️ ${l.viewerCount}</div>
+    `;
+    card.addEventListener('click', () => joinLive(l));
+    return card;
+  }
+
+  // Rejoint un direct comme spectateur (voir la liste ci-dessus).
+  async function joinLive(l) {
+    closeLiveView(); // sécurité si un précédent visionnage traînait encore
+    $('liveViewVideo').srcObject = null;
+    $('liveViewHostName').textContent = l.host.name;
+    $('liveViewViewerCount').textContent = `👁️ ${l.viewerCount || 0}`;
+    $('liveViewStatus').textContent = 'Connexion…';
+    $('liveViewOverlay').classList.remove('hidden');
+
+    liveSocket.emit('live:join', { liveId: l.id }, async (res) => {
+      if (!res || res.error) {
+        alert(res && res.error ? res.error : 'Impossible de rejoindre ce direct.');
+        closeLiveView();
+        return;
+      }
+      viewerLiveId = l.id;
+      viewerHostSocketId = res.hostSocketId;
+      try {
+        const iceServers = await getLiveIceServers();
+        viewerPc = new RTCPeerConnection({ iceServers });
+        viewerPc.ontrack = (e) => {
+          $('liveViewVideo').srcObject = e.streams[0];
+          $('liveViewStatus').textContent = '';
+          $('liveViewVideo').play().catch(() => {});
+        };
+        viewerPc.onicecandidate = (e) => {
+          if (e.candidate && viewerHostSocketId) {
+            liveSocket.emit('live:signal', { liveId: l.id, to: viewerHostSocketId, signal: { type: 'ice-candidate', candidate: e.candidate } });
+          }
+        };
+        // L'offre arrive ensuite via l'événement live:signal global (voir
+        // connectLiveSocket) — le diffuseur l'envoie dès qu'il reçoit
+        // live:viewer-joined, déclenché côté serveur par ce live:join.
+      } catch (err) {
+        console.error('joinLive error:', err);
+        $('liveViewStatus').textContent = 'Erreur de connexion.';
+      }
+    });
+  }
+
+  function closeLiveView() {
+    if (viewerLiveId && liveSocket) liveSocket.emit('live:leave', { liveId: viewerLiveId });
+    if (viewerPc) { viewerPc.close(); viewerPc = null; }
+    viewerLiveId = null;
+    viewerHostSocketId = null;
+    $('liveViewVideo').srcObject = null;
+    $('liveViewOverlay').classList.add('hidden');
+  }
+  $('liveViewCloseBtn').addEventListener('click', closeLiveView);
 
   // ---------- "Ajouter un son" (comme TikTok) ----------
   let curatedSounds = null; // cache de GET /api/sounds pour cette session
@@ -2449,8 +3142,11 @@
     canvas.toBlob(async (blob) => {
       closeCameraScreen();
       if (blob) {
+        // Voir le commentaire sur videoFileInput/change plus haut : toujours
+        // afficher l'aperçu (même en cas d'échec de validation), pour que
+        // #uploadMsg reste visible.
         await acceptMediaBlob(blob, 'photo');
-        if (pendingUploadFile) showPublishOverlay();
+        showPublishOverlay();
       }
     }, 'image/jpeg', 0.85);
   }
@@ -2506,8 +3202,11 @@
     closeCameraScreen();
     if (!chunks.length) return;
     const blob = new Blob(chunks, { type: (recorder && recorder.mimeType) || 'video/webm' });
+    // Voir le commentaire sur videoFileInput/change plus haut : toujours
+    // afficher l'aperçu (même en cas d'échec de validation), pour que
+    // #uploadMsg reste visible.
     await acceptMediaBlob(blob, 'video');
-    if (pendingUploadFile) showPublishOverlay();
+    showPublishOverlay();
   }
 
   function captureThumbnail(videoEl) {
@@ -2660,9 +3359,10 @@
   $('menuBoostBtn').addEventListener('click', () => menuRowGoTo('boostScreen', loadBoost));
   $('menuSettingsBtn').addEventListener('click', () => menuRowGoTo('settingsScreen', loadSettings));
 
-  // "Trouver des ami(e)s" (haut du profil) : réutilise l'onglet "Ami(e)s"
-  // existant plutôt qu'un écran séparé de suggestions de comptes.
-  $('profileFindFriendsBtn').addEventListener('click', () => showScreen('friends'));
+  // "Trouver des ami(e)s" (haut du profil) : ouvre la recherche/suivi de
+  // comptes (voir openAccountSearch plus haut) — l'onglet "Ami(e)s" lui-même
+  // est maintenant un fil vidéo, plus la liste "S'abonner".
+  $('profileFindFriendsBtn').addEventListener('click', openAccountSearch);
   // "Messages" (avatar en haut à droite du profil) : même écran natif que
   // navMessagesBtn plus haut (voir showScreen('messages')/loadMessages),
   // pour rester cohérent partout dans Diarala_Tiktak.
@@ -2787,6 +3487,136 @@
         }, 700);
       }
       closeShareSheet();
+    });
+  });
+
+  // ---------- Menu contextuel "appui long" (Télécharger, Pas intéressé(e),
+  // Signaler, Vitesse, Défilement automatique...) ----------
+  // { v, el } de la publication actuellement ciblée par le menu ouvert, ou
+  // null quand fermé — même principe que shareSheetContext plus haut.
+  let clipOptionsContext = null;
+
+  function updateClipOptionsUI() {
+    document.querySelectorAll('.clipSpeedBtn').forEach((btn) => {
+      btn.classList.toggle('active', parseFloat(btn.dataset.speed) === globalPlaybackRate);
+    });
+    $('clipOptAutoscrollToggle').classList.toggle('on', autoScrollEnabled);
+  }
+
+  function openClipOptionsMenu(v, el) {
+    clipOptionsContext = { v, el };
+    $('clipReportView').classList.add('hidden');
+    $('clipOptionsMainView').classList.remove('hidden');
+    updateClipOptionsUI();
+    $('clipOptionsOverlay').classList.remove('hidden');
+  }
+  function closeClipOptionsMenu() {
+    $('clipOptionsOverlay').classList.add('hidden');
+    clipOptionsContext = null;
+  }
+  $('clipOptionsOverlay').addEventListener('click', (e) => { if (e.target === $('clipOptionsOverlay')) closeClipOptionsMenu(); });
+
+  // "Télécharger" : réutilise directement le blob:/data: déjà posé sur
+  // l'élément <video>/<img> du clip (voir attachVideoSrc/base64ToBlobUrl et
+  // renderClip) plutôt que de re-télécharger le contenu depuis le serveur —
+  // il est déjà entièrement chargé côté client à ce stade.
+  $('clipOptDownload').addEventListener('click', () => {
+    const ctx = clipOptionsContext;
+    closeClipOptionsMenu();
+    if (!ctx) return;
+    const { v, el } = ctx;
+    const isPhoto = v.type === 'photo';
+    const mediaEl = el.querySelector(isPhoto ? 'img' : 'video');
+    if (!mediaEl || !mediaEl.src) {
+      alert("Le média n'est pas encore prêt, réessayez dans un instant.");
+      return;
+    }
+    const mime = isPhoto ? v.photoMime : v.videoMime;
+    const ext = isPhoto
+      ? ((mime && mime.includes('png')) ? 'png' : 'jpg')
+      : ((mime && mime.includes('webm')) ? 'webm' : 'mp4');
+    const a = document.createElement('a');
+    a.href = mediaEl.src;
+    a.download = `diarala_${v.id}.${ext}`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  });
+
+  // "Pas intéressé(e)" : masque cette publication seulement pour MOI, pour
+  // toujours (persisté dans localStorage, voir hiddenVideoIds plus haut) —
+  // ne la supprime pas, ne la signale pas, reste visible pour tout le monde
+  // d'autre. La retire du fil courant tout de suite, comme une suppression.
+  $('clipOptNotInterested').addEventListener('click', () => {
+    const ctx = clipOptionsContext;
+    closeClipOptionsMenu();
+    if (!ctx) return;
+    const { v, el } = ctx;
+    hiddenVideoIds.add(v.id);
+    persistHiddenVideoIds();
+    const wasInFeed = $('feed').contains(el);
+    const wasInFriendsFeed = $('friendsFeed').contains(el);
+    revokeClipBlobUrls(el);
+    el.remove();
+    if (wasInFeed && !$('feed').children.length) $('emptyFeed').classList.remove('hidden');
+    if (wasInFriendsFeed && !$('friendsFeed').children.length) $('emptyFriendsFeed').classList.remove('hidden');
+  });
+
+  // "Signaler" : bascule vers la sous-vue des raisons (voir clipReportView
+  // dans le HTML) plutôt que de signaler directement — le clic sur une
+  // raison plus bas envoie réellement POST /api/videos/:id/report.
+  $('clipOptReport').addEventListener('click', () => {
+    $('clipOptionsMainView').classList.add('hidden');
+    $('clipReportView').classList.remove('hidden');
+  });
+  $('clipReportBackBtn').addEventListener('click', () => {
+    $('clipReportView').classList.add('hidden');
+    $('clipOptionsMainView').classList.remove('hidden');
+  });
+  document.querySelectorAll('#clipReportView .menuRow[data-reason]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ctx = clipOptionsContext;
+      closeClipOptionsMenu();
+      if (!ctx) return;
+      try {
+        await api('/api/videos/' + ctx.v.id + '/report', { method: 'POST', body: JSON.stringify({ reason: btn.dataset.reason }) });
+        alert('Merci, votre signalement a été envoyé.');
+      } catch (err) {
+        alert('Erreur : ' + err.message);
+      }
+    });
+  });
+
+  // "Vitesse" (0.5x/1.0x/1.5x/2.0x) : réglage global (comme le son, voir
+  // globalPlaybackRate plus haut) — appliqué immédiatement à TOUS les clips
+  // déjà affichés (pas seulement les prochains rendus par renderClip), sans
+  // fermer le menu (on peut vouloir comparer plusieurs vitesses de suite).
+  document.querySelectorAll('.clipSpeedBtn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      globalPlaybackRate = parseFloat(btn.dataset.speed) || 1;
+      try { localStorage.setItem('diarala_playback_rate', String(globalPlaybackRate)); } catch (err) { /* ignoré */ }
+      document.querySelectorAll('.clip video').forEach((vEl) => { vEl.playbackRate = globalPlaybackRate; });
+      updateClipOptionsUI();
+    });
+  });
+
+  // "Défilement automatique" : idem, appliqué immédiatement à tous les clips
+  // déjà affichés (voir videoEl.loop dans renderClip) — ne ferme pas non
+  // plus le menu, comme un vrai interrupteur.
+  $('clipOptAutoscroll').addEventListener('click', () => {
+    autoScrollEnabled = !autoScrollEnabled;
+    try { localStorage.setItem('diarala_autoscroll_enabled', autoScrollEnabled ? '1' : '0'); } catch (err) { /* ignoré */ }
+    document.querySelectorAll('.clip video').forEach((vEl) => { vEl.loop = !autoScrollEnabled; });
+    updateClipOptionsUI();
+  });
+
+  // Options honnêtement pas encore implémentées (voir la demande de Lancine,
+  // capture TikTok) : un simple message plutôt que de faire semblant qu'elles
+  // marchent — mieux vaut le dire clairement que laisser croire à un bug.
+  ['clipOptLighten', 'clipOptCaptions', 'clipOptPip', 'clipOptBgSound', 'clipOptLinkPost'].forEach((id) => {
+    $(id).addEventListener('click', () => {
+      closeClipOptionsMenu();
+      alert('Bientôt disponible.');
     });
   });
 

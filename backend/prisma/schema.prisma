@@ -107,6 +107,10 @@ model User {
   // j'ai ajoutés — réservé aux administrateurs, voir modèle Sound ci-dessous
   // et middleware/auth.js, requireAdmin.
   addedSounds Sound[]
+  // Mes directs "LIVE" (voir modèle LiveSession ci-dessous) — diffusés par
+  // moi, pas ceux que j'ai seulement regardés (pas de trace des spectateurs
+  // en base, voir sockets/live.js).
+  liveSessions LiveSession[]
 
   // "Solde" (menu ☰ de Diarala_Tiktak) : crédits INTERNES à l'application,
   // pas de l'argent réel — aucun paiement/virement bancaire réel n'est géré
@@ -121,6 +125,11 @@ model User {
   creditTransactions  CreditTransaction[]
   // Vues de mes vidéos, pour "TikTok Studio" (voir modèle VideoView plus bas).
   videoViews          VideoView[]
+  // Signalements que j'ai envoyés (menu d'appui long → "Signaler", voir
+  // modèle VideoReport plus bas) — pas ceux reçus sur mes propres vidéos
+  // (pas d'écran dédié pour l'instant, juste une modération manuelle possible
+  // directement en base).
+  videoReports        VideoReport[]
   // "Paramètres et confidentialité" (Diarala_Tiktak) : quand activé, mes
   // publications "Clips" n'apparaissent dans le fil "Pour toi" de personne
   // d'autre que mes abonnés (comme un compte TikTok privé) — voir
@@ -581,9 +590,40 @@ model Video {
   saves    VideoSave[]
   comments VideoComment[]
   views    VideoView[]
+  reports  VideoReport[]
 
   @@index([createdAt])
   @@index([boostedUntil])
+}
+
+// Diffusion en direct ("LIVE", comme TikTok, voir la demande de Lancine) :
+// un utilisateur diffuse sa caméra/micro en direct, les autres la regardent
+// en temps réel. La signalisation WebRTC (offres/réponses SDP, candidats ICE)
+// passe entièrement par Socket.io (voir sockets/live.js) — ce modèle ne sert
+// qu'à savoir QUELS directs sont en cours (pour la liste "LIVE", voir
+// video.controller.js/listLiveSessions) et à en garder un historique minimal.
+// Topologie "mesh" adaptée au diffuseur unique : CHAQUE spectateur établit sa
+// propre connexion peer-to-peer directe avec le diffuseur (pas de connexions
+// spectateur-à-spectateur, contrairement à un appel de groupe) — le nombre de
+// connexions ouvertes par le diffuseur croît avec le nombre de spectateurs
+// (limite raisonnable sur un plan gratuit ; au-delà, un vrai serveur média
+// (SFU) deviendrait nécessaire, comme noté dans sockets/signaling.js pour les
+// appels de groupe).
+model LiveSession {
+  id          String    @id @default(uuid())
+  hostId      String
+  title       String?
+  startedAt   DateTime  @default(now())
+  endedAt     DateTime?
+  // Dénormalisé pour un affichage instantané dans la liste "LIVE" (nombre de
+  // spectateurs ACTUELLEMENT connectés, pas un cumul) — mis à jour en direct
+  // depuis sockets/live.js à chaque arrivée/départ, jamais via une requête
+  // REST dédiée.
+  viewerCount Int       @default(0)
+
+  host User @relation(fields: [hostId], references: [id], onDelete: Cascade)
+
+  @@index([endedAt])
 }
 
 // Son de la bibliothèque partagée "Clips" (bouton "Ajouter un son" façon
@@ -649,6 +689,29 @@ model VideoComment {
 
   video  Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
   author User  @relation(fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([videoId, createdAt])
+}
+
+// Signalement d'une vidéo/photo "Clips" (menu d'appui long sur une
+// publication → "Signaler", comme TikTok) : une ligne par signalement,
+// jamais supprimée ni traitée automatiquement — sert seulement à garder une
+// trace consultable manuellement en base pour une future modération. Pas de
+// contrainte unique contrairement à VideoLike : la même personne peut
+// signaler plusieurs fois la même vidéo (ex: pour une raison différente),
+// on préfère tout garder plutôt que d'en perdre.
+model VideoReport {
+  id         String   @id @default(uuid())
+  videoId    String
+  reporterId String
+  // Courte clé technique choisie dans un menu fermé côté client (ex:
+  // "contenu_inapproprie", "spam", "violence", "faux_compte", "autre")
+  // plutôt qu'un texte libre — voir videos.html, openClipOptionsMenu.
+  reason     String
+  createdAt  DateTime @default(now())
+
+  video    Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  reporter User  @relation(fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([videoId, createdAt])
 }

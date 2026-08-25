@@ -1863,6 +1863,12 @@
   // entrant" alors qu'aucun onglet n'était déjà ouvert), le service worker ajoute
   // "?c=<conversationId>" à l'URL d'ouverture : on retrouve la conversation visée ici.
   let pendingConversationIdFromNotification = new URLSearchParams(location.search).get('c') || null;
+  // Ouverture directe sur un onglet précis (ex: "index.html?screen=communities"
+  // depuis le bouton "Communauté" de Diarala_Tiktak, voir videos.html) —
+  // même principe que pendingConversationIdFromNotification ci-dessus, résolu
+  // une fois l'app prête (voir maybeOpenPendingScreen, appelée depuis
+  // loadConversations).
+  let pendingScreenFromLink = new URLSearchParams(location.search).get('screen') || null;
   let typingTimeout = null;
   // Message auquel on est en train de répondre (bandeau au-dessus du composer),
   // ou null si aucune réponse en cours. Réinitialisé après envoi/annulation.
@@ -3695,6 +3701,7 @@
       conversations = data.conversations;
       renderConvList();
       maybeOpenPendingConversation();
+      maybeOpenPendingScreen();
     } catch (err) { console.error(err); }
   }
 
@@ -3707,6 +3714,16 @@
       pendingConversationIdFromNotification = null;
       openConversation(id);
     }
+  }
+
+  // Ouvre automatiquement l'onglet visé par "?screen=..." (voir
+  // pendingScreenFromLink ci-dessus) — pour l'instant, seul "communities"
+  // (bouton "Communauté" de Diarala_Tiktak) est géré.
+  function maybeOpenPendingScreen() {
+    if (!pendingScreenFromLink) return;
+    const screen = pendingScreenFromLink;
+    pendingScreenFromLink = null;
+    if (screen === 'communities') switchBottomTab('communautes');
   }
 
   // Rend le HTML d'un avatar : la vraie photo si l'utilisateur en a une,

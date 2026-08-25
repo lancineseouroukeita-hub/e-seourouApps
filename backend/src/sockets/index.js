@@ -1,6 +1,7 @@
 const { verifyToken } = require('../utils/jwt');
 const { registerChatHandlers } = require('./chat');
 const { registerSignalingHandlers } = require('./signaling');
+const { registerLiveHandlers } = require('./live');
 const { userRoomName } = require('../utils/rooms');
 const { markOnline, markOffline } = require('../utils/presence');
 const prisma = require('../config/prisma');
@@ -66,6 +67,7 @@ function setupSocket(io) {
 
     registerChatHandlers(io, socket);
     registerSignalingHandlers(io, socket);
+    registerLiveHandlers(io, socket);
 
     socket.on('disconnect', async (reason) => {
       console.log(`Socket déconnecté: ${socket.id} (${reason})`);

@@ -1,7 +1,7 @@
 const express = require('express');
 const {
   listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
-  saveVideo, unsaveVideo, listComments, createComment,
+  saveVideo, unsaveVideo, listComments, createComment, reportVideo,
   recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 } = require('../controllers/video.controller');
 const { requireAuth } = require('../middleware/auth');
@@ -35,5 +35,7 @@ router.post('/:id/comments', requireAuth, asyncHandler(createComment));
 router.post('/:id/view', requireAuth, asyncHandler(recordView));
 // "Promouvoir" (menu ☰) — dépense des crédits "Solde" (voir wallet.routes.js).
 router.post('/:id/boost', requireAuth, asyncHandler(boostVideo));
+// "Signaler" (menu d'appui long sur une publication) — voir video.controller.js, reportVideo.
+router.post('/:id/report', requireAuth, asyncHandler(reportVideo));
 
 module.exports = router;
