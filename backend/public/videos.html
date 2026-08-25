@@ -248,7 +248,12 @@
      peuvent encore s'ouvrir PAR-DESSUS depuis ce clip (bouton partager). */
   #profileClipViewOverlay{position:fixed;inset:0;z-index:25;background:#000;}
   #profileClipViewOverlay.hidden{display:none;}
-  #profileClipViewContent{position:absolute;inset:0;}
+  /* Défilement vertical avec accrochage (scroll-snap), exactement comme
+     #feed/#friendsFeed — TOUTES mes publications sont rendues ici (voir
+     openProfileClipView), pas une seule : appuyer sur une vignette de la
+     grille ouvre désormais un vrai fil qu'on peut faire défiler, comme
+     TikTok, plutôt qu'une vue figée sur cette seule publication. */
+  #profileClipViewContent{position:absolute;inset:0;height:100%;overflow-y:scroll;scroll-snap-type:y mandatory;scroll-behavior:smooth;}
   /* Bouton "fermer" en haut à DROITE (pas à gauche) : le bouton supprimer 🗑️
      de .clip occupe déjà le haut-gauche (top:14px;left:14px) — toujours
      visible ici puisque la grille du profil n'affiche que MES publications. */
@@ -549,7 +554,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v23</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v24</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -1259,17 +1264,18 @@
     }
   }
 
-  // Récupère le contenu binaire RÉEL d'une vidéo à la demande, un seul clip à
-  // la fois (voir GET /api/videos/:id/media, video.controller.js) — les
-  // listings (fil, profil, enregistrées) ne renvoient plus jamais videoData
-  // directement (voir VIDEO_LIST_SELECT côté serveur) pour rester rapides,
-  // même sur une connexion mobile faible : avant ce correctif, CHAQUE page du
-  // fil (jusqu'à 6 vidéos) transférait pour rien le contenu binaire complet
-  // de vidéos jamais regardées, ce qui explique une bonne partie des lenteurs
-  // signalées par Lancine. Mémorise le résultat directement sur l'objet "v"
-  // (partagé avec le reste de renderClip/ce module) pour ne jamais
-  // re-télécharger deux fois la même vidéo pendant la session, même si son
-  // clip ressort et revient dans le DOM (ex: en rescrollant).
+  // Les listings (fil, profil, enregistrées) renvoient à nouveau videoData
+  // directement (voir VIDEO_LIST_SELECT côté serveur) : une tentative
+  // précédente le chargeait à la demande via GET /api/videos/:id/media pour
+  // réduire le volume transféré, mais ça a cassé la lecture des vidéos en
+  // production (build v23, signalé par Lancine) et je n'ai pas pu tester en
+  // conditions réelles pour en trouver la vraie cause. Cette fonction reste
+  // donc en place uniquement comme filet de sécurité (si "v" n'a vraiment
+  // aucun videoData pour une raison quelconque, ex: ancien objet en mémoire),
+  // mais son premier if la rend inoffensive dans le cas normal : elle
+  // retourne immédiatement sans le moindre appel réseau dès que videoData
+  // est déjà présent, ce qui est maintenant TOUJOURS le cas dès la première
+  // récupération du clip.
   async function fetchVideoMedia(v) {
     if (v.videoData) return v;
     if (!v._mediaFetchPromise) {
@@ -1688,6 +1694,12 @@
   }
 
   // ---------- Profil ----------
+  // Dernière liste de MES publications chargée par loadProfile (voir
+  // ci-dessous) — mémorisée ici pour qu'openProfileClipView puisse ouvrir un
+  // vrai fil défilant sur TOUTES ces publications (comme TikTok), pas
+  // seulement la vignette précise sur laquelle on vient d'appuyer.
+  let myProfileVideosList = [];
+
   async function loadProfile() {
     $('profileName').textContent = me ? me.name : '—';
     $('profilePhone').textContent = me ? me.phone : '';
@@ -1702,6 +1714,7 @@
       $('profileFollowersCount').textContent = String(followData.myFollowersCount);
       $('profileFollowingCount').textContent = String(followData.myFollowingCount);
       $('profileVideosCount').textContent = String(videosData.videos.length);
+      myProfileVideosList = videosData.videos;
       if (!videosData.videos.length) {
         $('myVideosGrid').innerHTML = '<div class="screenEmpty">Vous n\'avez encore rien publié.</div>';
         return;
@@ -1726,14 +1739,13 @@
         // ouvre CETTE publication précise en plein écran (voir
         // openProfileClipView) — la suppression (🗑️) est accessible depuis
         // cette vue individuelle, pas directement sur la vignette.
-        thumb.addEventListener('click', () => openProfileClipView(v));
+        thumb.addEventListener('click', () => openProfileClipView(v.id));
         $('myVideosGrid').appendChild(thumb);
         if (needsBlobVideo) {
           const videoEl = thumb.querySelector('video');
-          // fetchVideoMedia (pas directement v.videoData, plus jamais inclus
-          // dans /api/videos/mine — voir VIDEO_LIST_SELECT côté serveur) :
-          // ne concerne de toute façon que le cas rare d'une vidéo SANS
-          // vignette (needsBlobVideo), pas toute la grille à la fois.
+          // fetchVideoMedia : simple filet de sécurité, v.videoData est déjà
+          // présent ici (voir VIDEO_LIST_SELECT côté serveur) donc l'appel
+          // retourne immédiatement sans requête réseau (voir sa définition).
           fetchVideoMedia(v).then(() => {
             if (!v.videoData) return;
             base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime)).then((blobUrl) => {
@@ -1748,50 +1760,66 @@
     }
   }
 
-  // ---------- Vue individuelle d'une publication depuis la grille du profil
-  // (comme TikTok) ----------
+  // ---------- Vue plein écran depuis la grille du profil (comme TikTok)
+  // ----------
   // Réutilise entièrement renderClip (lecture, like, commentaires, partage,
-  // suppression 🗑️...) plutôt que de reconstruire un affichage séparé — la
-  // suppression se fait ici, depuis la vue plein écran, pas directement sur
-  // la vignette de la grille.
-  function openProfileClipView(v) {
-    const clipEl = renderClip(v, {
-      // context: 'profile' fait apparaître "..." (Supprimer inclus) à la
-      // place de la flèche de partage + compteur (voir renderClip,
-      // isProfileView) — exactement comme TikTok (capture envoyée par
-      // Lancine) : c'est uniquement ICI, sur SES PROPRES publications
-      // (myVideosGrid n'affiche jamais que les siennes), que "Supprimer"
-      // reste accessible.
-      context: 'profile',
-      onDeleted: () => {
-        closeProfileClipView();
-        const thumb = $('myVideosGrid').querySelector(`[data-video-id="${v.id}"]`);
-        if (thumb) thumb.remove();
-        const remaining = $('myVideosGrid').querySelectorAll('.myVideoThumb').length;
-        $('profileVideosCount').textContent = String(remaining);
-        if (!remaining) $('myVideosGrid').innerHTML = '<div class="screenEmpty">Vous n\'avez encore rien publié.</div>';
-      },
-    });
-    $('profileClipViewContent').innerHTML = '';
-    $('profileClipViewContent').appendChild(clipEl);
-    $('profileClipViewOverlay').classList.remove('hidden');
-    // Pas d'IntersectionObserver ici (une seule publication statique, pas un
-    // fil qui défile) — on lance la lecture nous-mêmes, avec le même flag
-    // que loadFeed/setupObserver pour qu'attachVideoSrc relance play() elle-
-    // même si la conversion base64 -> blob n'est pas encore terminée.
-    clipEl.dataset.shouldPlay = '1';
-    const videoEl = clipEl.querySelector('video');
-    if (videoEl) {
-      videoEl.muted = !globalSoundEnabled;
-      videoEl.play().catch(() => {
-        videoEl.muted = true;
-        videoEl.play().catch(() => {});
+  // suppression 🗑️...) plutôt que de reconstruire un affichage séparé. Rend
+  // TOUTES les publications de myProfileVideosList (pas seulement celle sur
+  // laquelle on vient d'appuyer) dans un conteneur défilant avec accrochage
+  // (voir #profileClipViewContent) puis saute directement sur la publication
+  // demandée — exactement comme TikTok : depuis le profil, on peut ensuite
+  // continuer à défiler pour voir les autres, pas seulement celle cliquée.
+  function openProfileClipView(startVideoId) {
+    const content = $('profileClipViewContent');
+    revokeClipBlobUrls(content);
+    content.innerHTML = '';
+    myProfileVideosList.forEach((v) => {
+      const clipEl = renderClip(v, {
+        // context: 'profile' fait apparaître "..." (Supprimer inclus) à la
+        // place de la flèche de partage + compteur (voir renderClip,
+        // isProfileView) — exactement comme TikTok (capture envoyée par
+        // Lancine) : c'est uniquement ICI, sur SES PROPRES publications
+        // (myVideosGrid n'affiche jamais que les siennes), que "Supprimer"
+        // reste accessible.
+        context: 'profile',
+        onDeleted: () => {
+          const thumb = $('myVideosGrid').querySelector(`[data-video-id="${v.id}"]`);
+          if (thumb) thumb.remove();
+          const remaining = $('myVideosGrid').querySelectorAll('.myVideoThumb').length;
+          $('profileVideosCount').textContent = String(remaining);
+          myProfileVideosList = myProfileVideosList.filter((mv) => mv.id !== v.id);
+          if (!remaining) {
+            $('myVideosGrid').innerHTML = '<div class="screenEmpty">Vous n\'avez encore rien publié.</div>';
+          }
+          // Retire aussi CE clip précis de la vue plein écran qui défile,
+          // sans fermer les autres publications qu'elle contient encore.
+          clipEl.remove();
+          if (!content.children.length) closeProfileClipView();
+        },
       });
-    }
-    const audioEl = clipEl.querySelector('.clipAudio');
-    if (audioEl && audioEl.src) audioEl.play().catch(() => {});
+      content.appendChild(clipEl);
+    });
+    $('profileClipViewOverlay').classList.remove('hidden');
+    // Défilement INSTANTANÉ (pas animé) jusqu'à la publication demandée —
+    // avant d'observer (voir plus bas), pour que l'IntersectionObserver
+    // détecte directement la bonne publication comme visible dès le départ,
+    // pas celle en tout début de liste.
+    // behavior:'auto' (pas 'smooth') ignore volontairement le
+    // scroll-behavior:smooth posé en CSS sur ce conteneur — un saut animé
+    // depuis le tout début de la liste jusqu'à la publication cliquée serait
+    // trompeur/déroutant à l'ouverture, contrairement à un défilement animé
+    // ENSUITE quand la personne fait défiler elle-même.
+    const targetEl = content.querySelector(`[data-video-id="${startVideoId}"]`);
+    if (targetEl) targetEl.scrollIntoView({ behavior: 'auto', block: 'start' });
+    // setupProfileClipObserver (comme setupObserver/setupFriendsObserver du
+    // fil principal) se charge de lancer/couper la lecture de chaque clip
+    // selon ce qui est réellement visible pendant qu'on défile — remplace
+    // l'ancien lancement manuel d'UNE seule vidéo (devenu incorrect
+    // maintenant que plusieurs clips coexistent dans ce même conteneur).
+    setupProfileClipObserver();
   }
   function closeProfileClipView() {
+    if (profileClipObserver) { profileClipObserver.disconnect(); profileClipObserver = null; }
     const content = $('profileClipViewContent');
     content.querySelectorAll('video').forEach((v) => v.pause());
     content.querySelectorAll('.clipAudio').forEach((a) => a.pause());
@@ -2001,6 +2029,17 @@
     if (friendsObserver) friendsObserver.disconnect();
     friendsObserver = new IntersectionObserver(onClipIntersect, { root: $('friendsFeed'), threshold: [0, 0.6, 1] });
     document.querySelectorAll('#friendsFeed .clip').forEach((el) => friendsObserver.observe(el));
+  }
+
+  // Troisième fil vidéo (vue plein écran depuis la grille du profil, voir
+  // openProfileClipView) — même logique (onClipIntersect) que les deux
+  // au-dessus, juste une racine différente : ainsi, une fois ouvert sur UNE
+  // publication précise, on peut défiler pour voir les autres, comme TikTok.
+  let profileClipObserver = null;
+  function setupProfileClipObserver() {
+    if (profileClipObserver) profileClipObserver.disconnect();
+    profileClipObserver = new IntersectionObserver(onClipIntersect, { root: $('profileClipViewContent'), threshold: [0, 0.6, 1] });
+    document.querySelectorAll('#profileClipViewContent .clip').forEach((el) => profileClipObserver.observe(el));
   }
 
   async function loadFeed(reset) {
@@ -3812,9 +3851,8 @@
           blobUrl = await base64ToBlobUrl(v.photoData, baseMimeType(v.photoMime));
           filename = 'diarala_' + v.id + '.jpg';
         } else {
-          // fetchVideoMedia : v.videoData n'est plus inclus dans /api/videos/
-          // saved (voir VIDEO_LIST_SELECT côté serveur) — récupéré ici à la
-          // demande, exactement au moment où "Télécharger" est pressé.
+          // fetchVideoMedia : simple filet de sécurité, v.videoData est déjà
+          // présent ici (voir VIDEO_LIST_SELECT côté serveur).
           await fetchVideoMedia(v);
           blobUrl = await base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime));
           filename = 'diarala_' + v.id + '.mp4';

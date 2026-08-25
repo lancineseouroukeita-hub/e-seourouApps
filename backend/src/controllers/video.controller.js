@@ -11,24 +11,24 @@ const {
 // remplir l'écran sans recharger une page trop lourde d'un coup.
 const FEED_PAGE_SIZE = 6;
 
-// Champs de Video à renvoyer pour un LISTING (fil, profil, enregistrées...) —
-// EXPLICITEMENT sans "videoData" (voir schema.prisma : jusqu'à 25 Mo par
-// vidéo, encodée en base64 donc environ +33% une fois transmise). Avant ce
-// correctif, chaque prisma.video.findMany() utilisait "include" (qui renvoie
-// TOUTES les colonnes scalaires par défaut, y compris videoData) même quand
-// serializeVideo ne renvoyait ensuite jamais ce champ au client pour une
-// LISTE de plusieurs vidéos à la fois — la base de données ET le serveur
-// transféraient donc pour rien plusieurs dizaines de Mo à chaque page du fil
-// (jusqu'à 6 vidéos × ~33 Mo), ce qui explique une bonne partie des lenteurs
-// signalées par Lancine, en particulier sur une connexion mobile faible.
-// Le contenu vidéo réel se récupère maintenant à la demande, un seul clip à
-// la fois, via GET /api/videos/:id/media (voir getVideoMedia plus bas et
-// videos.html, fetchVideoMedia) — jamais embarqué dans un listing.
+// Champs de Video à renvoyer pour un LISTING (fil, profil, enregistrées...).
+// NOTE : une tentative précédente excluait volontairement "videoData" d'ici
+// (chargement différé via une route dédiée) pour réduire le volume transféré
+// — REVERTÉE : elle a cassé la lecture des vidéos en production (build v23,
+// signalé par Lancine) et je n'ai aucun moyen de tester en conditions
+// réelles (pas de navigateur/appareil disponible dans cet environnement) pour
+// diagnostiquer la vraie cause en confiance avant de la corriger. On revient
+// donc au comportement d'origine (videoData inclus directement dans le
+// listing, comme avant) — quitte à retenter cette optimisation plus tard,
+// de façon plus prudente et testée. Les autres allègements de requêtes
+// (select minimal sur like/save/commentaire/boost, qui ne touchent jamais à
+// la diffusion vidéo elle-même) restent en place, eux, sans risque connu.
 const VIDEO_LIST_SELECT = {
   id: true,
   authorId: true,
   caption: true,
   type: true,
+  videoData: true,
   videoMime: true,
   photoData: true,
   photoMime: true,
@@ -83,11 +83,13 @@ function serializeVideo(video, currentUserId, followingSet) {
     // "video" (par défaut, y compris les publications créées avant l'ajout
     // des photos) ou "photo" — voir schema.prisma, modèle Video.
     type: video.type || 'video',
-    // Jamais videoData ici (voir VIDEO_LIST_SELECT plus haut et getVideoMedia
-    // plus bas) — même quand l'objet "video" en mémoire le contient encore
-    // (ex: juste après prisma.video.create dans createVideo), pour que le
-    // client passe TOUJOURS par le même chemin (fetchVideoMedia côté
-    // videos.html), sans cas particulier à gérer juste après une publication.
+    // videoData renvoyé directement ici (voir VIDEO_LIST_SELECT plus haut) —
+    // une tentative précédente le chargeait à la demande via une route dédiée
+    // (GET /api/videos/:id/media) pour réduire le volume transféré, mais ça a
+    // cassé la lecture des vidéos en production (build v23, signalé par
+    // Lancine) et je n'ai pas pu diagnostiquer la vraie cause sans navigateur
+    // pour tester en conditions réelles. Retour au comportement d'origine.
+    videoData: video.videoData || null,
     videoMime: video.videoMime || null,
     photoData: video.photoData || null,
     photoMime: video.photoMime || null,
