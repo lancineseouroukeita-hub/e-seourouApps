@@ -9,14 +9,19 @@
 const MAX_ATTACHMENT_BYTES = 5 * 1024 * 1024;
 const MAX_ATTACHMENT_BASE64_LENGTH = Math.ceil((MAX_ATTACHMENT_BYTES * 4) / 3) + 1024;
 
-// Taille max d'une vidéo "Clips" (avant encodage) : 25 Mo (relevé depuis 12
-// Mo — trop juste à l'usage, voir la discussion avec Lancine). Volontairement
-// limité (voir schema.prisma, modèle Video) — stockée en base64 en base,
-// comme les pièces jointes de message, ce qui ne tient pas à grande échelle
-// pour des fichiers plus lourds. Combiné à une durée maximale imposée côté
-// client (60 secondes, voir public/videos.html), ça garde des fichiers
-// raisonnables pour une vidéo courte compressée.
-const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+// Taille max d'une vidéo "Clips" (avant encodage) : 80 Mo (relevé depuis 25
+// Mo à la demande de Lancine, pour accompagner le passage de 60 secondes à
+// 5 minutes de durée max — voir MAX_VIDEO_SECONDS et la copie cliente de
+// cette même constante dans public/videos.html, qui DOIT rester
+// synchronisée avec celle-ci). Volontairement limité (voir schema.prisma,
+// modèle Video) — stockée en base64 en base, comme les pièces jointes de
+// message, ce qui ne tient pas à grande échelle pour des fichiers plus
+// lourds : plus cette limite est haute, plus la base de données grossit
+// vite et plus l'envoi est long/fragile sur une connexion faible (compromis
+// accepté sciemment par Lancine après discussion). Combiné à la durée
+// maximale imposée côté client (5 minutes), ça borne quand même la taille
+// d'un clip individuel.
+const MAX_VIDEO_BYTES = 80 * 1024 * 1024;
 const MAX_VIDEO_BASE64_LENGTH = Math.ceil((MAX_VIDEO_BYTES * 4) / 3) + 1024;
 
 // Taille max d'une photo "Clips" (avant encodage) : 12 Mo (relevé depuis 8

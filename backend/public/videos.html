@@ -606,7 +606,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v29</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v30</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -1104,7 +1104,7 @@
         <img id="uploadPreviewImage" alt="Aperçu de la photo">
       </div>
       <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
-      <div id="uploadHint">Vidéo courte (60 secondes / 25 Mo maximum) ou photo (12 Mo maximum).</div>
+      <div id="uploadHint">Vidéo (5 minutes / 80 Mo maximum) ou photo (12 Mo maximum).</div>
       <div id="uploadMsg"></div>
       <!-- Progression RÉELLE de l'envoi (voir uploadWithProgress) — caché en
            dehors d'un envoi en cours, pour ne jamais laisser la personne
@@ -1123,11 +1123,15 @@
   const $ = (id) => document.getElementById(id);
 
   // Durée/taille max côté client — le serveur revérifie la taille de son côté
-  // (voir backend/src/utils/limits.js, MAX_VIDEO_BYTES) ; la durée, elle,
-  // n'est vérifiable qu'ici (pas de traitement vidéo côté serveur pour cette
-  // première version).
-  const MAX_VIDEO_SECONDS = 60;
-  const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
+  // (voir backend/src/utils/limits.js, MAX_VIDEO_BYTES — DOIT rester
+  // synchronisé avec la constante ci-dessous) ; la durée, elle, n'est
+  // vérifiable qu'ici (pas de traitement vidéo côté serveur pour cette
+  // première version). Relevées de 60s/25 Mo à 5 min/80 Mo à la demande de
+  // Lancine (25/08/2026) : voir le commentaire de MAX_VIDEO_BYTES dans
+  // limits.js pour le compromis accepté (envoi plus long/fragile sur
+  // connexion faible, base de données qui grossit plus vite).
+  const MAX_VIDEO_SECONDS = 300;
+  const MAX_VIDEO_BYTES = 80 * 1024 * 1024;
   const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 
   // Session persistante (même choix que index.html, demandé par Lancine :
@@ -1237,7 +1241,7 @@
   }
 
   // Publier une vidéo/photo envoie potentiellement plusieurs dizaines de Mo
-  // (jusqu'à 25 Mo de vidéo + ~33% une fois encodée en base64) — fetch() ne
+  // (jusqu'à 80 Mo de vidéo + ~33% une fois encodée en base64) — fetch() ne
   // donne AUCUN moyen de savoir où en est un envoi en cours, donc sans ça la
   // personne ne voyait qu'un texte figé "Publication en cours…" pendant
   // parfois plus d'une minute sur une connexion mobile lente : impossible de
@@ -1323,7 +1327,7 @@
 
   // Convertit un base64 reçu du serveur en URL de blob locale (objectURL)
   // plutôt que de le mettre tel quel dans un attribut src="data:...;base64,"
-  // — pour une vidéo (potentiellement jusqu'à 25 Mo), un data-URI direct dans
+  // — pour une vidéo (potentiellement jusqu'à 80 Mo), un data-URI direct dans
   // <video src> se bloque silencieusement sur certains navigateurs (constaté
   // sur iPhone : la vidéo reste figée sur son image "poster", ce qui donne
   // l'impression qu'elle "s'est transformée en photo"). Un blob local est
@@ -1343,7 +1347,7 @@
   //    navigateurs mobiles limitent la longueur d'URL/URI qu'ils acceptent,
   //    même pour fetch().
   // 3) atob() (décodage natif) appelé UNE SEULE FOIS sur la chaîne ENTIÈRE
-  //    (jusqu'à ~33 Mo de caractères pour une vidéo de 25 Mo), puis un
+  //    (jusqu'à ~107 Mo de caractères pour une vidéo de 80 Mo), puis un
   //    Uint8Array rempli par blocs (juste pour ne pas geler l'interface,
   //    mais la conversion elle-même restait un seul atob() géant) : la
   //    "conversion échouée" est réapparue quand même sur un appareil réel
@@ -2397,7 +2401,7 @@
       ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">`
       : (() => {
         // Pas de src="data:...;base64,..." ici : pour une vidéo (jusqu'à
-        // 25 Mo), c'est justement ce qui se bloque silencieusement sur
+        // 80 Mo), c'est justement ce qui se bloque silencieusement sur
         // certains téléphones — voir base64ToBlobUrl. Le src est posé juste
         // après, une fois l'élément <video> réellement créé.
         const posterAttr = v.thumbnailData ? ` poster="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}"` : '';
@@ -2828,7 +2832,7 @@
   // atteint, on est sorti tôt d'acceptMediaBlob) ni message, "Publier" bloqué
   // sur désactivé — donnant l'impression trompeuse que l'importation depuis
   // la galerie "ne marche pas du tout", alors qu'un vrai message
-  // (ex: "Vidéo trop volumineuse (25 Mo maximum).") aurait dû apparaître.
+  // (ex: "Vidéo trop volumineuse (80 Mo maximum).") aurait dû apparaître.
   // acceptMediaBlob remet déjà #uploadMsg à vide lui-même, EN DÉBUT de sa
   // propre exécution (avant toute validation) — donc plus besoin de le faire
   // ici une seconde fois, et surtout plus après coup.
@@ -2931,7 +2935,7 @@
     // AUCUN retour, comme si rien ne s'était passé (signalé par Lancine :
     // "on peut sélectionner la vidéo/photo mais il n'envoie pas pour la
     // publication"). En pratique, une vraie photo/vidéo de galerie dépasse très
-    // souvent MAX_PHOTO_BYTES/MAX_VIDEO_BYTES (12/25 Mo) ou MAX_VIDEO_SECONDS,
+    // souvent MAX_PHOTO_BYTES/MAX_VIDEO_BYTES (12/80 Mo) ou MAX_VIDEO_SECONDS,
     // contrairement à une capture caméra qui respecte déjà ces limites — d'où
     // un bug qui ne se voyait quasiment que via la galerie.
     await acceptMediaBlob(file, file.type.startsWith('image/') ? 'photo' : 'video');

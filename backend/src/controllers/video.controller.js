@@ -358,7 +358,7 @@ async function recordView(req, res) {
 async function boostVideo(req, res) {
   try {
     const { id } = req.params;
-    // select : juste de quoi vérifier la propriété (jusqu'à 25 Mo de
+    // select : juste de quoi vérifier la propriété (jusqu'à 80 Mo de
     // videoData sinon renvoyés pour rien, voir VIDEO_LIST_SELECT plus haut).
     const video = await prisma.video.findUnique({ where: { id }, select: { id: true, authorId: true } });
     if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });

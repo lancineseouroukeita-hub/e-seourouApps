@@ -58,10 +58,16 @@ app.use(compression());
 // Limite par défaut d'express.json() : 100 Ko, trop petit pour la photo de
 // profil (jusqu'à ~2 Mo, voir user.controller.js), une photo de statut
 // (jusqu'à 5 Mo, voir status.controller.js) ou une vidéo "Clips" (jusqu'à
-// 25 Mo, voir utils/limits.js, MAX_VIDEO_BYTES) envoyées en base64 (+33% de
+// 80 Mo, voir utils/limits.js, MAX_VIDEO_BYTES) envoyées en base64 (+33% de
 // taille par rapport au fichier d'origine une fois encodées, plus une marge
-// pour le reste du corps JSON).
-app.use(express.json({ limit: '40mb' }));
+// pour le reste du corps JSON). Relevée à 130 Mo (depuis 40 Mo) en même
+// temps que MAX_VIDEO_BYTES : une vidéo de 80 Mo encodée en base64 pèse déjà
+// ~107 Mo à elle seule dans le corps JSON, donc une limite express plus
+// basse la rejetterait AVANT que le contrôleur n'ait la chance de renvoyer
+// le message d'erreur français habituel ("Vidéo trop volumineuse...") — la
+// marge gardée ici (~20%) sert justement à ce que ce soit toujours le
+// contrôleur qui parle en premier, pas express.
+app.use(express.json({ limit: '130mb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
