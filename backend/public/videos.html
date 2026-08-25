@@ -283,6 +283,12 @@
   #cameraScreen{position:fixed;inset:0;background:#000;z-index:26;}
   #cameraScreen.hidden{display:none;}
   #cameraScreen video{width:100%;height:100%;object-fit:cover;background:#000;}
+  /* Superposé pile sur cameraLiveVideo (voir le commentaire HTML) — mêmes
+     dimensions/recadrage, mais SANS interception des appuis (pointer-events:
+     none) pour ne jamais gêner les boutons qui restent au-dessus (obturateur,
+     minuteur...). */
+  #cameraBeautyCanvas{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;pointer-events:none;}
+  #cameraBeautyCanvas.hidden{display:none;}
   #cameraTopBar{position:absolute;top:0;left:0;right:0;display:flex;align-items:center;justify-content:space-between;padding:16px;padding-top:calc(16px + env(safe-area-inset-top, 0));}
   #cameraTopBar button{background:rgba(30,30,30,0.55);border:none;color:white;width:38px;height:38px;border-radius:50%;font-size:17px;cursor:pointer;}
   #cameraTopBarRight{display:flex;align-items:center;gap:10px;}
@@ -290,6 +296,9 @@
      couleur d'accent que le reste de l'appli, pour que ce soit visible d'un
      coup d'œil que le prochain appui sur l'obturateur sera différé. */
   #cameraTimerBtn.active{background:var(--accent, #ff2d55);font-size:12px;font-weight:700;}
+  /* Mode beauté actif (voir beautyModeOn) — même traitement visuel que le
+     minuteur actif, pour rester cohérent. */
+  #cameraBeautyBtn.active{background:var(--accent, #ff2d55);}
   #cameraTimer{position:absolute;top:70px;left:50%;transform:translateX(-50%);background:rgba(30,30,30,0.6);color:white;padding:5px 14px;border-radius:14px;font-size:13px;}
   #cameraTimer.hidden{display:none;}
   /* Décompte plein écran du minuteur (voir runCameraCountdown) — un grand
@@ -619,7 +628,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v34</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v35</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -995,9 +1004,25 @@
   <!-- ---------- Caméra plein écran (ouverte directement en appuyant sur "+", comme TikTok) ---------- -->
   <div id="cameraScreen" class="hidden">
     <video id="cameraLiveVideo" autoplay muted playsinline></video>
+    <!-- Superposé exactement sur cameraLiveVideo, affiché UNIQUEMENT quand le
+         mode beauté est actif (voir beautyModeOn/startBeautyRenderLoop) :
+         redessine en continu l'image de la caméra avec un léger adoucissement
+         (voir applyBeautySoftening). C'est CE flux (via .captureStream(),
+         voir startCameraRecording) qui est réellement enregistré quand le
+         mode beauté est actif — cameraLiveVideo reste la source lue en
+         dessous, jamais masquée par une vidéo enregistrée elle-même. -->
+    <canvas id="cameraBeautyCanvas" class="hidden"></canvas>
     <div id="cameraTopBar">
       <button id="cameraCloseBtn" type="button" title="Fermer">✕</button>
       <div id="cameraTopBarRight">
+        <!-- Mode "beauté" (demande de Lancine, 25/08/2026) : PAS une vraie
+             détection de visage (trop lourd/risqué à faire fonctionner de
+             façon fiable sur iPhone sans pouvoir tester en direct dans cet
+             environnement, voir la discussion) — un adoucissement léger de
+             toute l'image à la place (voir applyBeautySoftening), un
+             compromis simple et fiable annoncé à Lancine en connaissance de
+             cause plutôt qu'un vrai lissage sélectif du visage. -->
+        <button id="cameraBeautyBtn" type="button" title="Beauté">✨</button>
         <!-- Minuteur (voir la demande de Lancine, 25/08/2026 : "exactement
              comme TikTok") : décompte avant que l'enregistrement/la photo ne
              commence VRAIMENT, pour avoir le temps de se placer — voir
@@ -1015,7 +1040,7 @@
     <!-- Masqué pendant l'enregistrement (comme cameraTimer, mais en sens
          inverse) — voir cameraShutterBtn plus bas. -->
     <button id="cameraSoundBtn" type="button" class="cameraSoundPill">
-      <span aria-hidden="true">🎵</span><span id="cameraSoundLabel">Ajouter un son</span>
+      <span aria-hidden="true">♪</span><span id="cameraSoundLabel">Ajouter un son</span>
     </button>
     <div id="cameraBottomBar">
       <div class="cameraModeRow">
@@ -1141,7 +1166,7 @@
              visible ici UNIQUEMENT pour une vidéo (jamais une photo, voir la
              règle CSS #uploadPreviewWrap.kind-video). -->
         <button id="uploadChangeSoundBtn" type="button" class="uploadChangeSoundBtn">
-          <span aria-hidden="true">🎵</span><span id="uploadChangeSoundLabel">Ajouter un son</span>
+          <span aria-hidden="true">♪</span><span id="uploadChangeSoundLabel">Ajouter un son</span>
         </button>
       </div>
       <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
@@ -3164,6 +3189,14 @@
   // reste de l'appli.
   let cameraSoundPreviewRevocableUrl = null;
   let cameraMode = 'video'; // 'video' | 'photo'
+  // Mode "beauté" (voir cameraBeautyBtn) — persiste tant que l'appli reste
+  // ouverte (comme cameraTimerDelaySeconds), pas remis à zéro entre deux
+  // ouvertures de l'écran caméra. beautyRafId : identifiant de la boucle
+  // requestAnimationFrame qui redessine cameraBeautyCanvas en continu (voir
+  // startBeautyRenderLoop/stopBeautyRenderLoop) — null quand elle ne tourne
+  // pas, pour ne jamais en démarrer deux en même temps.
+  let beautyModeOn = false;
+  let beautyRafId = null;
 
   function pickVideoMimeType() {
     // mp4/H.264 EN PREMIER : c'est le format qu'un iPhone (Safari) sait
@@ -3225,6 +3258,69 @@
     // seulement à l'affichage : la photo capturée est retournée à nouveau
     // dans le bon sens (voir capturePhotoFromCamera).
     $('cameraLiveVideo').style.transform = (cameraFacingMode === 'user') ? 'scaleX(-1)' : 'none';
+    // Même miroir à l'affichage sur le canvas du mode beauté (voir
+    // updateBeautyCanvasMirror) — le contenu réellement dessiné dedans reste
+    // lui NON miroité (voir beautyRenderTick), exactement comme pour une
+    // photo.
+    updateBeautyCanvasMirror();
+    // Reprend automatiquement le mode beauté s'il était déjà actif avant cet
+    // appel (ex: après un appui sur "retourner la caméra" — voir
+    // cameraFlipBtn — ou juste après avoir rouvert l'écran caméra) : la
+    // boucle de rendu ne dépend d'aucun état propre au flux, la relancer ici
+    // ne fait rien si elle tourne déjà (voir startBeautyRenderLoop).
+    if (beautyModeOn) startBeautyRenderLoop();
+  }
+
+  function updateBeautyCanvasMirror() {
+    $('cameraBeautyCanvas').style.transform = (cameraFacingMode === 'user') ? 'scaleX(-1)' : 'none';
+  }
+
+  // Redessine en continu cameraLiveVideo -> cameraBeautyCanvas avec un léger
+  // adoucissement (voir applyBeautySoftening) tant que beautyModeOn reste
+  // vrai. C'est ce canvas (via .captureStream(), voir startCameraRecording)
+  // qui devient la vidéo réellement enregistrée quand le mode beauté est
+  // actif — jamais le flux caméra brut.
+  function startBeautyRenderLoop() {
+    if (beautyRafId) return; // déjà en cours, voir le commentaire d'appel ci-dessus
+    const tick = () => {
+      if (!beautyModeOn) { beautyRafId = null; return; }
+      const liveVideo = $('cameraLiveVideo');
+      const canvas = $('cameraBeautyCanvas');
+      if (liveVideo.readyState >= 2 && liveVideo.videoWidth) {
+        if (canvas.width !== liveVideo.videoWidth || canvas.height !== liveVideo.videoHeight) {
+          canvas.width = liveVideo.videoWidth;
+          canvas.height = liveVideo.videoHeight;
+        }
+        const ctx = canvas.getContext('2d');
+        // SANS miroir ici volontairement (voir startCameraStream) : le
+        // miroir n'est qu'un confort d'affichage (transform CSS), jamais
+        // dans le contenu réellement dessiné/enregistré.
+        ctx.drawImage(liveVideo, 0, 0, canvas.width, canvas.height);
+        applyBeautySoftening(ctx, canvas);
+      }
+      beautyRafId = requestAnimationFrame(tick);
+    };
+    beautyRafId = requestAnimationFrame(tick);
+  }
+
+  function stopBeautyRenderLoop() {
+    if (beautyRafId) { cancelAnimationFrame(beautyRafId); beautyRafId = null; }
+  }
+
+  // Adoucissement "beauté" appliqué à un canvas qui contient déjà l'image de
+  // la caméra (voir startBeautyRenderLoop et capturePhotoFromCamera) — PAS de
+  // détection de visage (voir le commentaire HTML sur cameraBeautyBtn) :
+  // on adoucit légèrement TOUTE l'image en mélangeant une version floutée
+  // par-dessus l'image nette à faible opacité, plus une très légère
+  // correction lumière/couleur — une technique simple et fiable, pas un
+  // vrai lissage sélectif de la peau.
+  function applyBeautySoftening(ctx, canvas) {
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+    ctx.filter = 'blur(3px) brightness(1.04) saturate(1.05)';
+    ctx.drawImage(canvas, 0, 0);
+    ctx.restore();
+    ctx.filter = 'none';
   }
 
   function setCameraMode(mode) {
@@ -3263,6 +3359,11 @@
     }
     if (cameraStream) { cameraStream.getTracks().forEach((t) => t.stop()); cameraStream = null; }
     $('cameraLiveVideo').srcObject = null;
+    // Arrête la boucle de rendu (voir startBeautyRenderLoop) mais NE remet
+    // PAS beautyModeOn à false : comme cameraTimerDelaySeconds, ce choix doit
+    // rester actif à la prochaine ouverture de l'écran caméra (voir
+    // startCameraStream, qui relance la boucle si besoin).
+    stopBeautyRenderLoop();
     $('cameraScreen').classList.add('hidden');
     clearInterval(cameraTimerInterval);
     cameraTimerInterval = null;
@@ -3308,6 +3409,16 @@
     const idx = CAMERA_TIMER_OPTIONS.indexOf(cameraTimerDelaySeconds);
     cameraTimerDelaySeconds = CAMERA_TIMER_OPTIONS[(idx + 1) % CAMERA_TIMER_OPTIONS.length];
     updateCameraTimerBtnLabel();
+  });
+  // Active/désactive le mode beauté (voir beautyModeOn) — reste choisi tant
+  // que l'écran caméra reste ouvert/rouvert, comme le minuteur juste
+  // au-dessus.
+  $('cameraBeautyBtn').addEventListener('click', () => {
+    beautyModeOn = !beautyModeOn;
+    $('cameraBeautyBtn').classList.toggle('active', beautyModeOn);
+    $('cameraBeautyCanvas').classList.toggle('hidden', !beautyModeOn);
+    if (beautyModeOn) { updateBeautyCanvasMirror(); startBeautyRenderLoop(); }
+    else { stopBeautyRenderLoop(); }
   });
 
   $('navUploadBtn').addEventListener('click', openCameraScreen);
@@ -3893,6 +4004,11 @@
       ctx.scale(-1, 1);
     }
     ctx.drawImage(liveVideo, 0, 0, canvas.width, canvas.height);
+    // Même adoucissement que pour une vidéo (voir applyBeautySoftening) si le
+    // mode beauté est actif — appliqué APRÈS le retournement miroir
+    // ci-dessus, comme pour startBeautyRenderLoop (l'ordre n'a pas
+    // d'importance ici puisque tout le cadre est traité de la même façon).
+    if (beautyModeOn) applyBeautySoftening(ctx, canvas);
     canvas.toBlob(async (blob) => {
       closeCameraScreen();
       if (blob) {
@@ -4052,8 +4168,24 @@
     // en 720p pour quelques dizaines de secondes.
     const recorderOptions = { videoBitsPerSecond: 1200000, audioBitsPerSecond: 96000 };
     if (mimeType) recorderOptions.mimeType = mimeType;
+    // Mode beauté actif (voir beautyModeOn) : on enregistre le flux du
+    // CANVAS (déjà adouci en continu par startBeautyRenderLoop), pas le flux
+    // caméra brut — recomposé avec la/les piste(s) audio d'origine (le
+    // canvas n'a pas de son). Sinon (cas par défaut, inchangé) : on enregistre
+    // directement cameraStream comme avant, sans passer par un canvas —
+    // aucun risque de régression pour le cas le plus courant.
+    let recordStream = cameraStream;
+    if (beautyModeOn) {
+      try {
+        const canvasStream = $('cameraBeautyCanvas').captureStream(30);
+        recordStream = new MediaStream([...canvasStream.getVideoTracks(), ...cameraStream.getAudioTracks()]);
+      } catch (err) {
+        console.error('captureStream (mode beauté) échoué, on filme sans adoucissement :', err);
+        recordStream = cameraStream;
+      }
+    }
     try {
-      cameraRecorder = new MediaRecorder(cameraStream, recorderOptions);
+      cameraRecorder = new MediaRecorder(recordStream, recorderOptions);
     } catch (err) {
       alert('Impossible de démarrer l\'enregistrement : ' + err.message);
       return;
