@@ -351,6 +351,16 @@
   .soundPickerChooseBtn{padding:6px 12px;border-radius:14px;border:1px solid var(--accent);background:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;flex-shrink:0;}
   .soundPickerDeleteBtn{background:none;border:none;font-size:14px;cursor:pointer;flex-shrink:0;opacity:0.7;}
   .soundPickerDeleteBtn:hover{opacity:1;}
+  /* Recherche de musiques en ligne (extraits 30s) — voir onlineSoundSearchInput. */
+  .onlineSoundSearchRow{padding:10px 16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .onlineSoundSearchRow input{width:100%;box-sizing:border-box;padding:9px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;}
+  .onlineSoundSearchRow input:focus{outline:none;border-color:var(--accent);}
+  /* Vide (aucune recherche en cours) : ni bordure ni espace réservé, pour ne
+     pas laisser un vide visuel entre la recherche et la bibliothèque. */
+  #onlineSoundResults:empty{border:none;}
+  #onlineSoundResults{border-bottom:1px solid var(--border);}
+  .soundPickerRowArtwork{width:30px;height:30px;border-radius:4px;object-fit:cover;flex-shrink:0;background:var(--panel2);}
+  .onlineSoundHint{padding:10px 16px;font-size:12.5px;color:var(--muted);}
 
   /* ---------- Nom du son sous la légende, dans le bas de l'écran (voir
      renderClip) : élément normal du flux de .clipOverlay, pas de
@@ -596,7 +606,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v28</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v29</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -1072,6 +1082,15 @@
         <span>Ajouter un son à la bibliothèque (admin)</span>
         <input id="soundAdminAddInput" type="file" accept="audio/*" style="display:none">
       </label>
+      <!-- Musiques en ligne (extraits 30s, demande de Lancine) — voir
+           sound.controller.js, searchOnlineMusic/fetchOnlinePreview. Recherche
+           en tapant ici ; les résultats s'affichent dans #onlineSoundResults,
+           juste au-dessus de la bibliothèque partagée habituelle, qui reste
+           visible/inchangée en dessous. -->
+      <div class="onlineSoundSearchRow">
+        <input id="onlineSoundSearchInput" type="text" placeholder="🔎 Rechercher une musique en ligne (extrait 30s)">
+      </div>
+      <div id="onlineSoundResults"></div>
       <div id="soundPickerList"></div>
     </div>
   </div>
@@ -3328,6 +3347,10 @@
   function closeSoundPicker() {
     stopSoundPreview();
     $('soundPickerOverlay').classList.add('hidden');
+    // Repart de zéro la prochaine fois qu'on ouvre le sélecteur, plutôt que
+    // de laisser les résultats d'une recherche précédente sans rapport.
+    $('onlineSoundSearchInput').value = '';
+    $('onlineSoundResults').innerHTML = '';
   }
 
   function renderSoundPickerList() {
@@ -3396,6 +3419,104 @@
       list.appendChild(row);
     });
   }
+
+  // ---------- Musiques en ligne (extraits 30s, demande de Lancine) ----------
+  // Voir sound.controller.js pour le pourquoi (pas de vraies chansons
+  // complètes hébergées, juste les extraits publics d'Apple/iTunes) — côté
+  // client, ça se comporte comme la bibliothèque partagée juste au-dessus
+  // (même bouton ▶ pour écouter, même bouton "Choisir"), sauf que :
+  // - l'écoute (▶) joue l'extrait DIRECTEMENT depuis le CDN d'Apple (pas
+  //   besoin de passer par notre serveur juste pour écouter) ;
+  // - "Choisir", lui, appelle bien notre serveur (POST /api/sounds/
+  //   online-preview) pour télécharger réellement l'extrait et le convertir
+  //   en base64 — exactement ce dont createVideo a besoin (voir
+  //   pendingSoundChoice, type "online" ci-dessous), pas avant.
+  let onlineSoundSearchDebounce = null;
+  let onlineSoundSearchSeq = 0;
+
+  function renderOnlineSoundResults(results, query) {
+    const container = $('onlineSoundResults');
+    container.innerHTML = '';
+    if (!results.length) {
+      container.innerHTML = `<div class="onlineSoundHint">Aucun résultat pour "${escapeHtml(query)}".</div>`;
+      return;
+    }
+    results.forEach((r) => {
+      const row = document.createElement('div');
+      row.className = 'soundPickerRow';
+      row.innerHTML = `
+        ${r.artworkUrl ? `<img class="soundPickerRowArtwork" src="${r.artworkUrl}" alt="">` : ''}
+        <button type="button" class="soundPickerPreviewBtn" title="Écouter l'extrait">▶</button>
+        <span class="soundPickerRowName">${escapeHtml(r.trackName)} — ${escapeHtml(r.artistName)}</span>
+        <button type="button" class="soundPickerChooseBtn">Choisir</button>
+      `;
+      row.querySelector('.soundPickerPreviewBtn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        const btn = e.currentTarget;
+        const wasPlaying = btn.classList.contains('playing');
+        stopSoundPreview();
+        if (wasPlaying) return;
+        // Lu directement depuis le CDN d'Apple (voir le commentaire plus
+        // haut) : contrairement à getSoundBlobUrl (bibliothèque partagée),
+        // pas besoin de télécharger quoi que ce soit via notre serveur juste
+        // pour écouter un aperçu.
+        soundPreviewAudio = new Audio(r.previewUrl);
+        soundPreviewAudio.play().catch(() => {});
+        btn.classList.add('playing');
+        soundPreviewAudio.addEventListener('ended', () => btn.classList.remove('playing'));
+      });
+      row.querySelector('.soundPickerChooseBtn').addEventListener('click', async (e) => {
+        const btn = e.currentTarget;
+        btn.disabled = true;
+        btn.textContent = '…';
+        try {
+          const data = await api('/api/sounds/online-preview', {
+            method: 'POST',
+            body: JSON.stringify({ previewUrl: r.previewUrl, trackName: r.trackName, artistName: r.artistName }),
+          });
+          pendingSoundChoice = {
+            type: 'online',
+            dataBase64: data.audioData,
+            mime: data.audioMime,
+            name: data.name,
+          };
+          updateCameraSoundLabel();
+          closeSoundPicker();
+        } catch (err) {
+          alert('Erreur : ' + err.message);
+          btn.disabled = false;
+          btn.textContent = 'Choisir';
+        }
+      });
+      container.appendChild(row);
+    });
+  }
+
+  $('onlineSoundSearchInput').addEventListener('input', () => {
+    const query = $('onlineSoundSearchInput').value.trim();
+    clearTimeout(onlineSoundSearchDebounce);
+    if (!query) {
+      $('onlineSoundResults').innerHTML = '';
+      return;
+    }
+    // Anti-rebond (400ms) : évite une requête réseau à CHAQUE frappe pendant
+    // que la personne tape encore — même idée qu'un champ de recherche
+    // classique. Le numéro de séquence évite qu'une réponse arrivée en
+    // retard (recherche précédente, plus lente) n'écrase le résultat d'une
+    // recherche plus récente déjà affichée.
+    onlineSoundSearchDebounce = setTimeout(async () => {
+      const seq = ++onlineSoundSearchSeq;
+      $('onlineSoundResults').innerHTML = '<div class="onlineSoundHint">Recherche…</div>';
+      try {
+        const data = await api('/api/sounds/search-online?q=' + encodeURIComponent(query));
+        if (seq !== onlineSoundSearchSeq) return;
+        renderOnlineSoundResults(data.results, query);
+      } catch (err) {
+        if (seq !== onlineSoundSearchSeq) return;
+        $('onlineSoundResults').innerHTML = `<div class="onlineSoundHint">${escapeHtml(err.message)}</div>`;
+      }
+    }, 400);
+  });
 
   async function openSoundPicker() {
     $('soundAdminAddRow').classList.toggle('hidden', !(me && me.isAdmin));
@@ -3601,6 +3722,15 @@
         } else if (pendingSoundChoice && pendingSoundChoice.type === 'personal') {
           body.personalSoundData = await blobToBase64(pendingSoundChoice.file);
           body.personalSoundMime = pendingSoundChoice.file.type || 'audio/mpeg';
+          body.personalSoundName = pendingSoundChoice.name;
+        } else if (pendingSoundChoice && pendingSoundChoice.type === 'online') {
+          // Extrait de musique en ligne (voir openSoundPicker /
+          // renderOnlineSoundResults) : déjà téléchargé et encodé en base64
+          // côté serveur au moment du choix (POST /api/sounds/online-preview),
+          // donc traité exactement comme un son personnel importé — aucun
+          // blobToBase64() nécessaire ici, dataBase64 est déjà prêt.
+          body.personalSoundData = pendingSoundChoice.dataBase64;
+          body.personalSoundMime = pendingSoundChoice.mime;
           body.personalSoundName = pendingSoundChoice.name;
         }
       }

@@ -1,9 +1,16 @@
 const express = require('express');
-const { listSounds, getSound, createSound, deleteSound } = require('../controllers/sound.controller');
+const {
+  listSounds, getSound, createSound, deleteSound, searchOnlineMusic, fetchOnlinePreview,
+} = require('../controllers/sound.controller');
 const { requireAuth, requireAdmin } = require('../middleware/auth');
 const { asyncHandler } = require('../utils/asyncHandler');
 
 const router = express.Router();
+
+// Chemins fixes déclarés AVANT "/:id" (même règle que video.routes.js) :
+// sinon Express prendrait "search-online" pour un :id et route vers getSound.
+router.get('/search-online', requireAuth, asyncHandler(searchOnlineMusic));
+router.post('/online-preview', requireAuth, asyncHandler(fetchOnlinePreview));
 
 router.get('/', requireAuth, asyncHandler(listSounds));
 router.get('/:id', requireAuth, asyncHandler(getSound));
