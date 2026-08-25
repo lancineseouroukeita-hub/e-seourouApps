@@ -554,7 +554,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v24</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v25</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- ---------- Connexion ---------- -->
@@ -2596,9 +2596,23 @@
   // avant, ce n'est plus le point d'entrée de la publication (voir
   // openCameraScreen, qui ouvre directement la caméra en appuyant sur "+",
   // comme TikTok).
+  // BUG CORRIGÉ : cette fonction effaçait #uploadMsg APRÈS l'appel à
+  // acceptMediaBlob() (voir les 3 appelants : videoFileInput/change,
+  // capturePhotoFromCamera, onCameraRecordingStopped, qui appellent TOUJOURS
+  // acceptMediaBlob juste avant showPublishOverlay) — donc si le fichier
+  // choisi dans la galerie était trop volumineux ou trop long,
+  // acceptMediaBlob écrivait bien le bon message d'erreur dans #uploadMsg,
+  // mais cette ligne l'effaçait aussitôt après, juste avant que la modale ne
+  // s'affiche. Résultat pour Lancine : une modale vide, sans aperçu (jamais
+  // atteint, on est sorti tôt d'acceptMediaBlob) ni message, "Publier" bloqué
+  // sur désactivé — donnant l'impression trompeuse que l'importation depuis
+  // la galerie "ne marche pas du tout", alors qu'un vrai message
+  // (ex: "Vidéo trop volumineuse (25 Mo maximum).") aurait dû apparaître.
+  // acceptMediaBlob remet déjà #uploadMsg à vide lui-même, EN DÉBUT de sa
+  // propre exécution (avant toute validation) — donc plus besoin de le faire
+  // ici une seconde fois, et surtout plus après coup.
   function showPublishOverlay() {
     $('captionInput').value = '';
-    $('uploadMsg').textContent = '';
     $('uploadOverlay').classList.remove('hidden');
   }
   function closeUploadOverlay() {
