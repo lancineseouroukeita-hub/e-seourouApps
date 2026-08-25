@@ -551,6 +551,41 @@
   .clipOptToggle.on::after{transform:translateX(14px);background:#fff;}
   .clipReportHeader{display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid var(--border);font-weight:700;font-size:15px;}
   .clipReportBackBtn{background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;padding:0;}
+
+  /* ---------- Vue "cadre téléphone" sur grand écran (ordinateur) ----------
+     Cette appli est pensée pour un téléphone (voir viewport-fit=cover plus
+     haut) : les vidéos gardent un format portrait, affiché en
+     "object-fit:cover" pour remplir tout l'écran SANS bandes noires — comme
+     le vrai TikTok. Sur un téléphone ça tombe juste, mais sur un écran large
+     (ordinateur), ces écrans "position:fixed;inset:0" s'étirent sur toute la
+     largeur de la fenêtre : une vidéo au format portrait doit alors grossir
+     ÉNORMÉMENT pour "couvrir" une fenêtre bien plus large que haute, donc se
+     retrouve démesurément zoomée/rognée (signalé par Lancine, capture à
+     l'appui — on ne voyait plus qu'un gros plan du visage). Le vrai TikTok,
+     sur ordinateur, ne fait PAS ça : il affiche un cadre centré, à peu près à
+     la largeur d'un téléphone, avec le reste de la fenêtre simplement en
+     fond noir. C'est ce qu'on reproduit ici : tous les écrans concernés
+     (vidéos + les barres qui les recouvrent) sont recentrés à une largeur
+     fixe au lieu de s'étirer. N'affecte QUE les écrans larges (min-width),
+     donc rien ne change sur téléphone (la quasi-totalité des personnes qui
+     utilisent vraiment l'appli).
+     Seuls les écrans montrant de la vidéo/caméra en plein écran sont
+     concernés ici (fil, Suivis, vue plein écran du profil, caméra, direct) —
+     les autres écrans (profil, messages, réglages...) restent inchangés :
+     ce sont des listes/formulaires qui ne souffrent pas du même problème. */
+  :root{ --phoneFrameWidth: 430px; --phoneFrameHalf: 215px; }
+  @media (min-width: 640px) {
+    #feedScreen, #friendsScreen, #topBar, #friendsTopBar, #bottomNav,
+    #profileClipViewOverlay, #cameraScreen, #liveViewOverlay {
+      left: calc(50% - var(--phoneFrameHalf));
+      right: auto;
+      width: var(--phoneFrameWidth);
+    }
+    /* Garde son décalage habituel par rapport au bord GAUCHE DU CADRE
+       (et non plus du bord de la fenêtre) — sinon il se retrouverait collé
+       tout en haut à gauche de l'écran, loin du cadre vidéo recentré. */
+    #backToAppBtn{ left: calc(50% - var(--phoneFrameHalf) + 14px); }
+  }
 </style>
 </head>
 <body>
@@ -561,7 +596,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v26</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v27</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
