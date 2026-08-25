@@ -655,7 +655,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v35</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v36</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -2343,6 +2343,25 @@
     if (document.visibilityState !== 'visible') return;
     const anyPlaying = document.querySelector('.clip[data-should-play="1"]');
     if (anyPlaying) acquireScreenWakeLock();
+  });
+
+  // Filet de sécurité (signalé par Lancine, 25/08/2026 : l'écran continuait
+  // à s'éteindre même après le correctif ci-dessus, sur un iPhone à jour —
+  // donc pas un problème de compatibilité). Safari sur iPhone peut refuser
+  // SILENCIEUSEMENT navigator.wakeLock.request() quand l'appel ne découle pas
+  // directement d'un geste de la personne (un appui, un défilement) — un
+  // appel déclenché depuis l'IntersectionObserver seul (voir
+  // acquireScreenWakeLock plus haut, appelé quand une vidéo devient visible
+  // EN DÉFILANT) n'est pas toujours considéré comme "assez proche" d'un
+  // geste par Safari, même sur iOS récent, ni le tout premier appel possible
+  // à l'ouverture de l'appli (avant tout appui). On retente donc AUSSI à
+  // CHAQUE appui/tap n'importe où dans l'appli tant qu'une vidéo est censée
+  // jouer — sans risque de double-verrou : acquireScreenWakeLock() ne fait
+  // rien si un verrou est déjà tenu (voir son propre garde-fou).
+  ['click', 'touchend'].forEach((evt) => {
+    document.addEventListener(evt, () => {
+      if (document.querySelector('.clip[data-should-play="1"]')) acquireScreenWakeLock();
+    }, { passive: true });
   });
 
   function onClipIntersect(entries) {
