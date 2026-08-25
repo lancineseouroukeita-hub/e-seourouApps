@@ -606,7 +606,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v31</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v32</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -1102,6 +1102,11 @@
       <div id="uploadPreviewWrap">
         <video id="uploadPreviewVideo" playsinline controls></video>
         <img id="uploadPreviewImage" alt="Aperçu de la photo">
+        <!-- Son choisi (voir attachPreviewSound) : joué EN PLUS de la vidéo
+             (qui reste alors muette, comme dans le fil une fois publiée),
+             jamais affiché — signalé manquant par Lancine (25/08/2026), cet
+             aperçu restait silencieux pour le son choisi. -->
+        <audio id="uploadPreviewAudio" loop></audio>
       </div>
       <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
       <div id="uploadHint">Vidéo (5 minutes / 80 Mo maximum) ou photo (12 Mo maximum).</div>
@@ -1172,6 +1177,16 @@
   // (fichier importé juste pour cette publication), soit null (aucun son
   // ajouté — la vidéo garde sa bande son d'origine).
   let pendingSoundChoice = null;
+  // URL blob de #uploadPreviewAudio à révoquer après usage (voir
+  // attachPreviewSound/detachPreviewSound plus bas) — même logique que
+  // cameraSoundPreviewRevocableUrl : jamais pour un son de bibliothèque,
+  // dont l'URL est partagée avec soundBlobUrlCache.
+  let uploadPreviewAudioRevocableUrl = null;
+  // Compteur incrémenté à chaque attachPreviewSound/detachPreviewSound (même
+  // idée que onlineSoundSearchSeq pour la recherche de musique) : permet à
+  // une résolution asynchrone périmée (l'aperçu a changé entre-temps) de se
+  // reconnaître comme telle et de ne rien poser.
+  let previewSoundAttemptSeq = 0;
 
   // Le son démarre coupé (obligatoire pour que la LECTURE AUTOMATIQUE au
   // défilement soit autorisée par le navigateur, comme pour toute lecture
@@ -2836,6 +2851,72 @@
   // acceptMediaBlob remet déjà #uploadMsg à vide lui-même, EN DÉBUT de sa
   // propre exécution (avant toute validation) — donc plus besoin de le faire
   // ici une seconde fois, et surtout plus après coup.
+  // Fait entendre le son choisi (pendingSoundChoice) PENDANT L'APERÇU avant
+  // publication (écran "Nouvelle publication") — jusqu'ici, seuls
+  // l'enregistrement caméra (voir startCameraSoundPreview) et la vidéo déjà
+  // publiée dans le fil (voir attachSoundToClip) le faisaient ; cet aperçu-ci
+  // restait silencieux pour le son choisi, signalé manquant par Lancine
+  // (25/08/2026). Réutilise resolveCameraSoundPreviewUrl (même résolution
+  // quel que soit le type de son) ; la lecture/pause/le déplacement, eux,
+  // sont synchronisés via les écouteurs permanents posés juste en dessous
+  // (une seule fois, PAS ici, sinon ils s'empileraient à chaque nouvelle
+  // publication dans la même session).
+  async function attachPreviewSound() {
+    if (!pendingSoundChoice) return;
+    const seq = ++previewSoundAttemptSeq;
+    const { url, revocable } = await resolveCameraSoundPreviewUrl();
+    if (!url) return;
+    // Un aperçu plus récent (nouvel enregistrement/import, fermeture de la
+    // modale...) a démarré pendant qu'on attendait cette résolution (surtout
+    // pour un son de bibliothèque/en ligne, qui passe par un aller-retour
+    // réseau) — ne pas poser cette source périmée par-dessus. NOTE : ne PAS
+    // vérifier "l'overlay est-il visible" ici comme premier réflexe — au
+    // moment où acceptMediaBlob() (qui appelle cette fonction) s'exécute,
+    // showPublishOverlay() n'a PAS ENCORE été appelée par l'appelant (voir
+    // onCameraRecordingStopped etc.), donc l'overlay est encore caché à cet
+    // instant précis alors que tout se passe normalement.
+    if (seq !== previewSoundAttemptSeq) {
+      if (revocable) URL.revokeObjectURL(url);
+      return;
+    }
+    $('uploadPreviewAudio').src = url;
+    uploadPreviewAudioRevocableUrl = revocable ? url : null;
+    // La bande son d'origine de la vidéo cède la place au son choisi,
+    // exactement comme dans le fil une fois publiée (voir renderClip,
+    // hasAttachedSound) — sinon les deux se mélangeraient.
+    $('uploadPreviewVideo').muted = true;
+    if (!$('uploadPreviewVideo').paused) $('uploadPreviewAudio').play().catch(() => {});
+  }
+  function detachPreviewSound() {
+    previewSoundAttemptSeq += 1; // invalide toute résolution attachPreviewSound encore en cours
+    $('uploadPreviewAudio').pause();
+    $('uploadPreviewAudio').src = '';
+    if (uploadPreviewAudioRevocableUrl) {
+      URL.revokeObjectURL(uploadPreviewAudioRevocableUrl);
+      uploadPreviewAudioRevocableUrl = null;
+    }
+    $('uploadPreviewVideo').muted = false;
+  }
+  // Écouteurs POSÉS UNE SEULE FOIS (élément fixe, réutilisé à chaque
+  // publication) : suivent les contrôles natifs du <video controls> pour que
+  // #uploadPreviewAudio reste toujours en phase, que la personne appuie sur
+  // lecture/pause ou déplace la position manuellement. Lisent #uploadPreviewAudio.src
+  // à chaque déclenchement plutôt que de dépendre d'une fermeture sur
+  // pendingSoundChoice : ne font rien tant qu'attachPreviewSound n'a pas posé
+  // de source (aucun son choisi, ou aperçu photo).
+  $('uploadPreviewVideo').addEventListener('play', () => {
+    const audio = $('uploadPreviewAudio');
+    if (!audio.src) return;
+    try { audio.currentTime = $('uploadPreviewVideo').currentTime; } catch (err) { /* ignoré */ }
+    audio.play().catch(() => {});
+  });
+  $('uploadPreviewVideo').addEventListener('pause', () => $('uploadPreviewAudio').pause());
+  $('uploadPreviewVideo').addEventListener('seeked', () => {
+    const audio = $('uploadPreviewAudio');
+    if (!audio.src) return;
+    try { audio.currentTime = $('uploadPreviewVideo').currentTime; } catch (err) { /* ignoré */ }
+  });
+
   function showPublishOverlay() {
     $('captionInput').value = '';
     $('uploadOverlay').classList.remove('hidden');
@@ -2846,6 +2927,7 @@
     $('uploadPreviewVideo').src = '';
     if ($('uploadPreviewImage').src) URL.revokeObjectURL($('uploadPreviewImage').src);
     $('uploadPreviewImage').src = '';
+    detachPreviewSound();
     pendingUploadFile = null;
     pendingThumbnail = null;
     // Que ce soit après une publication réussie ou une annulation, le son
@@ -2874,6 +2956,7 @@
     pendingUploadFile = null;
     pendingUploadKind = kind;
     pendingThumbnail = null;
+    detachPreviewSound();
     $('uploadPreviewWrap').classList.remove('kind-video', 'kind-photo');
     if (!blob) return;
 
@@ -2916,6 +2999,7 @@
       pendingThumbnail = await captureThumbnail(previewVideo).catch(() => null);
       pendingUploadFile = blob;
       $('publishBtn').disabled = false;
+      await attachPreviewSound();
     } catch (err) {
       $('uploadMsg').textContent = err.message;
     }
