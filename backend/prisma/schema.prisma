@@ -602,6 +602,12 @@ model Video {
 
   @@index([createdAt])
   @@index([boostedUntil])
+  // Onglet "Suivis" (listVideos, branche onlyFollowing : "where.authorId = {
+  // in: authorIds }", triée par createdAt) — sans index composite, Postgres
+  // doit filtrer par authorId puis trier le résultat à la main plutôt que de
+  // parcourir un index déjà dans le bon ordre ; ça se voit surtout une fois
+  // qu'il y a beaucoup de vidéos ("rapide avec 10 vidéos, lent avec 500").
+  @@index([authorId, createdAt])
 }
 
 // Diffusion en direct ("LIVE", comme TikTok, voir la demande de Lancine) :

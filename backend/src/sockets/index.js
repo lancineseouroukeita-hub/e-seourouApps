@@ -35,7 +35,7 @@ function setupSocket(io) {
     }
   });
 
-  io.on('connection', async (socket) => {
+  io.on('connection', (socket) => {
     console.log(`Socket connecté: ${socket.id} (utilisateur ${socket.user.id})`);
 
     // Room personnelle (indépendante des conversations) : permet aux contrôleurs
@@ -43,6 +43,21 @@ function setupSocket(io) {
     // ouverts à la fois — sans connaître à l'avance la liste de ses conversations.
     // Utilisé par ex. quand il est ajouté à une nouvelle discussion/communauté.
     socket.join(userRoomName(socket.user.id));
+
+    // Enregistrés tout de suite, EN PREMIER et de façon synchrone (avant tout
+    // travail asynchrone comme la présence ci-dessous) : un événement émis
+    // par le client juste après la connexion (ex: rejoindre une conversation,
+    // signalisation d'appel) ne doit jamais risquer d'arriver AVANT que le
+    // bon gestionnaire ne soit attaché — Socket.io ne met pas en attente un
+    // événement sans écouteur, il serait simplement perdu. Avant ce
+    // correctif, ces trois lignes arrivaient APRÈS un aller-retour base de
+    // données (await hidesLastSeen()), ce qui retardait d'autant leur mise en
+    // place et rendait la connexion moins fiable ("parfois ça marche du
+    // premier coup, parfois il faut réessayer une action juste après avoir
+    // ouvert l'appli").
+    registerChatHandlers(io, socket);
+    registerSignalingHandlers(io, socket);
+    registerLiveHandlers(io, socket);
 
     // Confidentialité "dernière connexion" (Paramètres) : si activée, on ne
     // diffuse JAMAIS le statut de cet utilisateur aux autres — ni maintenant,
@@ -61,13 +76,15 @@ function setupSocket(io) {
     // Présence ("En ligne" / "vu à ...", comme WhatsApp) : ne prévient TOUT LE
     // MONDE que si c'est vraiment le premier appareil/onglet de cet
     // utilisateur qui se connecte (il peut déjà être en ligne ailleurs).
-    if (markOnline(socket.user.id) && !(await hidesLastSeen())) {
-      io.emit('presence:update', { userId: socket.user.id, online: true });
-    }
-
-    registerChatHandlers(io, socket);
-    registerSignalingHandlers(io, socket);
-    registerLiveHandlers(io, socket);
+    // Fait en tâche de fond (IIFE async, jamais attendue) : ça ne doit
+    // retarder ni les gestionnaires ci-dessus ni quoi que ce soit d'autre
+    // pour ce socket — un léger délai sur la diffusion "en ligne" aux autres
+    // ne se voit pas, un délai sur les propres actions de la personne, si.
+    (async () => {
+      if (markOnline(socket.user.id) && !(await hidesLastSeen())) {
+        io.emit('presence:update', { userId: socket.user.id, online: true });
+      }
+    })().catch((err) => console.error('Diffusion de présence (connexion) échouée :', err));
 
     socket.on('disconnect', async (reason) => {
       console.log(`Socket déconnecté: ${socket.id} (${reason})`);

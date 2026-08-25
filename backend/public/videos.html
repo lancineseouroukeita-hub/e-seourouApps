@@ -42,6 +42,10 @@
   /* ---------- Écran de connexion (mêmes comptes que seourouApps) ---------- */
   #loginScreen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:20;padding:20px;}
   #loginScreen.hidden{display:none;}
+  /* Affiché pendant tryResumeSession (voir le script) le temps de revalider
+     une session déjà enregistrée — voir la même logique côté index.html. */
+  #authResumingView{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:var(--bg);z-index:21;color:var(--muted);font-size:14px;}
+  #authResumingView.hidden{display:none;}
   .authCard{width:100%;max-width:340px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:26px 22px;}
   .authCard h1{margin:0 0 4px;font-size:24px;display:flex;align-items:center;gap:8px;}
   .authCard p.tagline{margin:0 0 20px;color:var(--muted);font-size:13px;}
@@ -374,6 +378,9 @@
   .uploadRow .primaryBtn:hover{background:var(--accent2);}
   .uploadRow .primaryBtn:disabled{opacity:0.6;cursor:default;}
   #uploadMsg{min-height:16px;font-size:12px;color:#ff8a8a;margin-bottom:8px;}
+  #uploadProgressWrap{height:6px;border-radius:3px;background:var(--panel2);overflow:hidden;margin-bottom:12px;}
+  #uploadProgressWrap.hidden{display:none;}
+  #uploadProgressBar{height:100%;width:0%;background:var(--accent, #ff2d55);transition:width 0.15s linear;}
 
   /* ---------- Bouton "retour" vers seourouApps ---------- */
   /* Diarala_Tiktak s'ouvre dans un onglet/fenêtre séparé (voir index.html,
@@ -554,11 +561,18 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v25</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v26</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
+  <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
+       vraiment (voir tryResumeSession dans le script) — évite un flash de
+       l'écran de connexion avant qu'on sache s'il y a une session à reprendre. -->
+  <div id="authResumingView" class="hidden">Connexion…</div>
+
   <!-- ---------- Connexion ---------- -->
-  <div id="loginScreen">
+  <!-- Caché par défaut lui aussi (voir ci-dessus) : c'est tryResumeSession,
+       tout en bas du script, qui décide lequel des deux afficher. -->
+  <div id="loginScreen" class="hidden">
     <div class="authCard">
       <h1>🎬 Diarala_Tiktak</h1>
       <p class="tagline">Vidéos et photos courtes — connectez-vous avec votre compte seourouApps.</p>
@@ -1038,6 +1052,12 @@
       <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
       <div id="uploadHint">Vidéo courte (60 secondes / 25 Mo maximum) ou photo (12 Mo maximum).</div>
       <div id="uploadMsg"></div>
+      <!-- Progression RÉELLE de l'envoi (voir uploadWithProgress) — caché en
+           dehors d'un envoi en cours, pour ne jamais laisser la personne
+           face à un bouton "Publier" bloqué sans le moindre retour. -->
+      <div id="uploadProgressWrap" class="hidden">
+        <div id="uploadProgressBar"></div>
+      </div>
       <div class="uploadRow">
         <button id="cancelUploadBtn">Annuler</button>
         <button id="publishBtn" class="primaryBtn" disabled>Publier</button>
@@ -1056,9 +1076,24 @@
   const MAX_VIDEO_BYTES = 25 * 1024 * 1024;
   const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 
-  // Comme index.html : le token ne vit qu'en mémoire JS, jamais dans
-  // localStorage — se reconnecter à chaque rechargement de page fait partie
-  // du modèle de sécurité de l'application, pas un oubli.
+  // Session persistante (même choix que index.html, demandé par Lancine :
+  // retrouver l'appli déjà connectée à chaque ouverture, comme TikTok,
+  // plutôt que retaper son mot de passe) — MÊME clé de stockage que
+  // index.html ('seourouapps_token') puisque les deux pages sont servies
+  // depuis la même origine : se connecter dans l'une reconnecte
+  // automatiquement l'autre, comme une seule et même application. Seul le
+  // token JWT est sauvegardé (jamais le mot de passe), et toujours revalidé
+  // auprès du serveur au démarrage (voir tryResumeSession, GET
+  // /api/auth/me) avant d'être considéré comme valable.
+  const AUTH_STORAGE_KEY = 'seourouapps_token';
+  function persistToken(t) {
+    try {
+      if (t) localStorage.setItem(AUTH_STORAGE_KEY, t);
+      else localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch (err) {
+      console.error('persistToken error:', err);
+    }
+  }
   let token = null;
   let me = null;
   // Connexion Socket.io (voir connectLiveSocket) — uniquement pour la
@@ -1130,11 +1165,74 @@
   async function api(path, opts = {}) {
     const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
     if (token) headers['Authorization'] = 'Bearer ' + token;
-    const res = await fetch(path, Object.assign({}, opts, { headers }));
+    let res;
+    try {
+      res = await fetch(path, Object.assign({}, opts, { headers }));
+    } catch (err) {
+      // fetch() rejette avec une TypeError générique ("Failed to fetch") dès
+      // que la requête n'atteint même pas le serveur (pas de réseau, avion,
+      // signal coupé...) — message anglais technique, pas parlant pour une
+      // personne non technique et incohérent avec le reste de l'appli en
+      // français. On le remplace par un message clair.
+      throw new Error('Pas de connexion internet — vérifiez votre réseau et réessayez.');
+    }
     let data = null;
     try { data = await res.json(); } catch (e) { /* pas de corps */ }
     if (!res.ok) throw new Error((data && data.error) || ('Erreur HTTP ' + res.status));
     return data;
+  }
+
+  // Publier une vidéo/photo envoie potentiellement plusieurs dizaines de Mo
+  // (jusqu'à 25 Mo de vidéo + ~33% une fois encodée en base64) — fetch() ne
+  // donne AUCUN moyen de savoir où en est un envoi en cours, donc sans ça la
+  // personne ne voyait qu'un texte figé "Publication en cours…" pendant
+  // parfois plus d'une minute sur une connexion mobile lente : impossible de
+  // distinguer "ça avance" de "c'est bloqué" (source probable d'une partie
+  // des signalements de lenteur/fiabilité de Lancine). XMLHttpRequest, lui,
+  // expose une vraie progression d'envoi (xhr.upload.onprogress), utilisée
+  // ici pour un pourcentage réel. "Chien de garde" en plus : si AUCUNE
+  // progression n'arrive plus pendant UPLOAD_STALL_TIMEOUT_MS d'affilée
+  // (connexion coupée en plein envoi, par ex.), on abandonne proprement au
+  // lieu de laisser la personne face à un bouton bloqué indéfiniment.
+  const UPLOAD_STALL_TIMEOUT_MS = 30000;
+  function uploadWithProgress(path, body, onProgress) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', path);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      if (token) xhr.setRequestHeader('Authorization', 'Bearer ' + token);
+
+      let stallTimer = null;
+      function resetStallTimer() {
+        clearTimeout(stallTimer);
+        stallTimer = setTimeout(() => xhr.abort(), UPLOAD_STALL_TIMEOUT_MS);
+      }
+      resetStallTimer();
+
+      xhr.upload.onprogress = (e) => {
+        resetStallTimer();
+        if (e.lengthComputable && onProgress) onProgress(Math.round((e.loaded / e.total) * 100));
+      };
+      xhr.onload = () => {
+        clearTimeout(stallTimer);
+        let data = null;
+        try { data = JSON.parse(xhr.responseText); } catch (err) { /* pas de corps JSON */ }
+        if (xhr.status >= 200 && xhr.status < 300) {
+          resolve(data);
+        } else {
+          reject(new Error((data && data.error) || ('Erreur HTTP ' + xhr.status)));
+        }
+      };
+      xhr.onerror = () => {
+        clearTimeout(stallTimer);
+        reject(new Error('Pas de connexion internet — vérifiez votre réseau et réessayez.'));
+      };
+      xhr.onabort = () => {
+        clearTimeout(stallTimer);
+        reject(new Error('Envoi interrompu (connexion trop lente ou coupée) — réessayez.'));
+      };
+      xhr.send(JSON.stringify(body));
+    });
   }
 
   // VRAIE cause (trouvee apres suppression de TOUTES les videos et un nouvel
@@ -1207,11 +1305,21 @@
   //    décoder ~33 Mo de texte en un seul appel natif. new Blob() accepte
   //    directement un tableau de plusieurs Uint8Array et les recolle lui-même
   //    à la construction — pas besoin de les fusionner nous-mêmes avant.
-  function base64ToBytesChunks(base64) {
+  // ASYNCHRONE (voir son unique appelant, base64ToBlobUrl) : avant, tout le
+  // décodage se faisait d'une traite, sans jamais rendre la main au
+  // navigateur — une vidéo de plusieurs dizaines de Mo pouvait alors geler le
+  // défilement/le tactile pendant toute la durée du décodage (constaté sur
+  // iPhone), surtout que plusieurs clips d'une même page de fil (voir
+  // loadFeed) se décodent tous à peu près en même temps. On rend maintenant
+  // la main toutes les 4 tranches (~1 Mo décodé) via un setTimeout(0), ce qui
+  // laisse le navigateur respirer (scroll, appui, peinture) entre deux
+  // bourrasques de décodage, sans rien changer au résultat final.
+  async function base64ToBytesChunks(base64) {
     // Multiple de 4 (obligatoire pour que chaque tranche reste un base64
     // valide et se décode isolément sans erreur), proche de 256 Ko.
     const CHUNK_CHARS = 262144;
     const chunks = [];
+    let sinceYield = 0;
     for (let offset = 0; offset < base64.length; offset += CHUNK_CHARS) {
       const slice = base64.slice(offset, offset + CHUNK_CHARS);
       const binary = atob(slice);
@@ -1219,6 +1327,11 @@
       const bytes = new Uint8Array(len);
       for (let i = 0; i < len; i += 1) bytes[i] = binary.charCodeAt(i);
       chunks.push(bytes);
+      sinceYield += 1;
+      if (sinceYield >= 4) {
+        sinceYield = 0;
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      }
     }
     return chunks;
   }
@@ -1254,7 +1367,7 @@
   // rien à changer si l'implémentation évolue encore.
   async function base64ToBlobUrl(base64, mime) {
     try {
-      const chunks = base64ToBytesChunks(base64);
+      const chunks = await base64ToBytesChunks(base64);
       const blob = new Blob(chunks, { type: mime || 'application/octet-stream' });
       return URL.createObjectURL(blob);
     } catch (err) {
@@ -1528,6 +1641,27 @@
   $('loginCountryBtn').addEventListener('click', () => openCountryPicker('login'));
 
   // ---------- Connexion ----------
+  // Factorisé pour être utilisé aussi bien juste après doLogin() que juste
+  // après une reprise de session réussie (voir tryResumeSession plus bas) —
+  // même suite d'actions dans les deux cas.
+  function onLoggedIn(data) {
+    token = data.token;
+    me = data.user;
+    persistToken(token);
+    connectLiveSocket();
+    $('authResumingView').classList.add('hidden');
+    $('loginScreen').classList.add('hidden');
+    $('bottomNav').classList.remove('hidden');
+    $('backToAppBtn').classList.remove('hidden');
+    showScreen('feed');
+    loadFeed(true);
+    // Lien "?follow=<id>" (bouton partager du profil / QR code, voir
+    // "Ton code QR" plus bas) — même principe que le "?c=" de index.html,
+    // mais traité ici juste après la connexion plutôt qu'au chargement de
+    // la page.
+    maybeAutoFollowFromQuery();
+  }
+
   async function doLogin() {
     const phone = getFullPhone('login');
     const password = $('loginPasswordInput').value;
@@ -1539,19 +1673,7 @@
     $('loginMsg').textContent = '';
     try {
       const data = await api('/api/auth/login', { method: 'POST', body: JSON.stringify({ phone, password }) });
-      token = data.token;
-      me = data.user;
-      connectLiveSocket();
-      $('loginScreen').classList.add('hidden');
-      $('bottomNav').classList.remove('hidden');
-      $('backToAppBtn').classList.remove('hidden');
-      showScreen('feed');
-      loadFeed(true);
-      // Lien "?follow=<id>" (bouton partager du profil / QR code, voir
-      // "Ton code QR" plus bas) — même principe que le "?c=" de index.html,
-      // mais traité ici juste après la connexion plutôt qu'au chargement de
-      // la page (token en mémoire seulement, jamais connecté avant login).
-      maybeAutoFollowFromQuery();
+      onLoggedIn(data);
     } catch (err) {
       $('loginMsg').textContent = err.message;
     } finally {
@@ -1561,12 +1683,38 @@
   $('loginBtn').addEventListener('click', doLogin);
   $('loginPasswordInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') doLogin(); });
 
+  // Tentative de reprise automatique de session au démarrage — voir la même
+  // logique côté index.html (AUTH_STORAGE_KEY plus haut). Revalide TOUJOURS
+  // le token auprès du serveur (GET /api/auth/me) avant de lui faire
+  // confiance : un token expiré/invalide ou un appareil déconnecté à
+  // distance entre-temps retombe simplement sur l'écran de connexion normal.
+  async function tryResumeSession() {
+    let savedToken = null;
+    try { savedToken = localStorage.getItem(AUTH_STORAGE_KEY); } catch (err) { savedToken = null; }
+    if (!savedToken) {
+      $('loginScreen').classList.remove('hidden');
+      return;
+    }
+    $('authResumingView').classList.remove('hidden');
+    token = savedToken;
+    try {
+      const data = await api('/api/auth/me');
+      onLoggedIn({ token: savedToken, user: data.user });
+    } catch (err) {
+      token = null;
+      persistToken(null);
+      $('authResumingView').classList.add('hidden');
+      $('loginScreen').classList.remove('hidden');
+    }
+  }
+
   function doLogout() {
     // Comme le bouton "Se déconnecter" de seourouApps : révoque aussi cet
     // appareil côté serveur (visible sinon indéfiniment dans "Appareils
     // connectés"), sans jamais bloquer la déconnexion locale si ça échoue.
     api('/api/devices/logout-self', { method: 'POST' }).catch(() => {});
     if (liveSocket) { liveSocket.disconnect(); liveSocket = null; }
+    persistToken(null);
     token = null;
     me = null;
     nextCursor = null;
@@ -2123,7 +2271,14 @@
   }
   $('friendsFeed').addEventListener('scroll', () => {
     const el = $('friendsFeed');
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 400) loadFriendsFeed(false);
+    // 1500px plutôt que 400 : chaque page contient plusieurs vidéos encodées
+    // en base64 (potentiellement des dizaines de Mo au total, voir
+    // VIDEO_LIST_SELECT côté serveur), donc mieux vaut lancer le
+    // chargement/décodage de la page suivante largement à l'avance plutôt
+    // que d'attendre d'être presque en bas, où la personne voit alors un
+    // vrai arrêt le temps que tout arrive et se décode (voir aussi
+    // base64ToBytesChunks, qui rend maintenant la main pendant le décodage).
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1500) loadFriendsFeed(false);
   });
 
   // Pose la source réelle de l'élément <audio> d'un clip (voir renderClip,
@@ -2582,7 +2737,10 @@
 
   $('feed').addEventListener('scroll', () => {
     const el = $('feed');
-    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 400) loadFeed(false);
+    // Voir le même commentaire sur friendsFeed plus haut (1500px au lieu de
+    // 400) : on veut que la page suivante soit déjà chargée/décodée avant
+    // que la personne n'arrive au bout de la page actuelle.
+    if (el.scrollTop + el.clientHeight >= el.scrollHeight - 1500) loadFeed(false);
   });
 
   function escapeHtml(str) {
@@ -2631,6 +2789,12 @@
     $('videoFileInput').value = '';
     $('uploadPreviewWrap').classList.remove('show', 'kind-video', 'kind-photo');
     $('publishBtn').disabled = true;
+    // Remis à l'état par défaut à chaque fermeture (annulation OU publication
+    // réussie) : sinon, désactivé pendant un envoi (voir publishBtn click),
+    // il resterait bloqué désactivé pour la PROCHAINE publication.
+    $('cancelUploadBtn').disabled = false;
+    $('uploadProgressWrap').classList.add('hidden');
+    $('uploadProgressBar').style.width = '0%';
   }
   $('cancelUploadBtn').addEventListener('click', closeUploadOverlay);
 
@@ -3362,7 +3526,8 @@
   $('publishBtn').addEventListener('click', async () => {
     if (!pendingUploadFile) return;
     $('publishBtn').disabled = true;
-    $('uploadMsg').textContent = 'Publication en cours…';
+    $('cancelUploadBtn').disabled = true;
+    $('uploadMsg').textContent = 'Préparation du fichier…';
     try {
       let body;
       if (pendingUploadKind === 'photo') {
@@ -3395,7 +3560,14 @@
           body.personalSoundName = pendingSoundChoice.name;
         }
       }
-      const data = await api('/api/videos', { method: 'POST', body: JSON.stringify(body) });
+      $('uploadMsg').textContent = 'Envoi en cours… 0%';
+      $('uploadProgressWrap').classList.remove('hidden');
+      const data = await uploadWithProgress('/api/videos', body, (pct) => {
+        $('uploadMsg').textContent = `Envoi en cours… ${pct}%`;
+        $('uploadProgressBar').style.width = pct + '%';
+      });
+      $('uploadProgressWrap').classList.add('hidden');
+      $('uploadProgressBar').style.width = '0%';
       closeUploadOverlay();
       // "+" est accessible depuis Accueil/Ami(e)s/Profil : on revient sur le
       // fil pour voir tout de suite la publication qu'on vient de faire,
@@ -3436,7 +3608,10 @@
       }
     } catch (err) {
       $('uploadMsg').textContent = err.message;
+      $('uploadProgressWrap').classList.add('hidden');
+      $('uploadProgressBar').style.width = '0%';
       $('publishBtn').disabled = false;
+      $('cancelUploadBtn').disabled = false;
     }
   });
 
@@ -4131,6 +4306,12 @@
       window.history.replaceState({}, '', url.toString());
     }
   }
+
+  // Tout en bas, une fois TOUT le reste défini : tente de reprendre une
+  // session déjà enregistrée (voir tryResumeSession plus haut) — décide de
+  // façon synchrone quel écran afficher avant que le navigateur n'ait eu
+  // l'occasion d'en peindre un, donc sans flash visible.
+  tryResumeSession();
 </script>
 </body>
 </html>

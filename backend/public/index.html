@@ -914,7 +914,18 @@
 
   <!-- AUTH -->
   <div id="authScreen">
-    <div class="authCard">
+    <!-- Affiché pendant tryResumeSession (voir le script plus bas) le temps de
+         revalider une session déjà enregistrée auprès du serveur — évite
+         d'afficher un instant le formulaire de connexion pour rien avant de
+         basculer directement dans l'appli. Caché par défaut : n'apparaît que
+         si une session enregistrée existe vraiment (voir tryResumeSession).
+         #authCard démarre lui aussi caché (style inline) pour ne jamais
+         "flasher" avant que le script n'ait décidé laquelle des deux
+         afficher. -->
+    <div id="authResumingView" style="display:none;flex-direction:column;align-items:center;gap:10px;color:var(--muted);font-size:14px;">
+      Connexion…
+    </div>
+    <div class="authCard" id="authCard" style="display:none;">
       <h1>seourouApps — Testeur</h1>
       <p class="sub">Connectez-vous ou créez un compte pour tester le chat et les appels.</p>
       <div class="tabs">
@@ -1845,6 +1856,31 @@
   if (new URLSearchParams(location.search).has('debug')) document.body.classList.add('debug-mode');
   let token = null;
   let me = null;
+  // Session persistante (demandée par Lancine : retrouver l'appli déjà
+  // connectée à chaque ouverture, comme TikTok/WhatsApp, plutôt que retaper
+  // son mot de passe à chaque fois) — remplace le choix précédent ("le token
+  // ne vit qu'en mémoire, jamais dans localStorage"), en connaissance de
+  // cause : quelqu'un qui déverrouille ce téléphone aurait aussi accès
+  // direct à l'appli sans redemander de mot de passe, comme la plupart des
+  // vraies applis grand public. SEUL le token JWT est sauvegardé (jamais le
+  // mot de passe), et il est TOUJOURS revalidé auprès du serveur au
+  // démarrage (voir tryResumeSession, GET /api/auth/me) avant d'être
+  // considéré comme valable : un appareil déconnecté à distance (Paramètres
+  // > Appareils connectés) ou un token expiré (jusqu'à 7 jours, voir
+  // JWT_EXPIRES_IN côté serveur) retombe proprement sur l'écran de
+  // connexion, jamais sur une fausse session.
+  const AUTH_STORAGE_KEY = 'seourouapps_token';
+  function persistToken(t) {
+    try {
+      if (t) localStorage.setItem(AUTH_STORAGE_KEY, t);
+      else localStorage.removeItem(AUTH_STORAGE_KEY);
+    } catch (err) {
+      // Stockage indisponible (navigation privée, quota plein...) : tant pis,
+      // la session ne survivra juste pas à une fermeture de l'appli — pas
+      // grave, ce n'est qu'un confort, pas une fonctionnalité indispensable.
+      console.error('persistToken error:', err);
+    }
+  }
   let socket = null;
   let conversations = [];
   let users = [];
@@ -2305,7 +2341,16 @@
   async function api(path, opts = {}) {
     const headers = Object.assign({ 'Content-Type': 'application/json' }, opts.headers || {});
     if (token) headers['Authorization'] = 'Bearer ' + token;
-    const res = await fetch(apiBase + path, Object.assign({}, opts, { headers }));
+    let res;
+    try {
+      res = await fetch(apiBase + path, Object.assign({}, opts, { headers }));
+    } catch (err) {
+      // fetch() rejette avec une TypeError générique ("Failed to fetch") dès
+      // que la requête n'atteint même pas le serveur (pas de réseau, avion,
+      // signal coupé...) — message anglais technique, pas parlant pour une
+      // personne non technique. On le remplace par un message clair.
+      throw new Error('Pas de connexion internet — vérifiez votre réseau et réessayez.');
+    }
     let data = null;
     try { data = await res.json(); } catch (e) { /* no body */ }
     if (!res.ok) {
@@ -2522,6 +2567,10 @@
   function onAuthSuccess(data) {
     token = data.token;
     me = data.user;
+    persistToken(token);
+    // Utile seulement si on arrive ici depuis tryResumeSession (voir plus
+    // bas) — sans effet sinon, cette vue étant déjà cachée par défaut.
+    $('authResumingView').style.display = 'none';
     $('authScreen').style.display = 'none';
     $('mainScreen').classList.add('show');
     $('whoamiText').textContent = me.name + ' (' + me.phone + ')';
@@ -2540,6 +2589,36 @@
     refreshIceServers();
   }
 
+  // Tentative de reprise automatique de session au démarrage (voir
+  // AUTH_STORAGE_KEY/persistToken plus haut) — appelée une seule fois, tout
+  // en bas de ce script (voir l'appel tryResumeSession() juste avant la
+  // fermeture de l'IIFE). Revalide TOUJOURS le token auprès du serveur (GET
+  // /api/auth/me, qui repasse par requireAuth côté serveur) avant de faire
+  // confiance à quoi que ce soit lu depuis localStorage : un token
+  // expiré/invalide, ou un appareil déconnecté à distance entre-temps
+  // (Paramètres > Appareils connectés), est rejeté par le serveur et on
+  // retombe simplement sur l'écran de connexion normal, sans message
+  // d'erreur (ce n'est pas une vraie erreur pour la personne).
+  async function tryResumeSession() {
+    let savedToken = null;
+    try { savedToken = localStorage.getItem(AUTH_STORAGE_KEY); } catch (err) { savedToken = null; }
+    if (!savedToken) {
+      $('authCard').style.display = 'block';
+      return;
+    }
+    $('authResumingView').style.display = 'flex';
+    token = savedToken;
+    try {
+      const data = await api('/api/auth/me');
+      onAuthSuccess({ token: savedToken, user: data.user });
+    } catch (err) {
+      token = null;
+      persistToken(null);
+      $('authResumingView').style.display = 'none';
+      $('authCard').style.display = 'block';
+    }
+  }
+
   $('logoutBtn').addEventListener('click', () => {
     // Révoque aussi cet appareil côté serveur (Appareils connectés) : sinon
     // il resterait affiché comme "connecté" vu depuis un autre appareil
@@ -2549,6 +2628,7 @@
     // réseau peut échouer ou traîner sans conséquence pour l'utilisateur.
     api('/api/devices/logout-self', { method: 'POST' }).catch(() => {});
     if (socket) socket.disconnect();
+    persistToken(null);
     token = null; me = null; activeConversationId = null;
     conversations = []; users = []; contacts = []; messagesByConv = {};
     // lockedChatsUnlocked est propre à la personne connectée : sans ça, un
@@ -2558,6 +2638,12 @@
     convFilter = 'toutes';
     $('mainScreen').classList.remove('show', 'chatOpen');
     $('authScreen').style.display = 'flex';
+    // Toujours réafficher le formulaire (et jamais "Connexion…") après une
+    // déconnexion volontaire — même si la session venait d'une reprise
+    // automatique au démarrage (tryResumeSession), où #authCard n'a jamais
+    // été affiché puisqu'on est passé directement dans l'appli.
+    $('authResumingView').style.display = 'none';
+    $('authCard').style.display = 'block';
     $('whoamiText').textContent = '';
     renderMyAvatar();
     $('logoutBtn').style.display = 'none';
@@ -7373,6 +7459,14 @@
       await refreshNotifToggleState();
     }
   });
+
+  // Tout en bas, une fois TOUT le reste défini (fonctions, écouteurs
+  // d'événements) : tente de reprendre une session déjà enregistrée (voir
+  // tryResumeSession plus haut). Volontairement la toute dernière ligne du
+  // script — decide quel écran afficher (authResumingView ou authCard) de
+  // façon synchrone avant que le navigateur n'ait eu l'occasion d'afficher
+  // quoi que ce soit, donc sans le moindre flash visible de l'un ou l'autre.
+  tryResumeSession();
 })();
 </script>
 </body>
