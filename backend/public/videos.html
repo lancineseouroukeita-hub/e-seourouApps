@@ -606,7 +606,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v30</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v31</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -2954,6 +2954,20 @@
   let cameraStartTs = null;
   let cameraTimerInterval = null;
   let cameraFacingMode = 'user';
+  // Lecture du son choisi (pendingSoundChoice) PENDANT l'enregistrement, pour
+  // pouvoir se synchroniser dessus (danser, faire du playback...) comme sur
+  // le vrai TikTok — signalé manquant par Lancine (25/08/2026). Ne modifie
+  // jamais le fichier vidéo enregistré lui-même (qui garde le micro
+  // d'origine, de toute façon ignoré à la lecture dès qu'un son est attaché,
+  // voir renderClip/hasAttachedSound) : c'est purement une lecture audio en
+  // parallèle, voir startCameraSoundPreview/stopCameraSoundPreview plus bas.
+  let cameraSoundPreviewAudio = null;
+  // URL blob à révoquer après usage (son personnel/en ligne, créée juste
+  // pour cet aperçu) — jamais pour un son de bibliothèque, dont l'URL est
+  // partagée avec le cache soundBlobUrlCache (voir getSoundBlobUrl) et donc
+  // réutilisée ailleurs (lecture du fil) : la révoquer la casserait pour le
+  // reste de l'appli.
+  let cameraSoundPreviewRevocableUrl = null;
   let cameraMode = 'video'; // 'video' | 'photo'
 
   function pickVideoMimeType() {
@@ -3607,6 +3621,65 @@
     }, 'image/jpeg', 0.85);
   }
 
+  // Résout une URL de lecture (blob:) pour le son actuellement choisi
+  // (pendingSoundChoice), quel que soit son type — utilisé UNIQUEMENT pour
+  // faire entendre la musique PENDANT l'enregistrement (voir
+  // startCameraSoundPreview ci-dessous). "revocable" indique si l'appelant
+  // doit révoquer cette URL après usage (voir le commentaire sur
+  // cameraSoundPreviewRevocableUrl plus haut).
+  async function resolveCameraSoundPreviewUrl() {
+    if (!pendingSoundChoice) return { url: null, revocable: false };
+    if (pendingSoundChoice.type === 'library') {
+      return { url: await getSoundBlobUrl(pendingSoundChoice.id), revocable: false };
+    }
+    if (pendingSoundChoice.type === 'personal') {
+      return { url: URL.createObjectURL(pendingSoundChoice.file), revocable: true };
+    }
+    if (pendingSoundChoice.type === 'online') {
+      return { url: await base64ToBlobUrl(pendingSoundChoice.dataBase64, pendingSoundChoice.mime), revocable: true };
+    }
+    return { url: null, revocable: false };
+  }
+
+  // Démarre la lecture EN BOUCLE du son choisi, en parallèle de
+  // l'enregistrement caméra (jamais mêlée au fichier vidéo lui-même — voir
+  // le commentaire sur cameraSoundPreviewAudio plus haut). Volontairement
+  // async et non-bloquante (appelée sans await depuis startCameraRecording) :
+  // l'enregistrement démarre immédiatement, la musique le rejoint dès que
+  // prête (un son de bibliothèque ou en ligne passe par un aller-retour
+  // réseau/décodage, un son personnel importé est lui immédiat).
+  async function startCameraSoundPreview() {
+    if (!pendingSoundChoice) return;
+    const { url, revocable } = await resolveCameraSoundPreviewUrl();
+    if (!url) return;
+    // L'enregistrement a pu être arrêté (ou le son changé) pendant qu'on
+    // attendait cette résolution — ne pas se lancer trop tard sur un
+    // enregistrement déjà terminé.
+    if (!cameraRecording) {
+      if (revocable) URL.revokeObjectURL(url);
+      return;
+    }
+    cameraSoundPreviewAudio = new Audio(url);
+    cameraSoundPreviewAudio.loop = true;
+    cameraSoundPreviewRevocableUrl = revocable ? url : null;
+    cameraSoundPreviewAudio.play().catch(() => {});
+  }
+
+  // Arrête et nettoie l'aperçu sonore — appelé dès la fin de
+  // l'enregistrement (voir onCameraRecordingStopped, le seul endroit où
+  // l'enregistrement se termine VRAIMENT, quelle que soit la façon dont il a
+  // été arrêté : bouton, limite de durée, ou fermeture de l'écran caméra).
+  function stopCameraSoundPreview() {
+    if (cameraSoundPreviewAudio) {
+      cameraSoundPreviewAudio.pause();
+      cameraSoundPreviewAudio = null;
+    }
+    if (cameraSoundPreviewRevocableUrl) {
+      URL.revokeObjectURL(cameraSoundPreviewRevocableUrl);
+      cameraSoundPreviewRevocableUrl = null;
+    }
+  }
+
   function startCameraRecording() {
     cameraChunks = [];
     const mimeType = pickVideoMimeType();
@@ -3629,6 +3702,9 @@
     cameraRecorder.start();
     cameraRecording = true;
     cameraStartTs = Date.now();
+    // Sans await volontairement (voir le commentaire de la fonction) :
+    // l'enregistrement ne doit jamais attendre la musique pour démarrer.
+    startCameraSoundPreview();
     $('cameraShutterBtn').classList.add('recording');
     $('cameraTimer').textContent = '00:00';
     $('cameraTimer').classList.remove('hidden');
@@ -3648,6 +3724,7 @@
   }
 
   async function onCameraRecordingStopped() {
+    stopCameraSoundPreview();
     clearInterval(cameraTimerInterval);
     cameraTimerInterval = null;
     cameraRecording = false;
