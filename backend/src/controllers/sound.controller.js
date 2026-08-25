@@ -109,7 +109,7 @@ async function fetchOnlinePreview(req, res) {
     // inutilement un fichier trop gros), ET après coup sur la taille réelle
     // (un en-tête Content-Length absent ou mensonger ne doit pas permettre
     // de contourner la limite) — un extrait de 30 secondes fait normalement
-    // moins d'1 Mo, largement sous MAX_SOUND_BYTES (8 Mo).
+    // moins d'1 Mo, largement sous MAX_SOUND_BYTES (25 Mo).
     const declaredLength = Number(audioRes.headers.get('content-length') || 0);
     if (declaredLength && declaredLength > MAX_SOUND_BYTES) {
       return res.status(400).json({ error: `Extrait trop volumineux (${Math.round(MAX_SOUND_BYTES / (1024 * 1024))} Mo maximum).` });

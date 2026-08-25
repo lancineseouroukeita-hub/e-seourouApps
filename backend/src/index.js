@@ -60,14 +60,20 @@ app.use(compression());
 // (jusqu'à 5 Mo, voir status.controller.js) ou une vidéo "Clips" (jusqu'à
 // 80 Mo, voir utils/limits.js, MAX_VIDEO_BYTES) envoyées en base64 (+33% de
 // taille par rapport au fichier d'origine une fois encodées, plus une marge
-// pour le reste du corps JSON). Relevée à 130 Mo (depuis 40 Mo) en même
-// temps que MAX_VIDEO_BYTES : une vidéo de 80 Mo encodée en base64 pèse déjà
-// ~107 Mo à elle seule dans le corps JSON, donc une limite express plus
-// basse la rejetterait AVANT que le contrôleur n'ait la chance de renvoyer
-// le message d'erreur français habituel ("Vidéo trop volumineuse...") — la
-// marge gardée ici (~20%) sert justement à ce que ce soit toujours le
-// contrôleur qui parle en premier, pas express.
-app.use(express.json({ limit: '130mb' }));
+// pour le reste du corps JSON). ATTENTION : une publication vidéo peut
+// envoyer la vidéo ET un son personnel dans la MÊME requête (POST
+// /api/videos, voir video.controller.js createVideo — soundId vient de la
+// bibliothèque donc ne pèse rien côté client, mais personalSoundData, lui,
+// est bien inclus dans le corps) — la limite ici doit donc couvrir la SOMME
+// de MAX_VIDEO_BASE64_LENGTH (~107 Mo pour 80 Mo de vidéo) ET de
+// MAX_SOUND_BASE64_LENGTH (~34 Mo pour 25 Mo de son), pas l'une des deux
+// isolément. Relevée à 160 Mo (depuis 40 Mo, puis 130 Mo) en suivant ces
+// deux constantes : une limite trop basse rejetterait la requête AVANT que
+// le contrôleur n'ait la chance de renvoyer son message d'erreur français
+// habituel ("Vidéo/Son trop volumineux...") — la marge gardée ici sert
+// justement à ce que ce soit toujours le contrôleur qui parle en premier,
+// pas express.
+app.use(express.json({ limit: '160mb' }));
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 

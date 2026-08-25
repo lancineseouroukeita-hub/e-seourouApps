@@ -512,7 +512,7 @@ async function createVideo(req, res) {
     let finalPersonalSoundMime = null;
     let finalPersonalSoundName = null;
     if (soundId && typeof soundId === 'string') {
-      // select: juste l'existence du son (jusqu'à 8 Mo d'audioData sinon
+      // select: juste l'existence du son (jusqu'à 25 Mo d'audioData sinon
       // renvoyés pour rien, voir schema.prisma modèle Sound — même raison que
       // VIDEO_LIST_SELECT plus haut).
       const sound = await prisma.sound.findUnique({ where: { id: soundId }, select: { id: true } });

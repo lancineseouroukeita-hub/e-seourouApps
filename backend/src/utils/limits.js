@@ -31,12 +31,20 @@ const MAX_VIDEO_BASE64_LENGTH = Math.ceil((MAX_VIDEO_BYTES * 4) / 3) + 1024;
 const MAX_PHOTO_BYTES = 12 * 1024 * 1024;
 const MAX_PHOTO_BASE64_LENGTH = Math.ceil((MAX_PHOTO_BYTES * 4) / 3) + 1024;
 
-// Taille max d'un son "Clips" (avant encodage) : 8 Mo, largement suffisant
-// pour un morceau court compressé (voir schema.prisma, modèle Sound et champ
-// Video.personalSoundData) — que ce soit un son de la bibliothèque partagée
-// (ajouté par un administrateur) ou un son personnel importé par l'auteur
-// pour sa propre publication.
-const MAX_SOUND_BYTES = 8 * 1024 * 1024;
+// Taille max d'un son "Clips" (avant encodage) : 25 Mo (relevé depuis 8 Mo à
+// la demande de Lancine, même mouvement que le passage de la vidéo à 5
+// minutes/80 Mo) — que ce soit un son de la bibliothèque partagée (ajouté
+// par un administrateur) ou un son personnel importé par l'auteur pour sa
+// propre publication (voir schema.prisma, modèle Sound et champ
+// Video.personalSoundData). Un morceau compressé classique (MP3/AAC) de
+// plusieurs minutes tient largement dans 8 Mo — cette limite ne sert donc
+// vraiment que pour les fichiers audio de meilleure qualité/non compressés.
+// IMPORTANT : la vidéo ET le son personnel peuvent être envoyés dans la
+// MÊME requête (POST /api/videos, voir createVideo) — voir le commentaire
+// sur la limite express.json() dans index.js, qui doit couvrir la SOMME de
+// MAX_VIDEO_BASE64_LENGTH et MAX_SOUND_BASE64_LENGTH, pas juste l'une des
+// deux.
+const MAX_SOUND_BYTES = 25 * 1024 * 1024;
 const MAX_SOUND_BASE64_LENGTH = Math.ceil((MAX_SOUND_BYTES * 4) / 3) + 1024;
 
 // "Solde" (crédits internes, PAS de l'argent réel — voir schema.prisma,
