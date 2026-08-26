@@ -700,7 +700,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v51</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v52</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -3613,7 +3613,13 @@
   $('videoFileInput').addEventListener('change', async () => {
     const file = $('videoFileInput').files[0];
     galleryDebugLog('input: change (' + (file ? '1 fichier : ' + file.name : 'annulé, aucun fichier') + ')');
-    if (!file) return;
+    if (!file) {
+      // Sélecteur annulé (ou jamais ouvert) : la caméra a été coupée au
+      // clic (voir plus haut) -- on la relance si l'écran caméra est
+      // toujours affiché, pour ne pas laisser un aperçu figé/noir.
+      if (!$('cameraScreen').classList.contains('hidden')) startCameraStream();
+      return;
+    }
     closeCameraScreen();
     // Toujours afficher l'aperçu, même en cas d'échec (fichier trop gros,
     // vidéo trop longue...) : avant ce correctif, acceptMediaBlob() écrivait
@@ -4130,11 +4136,20 @@
     const t = new Date().toISOString().slice(11, 19);
     el.textContent = (el.textContent ? el.textContent + '\n' : '') + t + ' ' + msg;
   }
-  // Instrumentation TEMPORAIRE (26/08/2026, voir galleryDebugLog dans le
-  // HTML/CSS) -- n'appelle JAMAIS preventDefault ici, pour ne rien changer
-  // au comportement natif du <label>, seulement l'observer.
+  // Instrumentation TEMPORAIRE (voir galleryDebugLog dans le HTML/CSS) --
+  // n'appelle JAMAIS preventDefault ici, pour ne rien changer au
+  // comportement natif de l'input, seulement l'observer.
   $('cameraGalleryBtn').addEventListener('click', () => galleryDebugLog('label: clic reçu'));
-  $('videoFileInput').addEventListener('click', () => galleryDebugLog('input: clic reçu'));
+  $('videoFileInput').addEventListener('click', () => {
+    galleryDebugLog('input: clic reçu');
+    // Libère la caméra/le micro AVANT que le navigateur ne tente d'ouvrir
+    // le sélecteur natif (voir le commentaire au-dessus de cette section,
+    // hypothèse du conflit d'accès matériel) -- relancée si annulé, voir
+    // videoFileInput/change plus bas.
+    if (cameraStream) { cameraStream.getTracks().forEach((t) => t.stop()); cameraStream = null; }
+    $('cameraLiveVideo').srcObject = null;
+    galleryDebugLog('caméra libérée, en attente du sélecteur…');
+  });
 
   async function openCameraScreen() {
     const dbg = $('galleryDebugLog');
