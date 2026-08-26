@@ -340,6 +340,9 @@
   .cameraModeBtn.active{color:white;border-bottom-color:white;}
   .cameraControlsRow{width:100%;display:flex;align-items:center;justify-content:space-between;}
   #cameraGalleryBtn{width:42px;height:42px;border-radius:8px;border:none;background:rgba(255,255,255,0.15);color:white;font-size:19px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;}
+  /* Journal de debogage TEMPORAIRE (voir galleryDebugLog) -- a retirer
+     une fois le bug de la galerie reellement compris. */
+  #galleryDebugLog{position:absolute;left:8px;right:8px;bottom:150px;color:#0f0;font-size:11px;font-family:monospace;background:rgba(0,0,0,0.7);padding:5px 8px;border-radius:6px;min-height:14px;white-space:pre-wrap;word-break:break-all;z-index:10;}
   #cameraShutterBtn{width:70px;height:70px;border-radius:50%;border:4px solid white;background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;padding:0;}
   #cameraShutterInner{width:56px;height:56px;border-radius:50%;background:var(--accent);transition:border-radius 0.15s, width 0.15s, height 0.15s;display:block;}
   #cameraShutterBtn.recording #cameraShutterInner{width:28px;height:28px;border-radius:8px;}
@@ -695,7 +698,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v47</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v49</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -826,7 +829,7 @@
       <div class="profileCounts">
         <div><b id="profileVideosCount">0</b><span>Publications</span></div>
         <div><b id="profileFollowersCount">0</b><span>Abonnés</span></div>
-        <div><b id="profileFollowingCount">0</b><span>Abonnements</span></div>
+        <div><b id="profileLikesCount">0</b><span>J'aime</span></div>
       </div>
       <button id="logoutBtn2">Se déconnecter</button>
     </div>
@@ -1164,6 +1167,10 @@
     <button id="cameraSoundBtn" type="button" class="cameraSoundPill">
       <span aria-hidden="true">♪</span><span id="cameraSoundLabel">Ajouter un son</span>
     </button>
+    <!-- Journal de debogage TEMPORAIRE (26/08/2026) : affiche en direct les
+         evenements clic/change autour du bouton galerie, pour comprendre
+         pourquoi "rien ne se passe" (voir galleryDebugLog plus bas). -->
+    <div id="galleryDebugLog"></div>
     <div id="cameraBottomBar">
       <div class="cameraModeRow">
         <button class="cameraModeBtn active" data-mode="video" type="button">Vidéo</button>
@@ -2403,8 +2410,14 @@
 
     api('/api/follows/summary').then((followData) => {
       $('profileFollowersCount').textContent = String(followData.myFollowersCount);
-      $('profileFollowingCount').textContent = String(followData.myFollowingCount);
     }).catch((err) => console.error('loadProfile (follows/summary) error:', err));
+    // Total de J'aime reçus sur toutes mes publications (voir aussi
+    // studioTotalLikes, TikTok Studio, qui utilise le même endpoint) --
+    // remplace l'ancien compteur "Abonnements" (demande de Lancine du
+    // 26/08/2026, comme le vrai profil TikTok).
+    api('/api/videos/stats/mine').then((statsData) => {
+      $('profileLikesCount').textContent = String(statsData.totalLikes);
+    }).catch((err) => console.error('loadProfile (stats/mine) error:', err));
 
     await loadProfileGrid();
   }
@@ -3600,6 +3613,7 @@
   // lieu de la couper pour rien.
   $('videoFileInput').addEventListener('change', async () => {
     const file = $('videoFileInput').files[0];
+    galleryDebugLog('input: change (' + (file ? '1 fichier : ' + file.name : 'annulé, aucun fichier') + ')');
     if (!file) return;
     closeCameraScreen();
     // Toujours afficher l'aperçu, même en cas d'échec (fichier trop gros,
@@ -4111,7 +4125,21 @@
     $('cameraSoundBtn').classList.toggle('hidden', mode === 'photo' || mode === 'live');
   }
 
+  function galleryDebugLog(msg) {
+    const el = $('galleryDebugLog');
+    if (!el) return;
+    const t = new Date().toISOString().slice(11, 19);
+    el.textContent = (el.textContent ? el.textContent + '\n' : '') + t + ' ' + msg;
+  }
+  // Instrumentation TEMPORAIRE (26/08/2026, voir galleryDebugLog dans le
+  // HTML/CSS) -- n'appelle JAMAIS preventDefault ici, pour ne rien changer
+  // au comportement natif du <label>, seulement l'observer.
+  $('cameraGalleryBtn').addEventListener('click', () => galleryDebugLog('label: clic reçu'));
+  $('videoFileInput').addEventListener('click', () => galleryDebugLog('input: clic reçu'));
+
   async function openCameraScreen() {
+    const dbg = $('galleryDebugLog');
+    if (dbg) dbg.textContent = '';
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       // Pas de caméra utilisable (navigateur trop ancien, ou appareil sans
       // webcam) : on retombe sur le sélecteur de fichier plutôt que de
