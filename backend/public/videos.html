@@ -432,7 +432,26 @@
   #uploadCard{width:100%;max-width:360px;background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px;}
   #uploadCard h2{margin:0 0 14px;font-size:17px;}
   #uploadCard textarea{width:100%;min-height:60px;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:13.5px;resize:vertical;margin-bottom:10px;font-family:inherit;}
-  #uploadPreviewWrap{display:none;margin-bottom:12px;}
+  #uploadPreviewWrap{display:none;margin-bottom:12px;position:relative;}
+  /* ---------- Écran de retouche (voir le bloc HTML juste après uploadChangeSoundBtn) ---------- */
+  #editOverlayLayer{position:absolute;inset:0;overflow:hidden;pointer-events:none;border-radius:8px;}
+  .editItem{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;cursor:grab;user-select:none;touch-action:none;white-space:nowrap;padding:2px 4px;}
+  .editItem.dragging{cursor:grabbing;opacity:0.85;}
+  .editItem.text{font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,0.65);}
+  .editItem.sticker{font-size:38px;line-height:1;}
+  .editItemDelete{position:absolute;top:-11px;right:-11px;width:20px;height:20px;border-radius:50%;background:var(--accent2);color:#fff;font-size:12px;line-height:20px;text-align:center;display:none;}
+  .editItem.selected .editItemDelete{display:block;}
+  #editSideToolbar{position:absolute;top:8px;right:8px;display:flex;flex-direction:column;gap:9px;z-index:5;}
+  #editSideToolbar button{width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,0.5);color:#fff;border:none;font-size:14px;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0;}
+  #editTextPanel,#editStickerPanel{position:absolute;left:0;right:0;bottom:0;background:rgba(15,15,15,0.97);border:1px solid var(--border);border-radius:10px 10px 0 0;padding:10px;z-index:6;}
+  #editTextPanel.hidden,#editStickerPanel.hidden{display:none;}
+  #editTextPanel input[type=text]{width:100%;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);margin-bottom:8px;font-size:14px;}
+  .editColorRow{display:flex;gap:7px;margin-bottom:10px;flex-wrap:wrap;}
+  .editColorSwatch{width:22px;height:22px;border-radius:50%;border:2px solid transparent;cursor:pointer;padding:0;}
+  .editColorSwatch.selected{border-color:#fff;}
+  #editStickerGrid{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;max-height:170px;overflow-y:auto;}
+  #editStickerGrid button{font-size:22px;background:none;border:none;cursor:pointer;padding:6px 2px;border-radius:6px;}
+  #editStickerGrid button:active{background:var(--panel2);}
   #uploadPreviewWrap.show{display:block;}
   #uploadPreviewWrap video,#uploadPreviewWrap img{width:100%;max-height:220px;border-radius:8px;background:#000;object-fit:contain;display:none;}
   #uploadPreviewWrap.kind-video video{display:block;}
@@ -665,7 +684,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v40</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v41</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -1229,6 +1248,35 @@
         <button id="uploadChangeSoundBtn" type="button" class="uploadChangeSoundBtn">
           <span aria-hidden="true">♪</span><span id="uploadChangeSoundLabel">Ajouter un son</span>
         </button>
+        <!-- ---------- Écran de retouche après capture (texte/autocollants/filtre) ----------
+             Boutons à droite façon Instagram/Snapchat (demande de Lancine, captures
+             d'écran du 26/08/2026) : Filtre (réutilise CAMERA_FILTERS, indépendant du
+             filtre choisi côté caméra avant l'enregistrement), Texte (Aa), Autocollant
+             (jeu fixe d'émojis pour commencer, voir EDIT_STICKERS — vraie recherche GIF
+             pas encore branchée, demanderait une clé Giphy/Tenor), Partager (natif, vers
+             une autre appli du téléphone, voir editShareBtn). Les éléments ajoutés
+             (texte/autocollants) sont positionnés en POURCENTAGE (voir editItems) pour
+             être replacés à la bonne place aussi bien dans cet aperçu que dans le fichier
+             final "cuit" au moment de publier (voir bakePhotoEdits/bakeVideoEdits) — sans
+             dépendre de la taille d'affichage à l'écran, qui varie d'un téléphone à l'autre. -->
+        <div id="editOverlayLayer"></div>
+        <div id="editSideToolbar">
+          <button id="editFilterBtn" type="button" title="Filtre">🎨</button>
+          <button id="editTextBtn" type="button" title="Texte">Aa</button>
+          <button id="editStickerBtn" type="button" title="Autocollant">🏷️</button>
+          <button id="editShareBtn" type="button" title="Partager">↗️</button>
+        </div>
+        <div id="editTextPanel" class="hidden">
+          <input type="text" id="editTextInput" placeholder="Votre texte" maxlength="80">
+          <div class="editColorRow" id="editTextColorRow"></div>
+          <div class="uploadRow">
+            <button id="editTextCancelBtn" type="button">Annuler</button>
+            <button id="editTextAddBtn" type="button" class="primaryBtn">Ajouter</button>
+          </div>
+        </div>
+        <div id="editStickerPanel" class="hidden">
+          <div id="editStickerGrid"></div>
+        </div>
       </div>
       <textarea id="captionInput" placeholder="Légende (facultatif)" maxlength="300"></textarea>
       <div id="uploadHint">Vidéo (5 minutes / 80 Mo maximum) ou photo (12 Mo maximum).</div>
@@ -1298,6 +1346,20 @@
   let pendingUploadFile = null;
   let pendingUploadKind = 'video'; // 'video' | 'photo'
   let pendingThumbnail = null; // { data, mime } ou null — vidéo uniquement
+  // ---------- Écran de retouche (texte/autocollants/filtre), voir plus bas ----------
+  // Filtre choisi SUR L'APERÇU après capture — état séparé de cameraFilterId (celui
+  // choisi AVANT/pendant l'enregistrement côté écran caméra) : les deux ne se
+  // mélangent jamais, on peut changer d'avis sur l'aperçu sans toucher au réglage
+  // caméra pour la prochaine fois.
+  let editFilterId = 'normal';
+  // { id, type:'text'|'sticker', content, x, y (0-100, % de la largeur/hauteur de
+  // l'aperçu), color, fontSize } — voir addEditTextItem/addEditStickerItem.
+  let editItems = [];
+  let editNextItemId = 1;
+  let editSelectedItemId = null;
+  let editTextColor = '#ffffff';
+  const EDIT_TEXT_COLORS = ['#ffffff', '#000000', '#ff4d6d', '#ffd23f', '#3ea6ff', '#3ddc84', '#ff8a3d', '#c084fc'];
+  const EDIT_STICKERS = ['❤️','🔥','👍','😂','😍','😮','😢','👏','🎉','💯','✨','⭐','👑','💋','✌️','💀','🌹','⚽','🎂','🙏','😎','🤝','💪','🎵','📍','☀️','🌙','⚡','🍀','🏆'];
   // Son choisi sur l'écran caméra ("Ajouter un son") pour la PROCHAINE
   // publication, remis à null après publication ou annulation (voir
   // closeUploadOverlay) : soit { type:'library', id, name } (bibliothèque
@@ -3319,6 +3381,10 @@
     updateCameraSoundLabel();
     $('videoFileInput').value = '';
     $('uploadPreviewWrap').classList.remove('show', 'kind-video', 'kind-photo');
+    // Filtre/texte/autocollants ajoutés sur CETTE publication (voir editFilterId/
+    // editItems) : jamais conservés pour la suivante, qu'on vienne de publier ou
+    // d'annuler.
+    resetEditState();
     $('publishBtn').disabled = true;
     // Remis à l'état par défaut à chaque fermeture (annulation OU publication
     // réussie) : sinon, désactivé pendant un envoi (voir publishBtn click),
@@ -3626,6 +3692,226 @@
     ctx.drawImage(canvas, 0, 0);
     ctx.filter = 'none';
   }
+
+  // ================= Écran de retouche après capture (texte/autocollants/filtre) =================
+  // Voir le bloc HTML juste après uploadChangeSoundBtn et le commentaire sur editFilterId/
+  // editItems plus haut. Tout ce qui suit ne s'applique qu'à l'APERÇU avant publication
+  // (#uploadOverlay) — rien à voir avec l'écran caméra en direct (cameraFilterId, etc.).
+
+  function updateEditPreviewFilter() {
+    const f = CAMERA_FILTERS.find((x) => x.id === editFilterId) || CAMERA_FILTERS[0];
+    const css = (f && f.css && f.css !== 'none') ? f.css : '';
+    $('uploadPreviewVideo').style.filter = css;
+    $('uploadPreviewImage').style.filter = css;
+  }
+
+  function cycleEditFilter() {
+    const idx = CAMERA_FILTERS.findIndex((f) => f.id === editFilterId);
+    editFilterId = CAMERA_FILTERS[(idx + 1) % CAMERA_FILTERS.length].id;
+    updateEditPreviewFilter();
+  }
+
+  function hasActiveEdits() {
+    return editFilterId !== 'normal' || editItems.length > 0;
+  }
+
+  // Reconstruit entièrement la couche d'éléments (texte/autocollants) à partir de
+  // editItems — appelé après chaque ajout/suppression plutôt que de manipuler le DOM
+  // au coup par coup : plus simple à garder juste, et le nombre d'éléments reste
+  // toujours petit (quelques textes/autocollants par publication).
+  function renderEditItems() {
+    const layer = $('editOverlayLayer');
+    layer.innerHTML = '';
+    editItems.forEach((item) => {
+      const el = document.createElement('div');
+      el.className = 'editItem ' + item.type + (item.id === editSelectedItemId ? ' selected' : '');
+      el.style.left = item.x + '%';
+      el.style.top = item.y + '%';
+      if (item.type === 'text') {
+        el.textContent = item.content;
+        el.style.color = item.color || '#fff';
+        el.style.fontSize = (item.fontSize || 22) + 'px';
+      } else {
+        el.textContent = item.content;
+      }
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'editItemDelete';
+      del.textContent = '✕';
+      del.addEventListener('pointerdown', (e) => e.stopPropagation());
+      del.addEventListener('click', (e) => {
+        e.stopPropagation();
+        deleteEditItem(item.id);
+      });
+      el.appendChild(del);
+      makeEditItemDraggable(el, item, layer);
+      layer.appendChild(el);
+    });
+  }
+
+  function selectEditItem(id) {
+    editSelectedItemId = (editSelectedItemId === id) ? null : id;
+    renderEditItems();
+  }
+
+  function deleteEditItem(id) {
+    editItems = editItems.filter((it) => it.id !== id);
+    if (editSelectedItemId === id) editSelectedItemId = null;
+    renderEditItems();
+  }
+
+  // Glisser un texte/autocollant à la position voulue — coordonnées gardées en
+  // POURCENTAGE (item.x/item.y) de la zone d'aperçu, pas en pixels : ainsi la
+  // position reste juste aussi bien à l'écran (taille variable selon le téléphone)
+  // que dans le fichier final "cuit" en pleine résolution (voir bakePhotoEdits/
+  // bakeVideoEdits, qui relisent ces mêmes pourcentages).
+  function makeEditItemDraggable(el, item, containerEl) {
+    let moved = false;
+    el.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignoré */ }
+      el.classList.add('dragging');
+      moved = false;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const startXPct = item.x;
+      const startYPct = item.y;
+      const rect = containerEl.getBoundingClientRect();
+      function onMove(ev) {
+        const dx = ev.clientX - startX;
+        const dy = ev.clientY - startY;
+        if (Math.abs(dx) > 3 || Math.abs(dy) > 3) moved = true;
+        if (!rect.width || !rect.height) return;
+        item.x = Math.max(2, Math.min(98, startXPct + (dx / rect.width) * 100));
+        item.y = Math.max(2, Math.min(98, startYPct + (dy / rect.height) * 100));
+        el.style.left = item.x + '%';
+        el.style.top = item.y + '%';
+      }
+      function onUp() {
+        el.classList.remove('dragging');
+        el.removeEventListener('pointermove', onMove);
+        el.removeEventListener('pointerup', onUp);
+        el.removeEventListener('pointercancel', onUp);
+        if (!moved) selectEditItem(item.id);
+      }
+      el.addEventListener('pointermove', onMove);
+      el.addEventListener('pointerup', onUp);
+      el.addEventListener('pointercancel', onUp);
+    });
+  }
+
+  function addEditTextItem(text, color) {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return;
+    editItems.push({
+      id: editNextItemId++,
+      type: 'text',
+      content: trimmed,
+      x: 50,
+      y: 50,
+      color: color || editTextColor,
+      fontSize: 22,
+    });
+    editSelectedItemId = null;
+    renderEditItems();
+  }
+
+  function addEditStickerItem(emoji) {
+    editItems.push({ id: editNextItemId++, type: 'sticker', content: emoji, x: 50, y: 50 });
+    editSelectedItemId = null;
+    renderEditItems();
+  }
+
+  // Rempli une seule fois (au chargement de la page) : la palette de couleurs du
+  // panneau Texte et la grille d'autocollants (jeu fixe, voir EDIT_STICKERS — pas
+  // de recherche GIF pour l'instant, voir le commentaire HTML plus haut).
+  function populateEditPickers() {
+    const colorRow = $('editTextColorRow');
+    colorRow.innerHTML = '';
+    EDIT_TEXT_COLORS.forEach((color, idx) => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = 'editColorSwatch' + (idx === 0 ? ' selected' : '');
+      sw.style.background = color;
+      sw.addEventListener('click', () => {
+        editTextColor = color;
+        colorRow.querySelectorAll('.editColorSwatch').forEach((n) => n.classList.remove('selected'));
+        sw.classList.add('selected');
+      });
+      colorRow.appendChild(sw);
+    });
+    const grid = $('editStickerGrid');
+    grid.innerHTML = '';
+    EDIT_STICKERS.forEach((emoji) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = emoji;
+      btn.addEventListener('click', () => {
+        addEditStickerItem(emoji);
+        $('editStickerPanel').classList.add('hidden');
+      });
+      grid.appendChild(btn);
+    });
+  }
+  populateEditPickers();
+
+  // Remet l'écran de retouche à zéro — appelé à chaque fermeture de l'aperçu
+  // (closeUploadOverlay), pour ne jamais laisser le filtre/texte/autocollants
+  // d'une publication passée réapparaître sur la SUIVANTE, sans rapport.
+  function resetEditState() {
+    editFilterId = 'normal';
+    editItems = [];
+    editSelectedItemId = null;
+    editNextItemId = 1;
+    updateEditPreviewFilter();
+    renderEditItems();
+    $('editTextPanel').classList.add('hidden');
+    $('editStickerPanel').classList.add('hidden');
+    $('editTextInput').value = '';
+  }
+
+  $('editFilterBtn').addEventListener('click', cycleEditFilter);
+  $('editTextBtn').addEventListener('click', () => {
+    $('editStickerPanel').classList.add('hidden');
+    $('editTextPanel').classList.toggle('hidden');
+    if (!$('editTextPanel').classList.contains('hidden')) $('editTextInput').focus();
+  });
+  $('editStickerBtn').addEventListener('click', () => {
+    $('editTextPanel').classList.add('hidden');
+    $('editStickerPanel').classList.toggle('hidden');
+  });
+  $('editTextCancelBtn').addEventListener('click', () => {
+    $('editTextPanel').classList.add('hidden');
+    $('editTextInput').value = '';
+  });
+  $('editTextAddBtn').addEventListener('click', () => {
+    addEditTextItem($('editTextInput').value, editTextColor);
+    $('editTextInput').value = '';
+    $('editTextPanel').classList.add('hidden');
+  });
+  $('editTextInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); $('editTextAddBtn').click(); }
+  });
+  // Partage natif (vers WhatsApp/une autre appli du téléphone) : indépendant de
+  // "Publier" (qui poste dans le fil seourouApps/Diarala_Tiktak) — n'existe que si
+  // le navigateur le permet (Web Share API, surtout mobile ; absent sur beaucoup de
+  // navigateurs de bureau, d'où le repli sur une simple alerte).
+  $('editShareBtn').addEventListener('click', async () => {
+    if (!pendingUploadFile) return;
+    const ext = pendingUploadKind === 'photo' ? 'jpg' : 'mp4';
+    const mime = pendingUploadFile.type || (pendingUploadKind === 'photo' ? 'image/jpeg' : 'video/mp4');
+    const file = new File([pendingUploadFile], 'diarala.' + ext, { type: mime });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title: 'Diarala_Tiktak' });
+      } catch (err) {
+        // AbortError = la personne a juste annulé le partage — pas une vraie erreur.
+        if (err && err.name !== 'AbortError') console.error('Partage échoué :', err);
+      }
+    } else {
+      alert("Le partage direct n'est pas pris en charge par ce navigateur.");
+    }
+  });
 
   function setCameraMode(mode) {
     cameraMode = mode;
@@ -4696,12 +4982,181 @@
     });
   }
 
+  // Dessine le filtre (voir editFilterId) puis chaque texte/autocollant (voir
+  // editItems, coordonnées en % -> pixels de la taille réelle w/h) sur un contexte
+  // canvas déjà positionné à l'image courante -- factorisé pour bakePhotoEdits ET
+  // chaque frame de bakeVideoEdits, plutôt que dupliqué deux fois.
+  function drawEditOverlaysOnContext(ctx, w, h) {
+    for (const it of editItems) {
+      const px = (it.x / 100) * w;
+      const py = (it.y / 100) * h;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      if (it.type === 'text') {
+        ctx.font = 'bold ' + Math.round((it.fontSize || 22) * (w / 360)) + 'px sans-serif';
+        ctx.fillStyle = it.color || '#ffffff';
+        ctx.shadowColor = 'rgba(0,0,0,0.65)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(it.content, px, py);
+        ctx.shadowBlur = 0;
+      } else {
+        ctx.font = Math.round(38 * (w / 360)) + 'px sans-serif';
+        ctx.fillText(it.content, px, py);
+      }
+    }
+  }
+
+  // Applique le filtre + texte/autocollants choisis sur l'aperçu (voir editFilterId/
+  // editItems) à la PHOTO définitivement, avant envoi -- remplace pendingUploadFile.
+  function bakePhotoEdits(sourceBlob) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const w = img.naturalWidth || 720;
+          const h = img.naturalHeight || 1280;
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          const f = CAMERA_FILTERS.find((x) => x.id === editFilterId) || CAMERA_FILTERS[0];
+          if (f && f.css && f.css !== 'none') ctx.filter = f.css;
+          ctx.drawImage(img, 0, 0, w, h);
+          ctx.filter = 'none';
+          drawEditOverlaysOnContext(ctx, w, h);
+          URL.revokeObjectURL(img.src);
+          canvas.toBlob((blob) => { blob ? resolve(blob) : reject(new Error('toBlob a échoué')); }, 'image/jpeg', 0.9);
+        } catch (err) { reject(err); }
+      };
+      img.onerror = () => reject(new Error('Impossible de charger la photo pour la retouche'));
+      img.src = URL.createObjectURL(sourceBlob);
+    });
+  }
+
+  // Même principe pour une VIDÉO : relit le clip déjà enregistré dans un <video>
+  // caché, redessine chaque image (filtre + overlays) sur un canvas, et
+  // ré-enregistre via MediaRecorder -- même technique que le mode beauté/filtre
+  // PENDANT l'enregistrement (voir startCameraRecording, captureStream), sauf
+  // qu'ici la source est le clip déjà filmé (pas la caméra en direct) : la piste
+  // audio est récupérée via video.captureStream() plutôt que cameraStream.
+  function bakeVideoEdits(sourceBlob) {
+    return new Promise((resolve, reject) => {
+      const srcVideo = document.createElement('video');
+      srcVideo.muted = true;
+      srcVideo.playsInline = true;
+      srcVideo.src = URL.createObjectURL(sourceBlob);
+      srcVideo.addEventListener('loadedmetadata', () => {
+        try {
+          const w = srcVideo.videoWidth || 720;
+          const h = srcVideo.videoHeight || 1280;
+          const canvas = document.createElement('canvas');
+          canvas.width = w;
+          canvas.height = h;
+          const ctx = canvas.getContext('2d');
+          const f = CAMERA_FILTERS.find((x) => x.id === editFilterId) || CAMERA_FILTERS[0];
+          const filterCss = (f && f.css && f.css !== 'none') ? f.css : '';
+
+          let sourceStream = null;
+          try {
+            sourceStream = srcVideo.captureStream ? srcVideo.captureStream() : (srcVideo.mozCaptureStream ? srcVideo.mozCaptureStream() : null);
+          } catch (err) { sourceStream = null; }
+          const audioTracks = sourceStream ? sourceStream.getAudioTracks() : [];
+          const canvasStream = canvas.captureStream(30);
+          const recordStream = new MediaStream([...canvasStream.getVideoTracks(), ...audioTracks]);
+
+          const mimeType = pickVideoMimeType();
+          const recorderOptions = { videoBitsPerSecond: 1200000, audioBitsPerSecond: 96000 };
+          if (mimeType) recorderOptions.mimeType = mimeType;
+          let recorder;
+          try {
+            recorder = new MediaRecorder(recordStream, recorderOptions);
+          } catch (err) { reject(err); return; }
+          const chunks = [];
+          recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+          let rafId = null;
+          recorder.onstop = () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            URL.revokeObjectURL(srcVideo.src);
+            resolve(new Blob(chunks, { type: (recorder.mimeType) || 'video/webm' }));
+          };
+          recorder.onerror = (e) => reject((e && e.error) || new Error('MediaRecorder erreur'));
+
+          function drawFrame() {
+            if (srcVideo.paused || srcVideo.ended) return;
+            ctx.clearRect(0, 0, w, h);
+            if (filterCss) ctx.filter = filterCss;
+            ctx.drawImage(srcVideo, 0, 0, w, h);
+            ctx.filter = 'none';
+            drawEditOverlaysOnContext(ctx, w, h);
+            rafId = requestAnimationFrame(drawFrame);
+          }
+          srcVideo.addEventListener('ended', () => {
+            if (rafId) cancelAnimationFrame(rafId);
+            if (recorder.state !== 'inactive') recorder.stop();
+          });
+          recorder.start();
+          srcVideo.play().then(drawFrame).catch((err) => reject(err));
+        } catch (err) { reject(err); }
+      });
+      srcVideo.addEventListener('error', () => reject(new Error('Impossible de charger la vidéo pour la retouche')));
+    });
+  }
+
   $('publishBtn').addEventListener('click', async () => {
     if (!pendingUploadFile) return;
     $('publishBtn').disabled = true;
     $('cancelUploadBtn').disabled = true;
     $('uploadMsg').textContent = 'Préparation du fichier…';
     try {
+      // Filtre changé sur l'aperçu / texte / autocollants (voir hasActiveEdits) :
+      // "cuits" dans le fichier final SEULEMENT s'il y a vraiment quelque chose à
+      // appliquer -- une publication simple, non retouchée, n'est jamais ralentie
+      // ni ré-encodée pour rien. Un échec ici ne bloque JAMAIS la publication : on
+      // se rabat sur le fichier d'origine plutôt que de laisser la personne
+      // coincée sans pouvoir publier du tout.
+      if (hasActiveEdits()) {
+        $('uploadMsg').textContent = 'Application des retouches…';
+        try {
+          const baked = pendingUploadKind === 'photo'
+            ? await bakePhotoEdits(pendingUploadFile)
+            : await bakeVideoEdits(pendingUploadFile);
+          if (baked && baked.size > 0) {
+            pendingUploadFile = baked;
+            if (pendingUploadKind === 'video') {
+              // Miniature recalculée sur le fichier RETOUCHÉ (filtre/texte/autocollants
+              // désormais "cuits" dedans) -- sinon la vignette du fil montrerait encore
+              // l'image d'origine, sans les retouches. <video> temporaire hors écran
+              // (jamais affiché) : captureThumbnail a seulement besoin de pouvoir lire
+              // ses dimensions et se positionner dessus (voir captureThumbnail plus haut).
+              const probe = document.createElement('video');
+              probe.muted = true;
+              probe.playsInline = true;
+              probe.style.position = 'fixed';
+              probe.style.left = '-9999px';
+              probe.style.width = '1px';
+              probe.style.height = '1px';
+              document.body.appendChild(probe);
+              probe.src = URL.createObjectURL(baked);
+              try {
+                await new Promise((resolve, reject) => {
+                  probe.onloadedmetadata = () => resolve();
+                  probe.onerror = () => reject(new Error('miniature indisponible'));
+                });
+                const thumb = await captureThumbnail(probe).catch(() => null);
+                if (thumb) pendingThumbnail = thumb;
+              } catch (err) {
+                /* miniature ratée : celle d'origine (pré-retouche) reste utilisée, tant pis */
+              } finally {
+                URL.revokeObjectURL(probe.src);
+                probe.remove();
+              }
+            }
+          }
+        } catch (err) {
+          console.error('Retouche (filtre/texte/autocollants) échouée, publication du fichier original :', err);
+        }
+        $('uploadMsg').textContent = 'Préparation du fichier…';
+      }
       let body;
       if (pendingUploadKind === 'photo') {
         body = {
