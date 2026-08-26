@@ -292,14 +292,45 @@ async function listSavedVideos(req, res) {
 // menu ☰ : body { videosPrivate: boolean }. Ne concerne QUE les publications
 // "Clips" (voir schema.prisma, User.videosPrivate) — pas les statuts ni les
 // messages de seourouApps, qui ont leurs propres réglages de confidentialité.
+// Valeurs valides pour User.commentPermission (voir schema.prisma) —
+// vérifiées ici ET dans createComment plus bas, jamais fait confiance au
+// client seul.
+const COMMENT_PERMISSIONS = ['everyone', 'followers', 'noone'];
+
+// Étendu (26/08/2026) à commentPermission/allowDownloads, en plus de
+// videosPrivate — chaque réglage reste optionnel dans le body (envoyé un par
+// un depuis videos.html, un PATCH par bascule/sélecteur touché) pour ne
+// jamais écraser les autres réglages par erreur.
 async function updateVideoPrivacy(req, res) {
   try {
-    const { videosPrivate } = req.body;
-    if (typeof videosPrivate !== 'boolean') {
-      return res.status(400).json({ error: 'videosPrivate (booléen) est requis.' });
+    const data = {};
+    if ('videosPrivate' in req.body) {
+      if (typeof req.body.videosPrivate !== 'boolean') {
+        return res.status(400).json({ error: 'videosPrivate (booléen) est requis.' });
+      }
+      data.videosPrivate = req.body.videosPrivate;
     }
-    await prisma.user.update({ where: { id: req.user.id }, data: { videosPrivate } });
-    return res.json({ ok: true, videosPrivate });
+    if ('commentPermission' in req.body) {
+      if (!COMMENT_PERMISSIONS.includes(req.body.commentPermission)) {
+        return res.status(400).json({ error: `commentPermission doit être l'un de : ${COMMENT_PERMISSIONS.join(', ')}.` });
+      }
+      data.commentPermission = req.body.commentPermission;
+    }
+    if ('allowDownloads' in req.body) {
+      if (typeof req.body.allowDownloads !== 'boolean') {
+        return res.status(400).json({ error: 'allowDownloads (booléen) est requis.' });
+      }
+      data.allowDownloads = req.body.allowDownloads;
+    }
+    if (!Object.keys(data).length) {
+      return res.status(400).json({ error: 'Aucun réglage valide fourni.' });
+    }
+    const updated = await prisma.user.update({
+      where: { id: req.user.id },
+      data,
+      select: { videosPrivate: true, commentPermission: true, allowDownloads: true },
+    });
+    return res.json({ ok: true, ...updated });
   } catch (err) {
     console.error('updateVideoPrivacy error:', err);
     return res.status(500).json({ error: 'Erreur serveur.' });
@@ -307,11 +338,14 @@ async function updateVideoPrivacy(req, res) {
 }
 
 // GET /api/videos/settings/privacy — état actuel (pour afficher le bon état
-// du bouton "compte privé" à l'ouverture de l'écran Paramètres).
+// des boutons/sélecteurs à l'ouverture de l'écran Paramètres).
 async function getVideoPrivacy(req, res) {
   try {
-    const user = await prisma.user.findUnique({ where: { id: req.user.id }, select: { videosPrivate: true } });
-    return res.json({ videosPrivate: user ? user.videosPrivate : false });
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.id },
+      select: { videosPrivate: true, commentPermission: true, allowDownloads: true },
+    });
+    return res.json(user || { videosPrivate: false, commentPermission: 'everyone', allowDownloads: true });
   } catch (err) {
     console.error('getVideoPrivacy error:', err);
     return res.status(500).json({ error: 'Erreur serveur.' });
@@ -752,9 +786,35 @@ async function createComment(req, res) {
     const text = String(req.body.text || '').trim().slice(0, MAX_COMMENT_LENGTH);
     if (!text) return res.status(400).json({ error: 'Le commentaire ne peut pas être vide.' });
 
-    // select : juste l'existence (voir VIDEO_LIST_SELECT plus haut).
-    const video = await prisma.video.findUnique({ where: { id }, select: { id: true } });
+    // authorId + commentPermission de l'auteur (voir schema.prisma,
+    // User.commentPermission) : nécessaires pour la vérification ci-dessous —
+    // avant ce correctif, seule l'existence de la vidéo était vérifiée,
+    // n'importe qui pouvait commenter n'importe quelle publication
+    // ("Paramètres et confidentialité" → "Qui peut commenter", demande de
+    // Lancine du 26/08/2026).
+    const video = await prisma.video.findUnique({
+      where: { id },
+      select: { id: true, authorId: true, author: { select: { commentPermission: true } } },
+    });
     if (!video) return res.status(404).json({ error: 'Vidéo introuvable.' });
+
+    // L'auteur peut toujours commenter sa PROPRE publication, quel que soit
+    // son réglage (qui ne s'applique qu'aux AUTRES personnes) — sinon
+    // choisir "Personne" le bloquerait lui-même par erreur.
+    if (video.authorId !== req.user.id) {
+      const permission = (video.author && video.author.commentPermission) || 'everyone';
+      if (permission === 'noone') {
+        return res.status(403).json({ error: "L'auteur de cette publication n'autorise pas les commentaires." });
+      }
+      if (permission === 'followers') {
+        const follows = await prisma.follow.findUnique({
+          where: { followerId_followingId: { followerId: req.user.id, followingId: video.authorId } },
+        });
+        if (!follows) {
+          return res.status(403).json({ error: "Seuls les abonnés de l'auteur peuvent commenter cette publication." });
+        }
+      }
+    }
 
     const comment = await prisma.videoComment.create({
       data: { videoId: id, authorId: req.user.id, text },

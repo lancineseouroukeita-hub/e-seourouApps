@@ -564,6 +564,8 @@
 
   /* Paramètres et confidentialité */
   .settingsRow{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 16px;border-bottom:1px solid var(--border);}
+  .settingsSelect{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 8px;font-size:13px;}
+  #clipOptDownload.hidden{display:none;}
   .settingsRowLabel{font-size:13.5px;}
   .settingsRowHint{font-size:11px;color:var(--muted);margin-top:2px;}
   .toggleSwitch{position:relative;width:44px;height:26px;flex-shrink:0;}
@@ -684,7 +686,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v43</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v44</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -1017,6 +1019,32 @@
       </div>
       <label class="toggleSwitch">
         <input type="checkbox" id="settingsPrivateToggle">
+        <span class="toggleSwitchTrack"></span>
+      </label>
+    </div>
+    <!-- Qui peut commenter (voir schema.prisma, User.commentPermission et
+         video.controller.js, createComment) -- demande de Lancine du
+         26/08/2026, captures d'écran des réglages TikTok à l'appui. -->
+    <div class="settingsRow">
+      <div>
+        <div class="settingsRowLabel">Qui peut commenter</div>
+        <div class="settingsRowHint">Qui peut laisser un commentaire sur vos publications "Clips".</div>
+      </div>
+      <select id="settingsCommentPermissionSelect" class="settingsSelect">
+        <option value="everyone">Tout le monde</option>
+        <option value="followers">Abonnés</option>
+        <option value="noone">Personne</option>
+      </select>
+    </div>
+    <!-- Autoriser le téléchargement (voir schema.prisma, User.allowDownloads
+         et videos.html, clipOptDownload) -- même demande. -->
+    <div class="settingsRow">
+      <div>
+        <div class="settingsRowLabel">Autoriser le téléchargement</div>
+        <div class="settingsRowHint">Les autres peuvent télécharger vos publications "Clips".</div>
+      </div>
+      <label class="toggleSwitch">
+        <input type="checkbox" id="settingsAllowDownloadsToggle">
         <span class="toggleSwitchTrack"></span>
       </label>
     </div>
@@ -5522,6 +5550,12 @@
     $('clipReportView').classList.add('hidden');
     $('clipOptionsMainView').classList.remove('hidden');
     updateClipOptionsUI();
+    // "Autoriser le téléchargement" (voir schema.prisma, User.allowDownloads,
+    // demande de Lancine du 26/08/2026) : ne me concerne jamais sur mes
+    // PROPRES publications -- seulement sur celles des autres qui l'ont
+    // explicitement désactivé (true par défaut, voir toPublicUser).
+    const isMineVideo = v.author && me && v.author.id === me.id;
+    $('clipOptDownload').classList.toggle('hidden', !isMineVideo && v.author && v.author.allowDownloads === false);
     $('clipOptionsOverlay').classList.remove('hidden');
   }
   function closeClipOptionsMenu() {
@@ -5960,6 +5994,8 @@
         api('/api/users/blocked'),
       ]);
       $('settingsPrivateToggle').checked = !!privacyData.videosPrivate;
+      $('settingsCommentPermissionSelect').value = privacyData.commentPermission || 'everyone';
+      $('settingsAllowDownloadsToggle').checked = privacyData.allowDownloads !== false;
       if (!blockedData.users.length) {
         $('settingsBlockedList').innerHTML = '<div class="screenEmpty">Aucun compte bloqué.</div>';
         return;
@@ -5977,6 +6013,30 @@
     } catch (err) {
       alert('Erreur : ' + err.message);
       $('settingsPrivateToggle').checked = !checked;
+    }
+  });
+  // "Qui peut commenter" (voir schema.prisma, User.commentPermission et
+  // video.controller.js, createComment) -- ne s'applique jamais à MOI sur mes
+  // propres publications, seulement aux autres (vérifié côté serveur).
+  $('settingsCommentPermissionSelect').addEventListener('change', async () => {
+    const value = $('settingsCommentPermissionSelect').value;
+    try {
+      await api('/api/videos/settings/privacy', { method: 'PATCH', body: JSON.stringify({ commentPermission: value }) });
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+      await loadSettings(); // remet le sélecteur à la vraie valeur enregistrée
+    }
+  });
+  // "Autoriser le téléchargement" (voir schema.prisma, User.allowDownloads et
+  // openClipOptionsMenu plus bas) -- n'empêche jamais de télécharger SES
+  // PROPRES publications, seulement celles des autres.
+  $('settingsAllowDownloadsToggle').addEventListener('change', async () => {
+    const checked = $('settingsAllowDownloadsToggle').checked;
+    try {
+      await api('/api/videos/settings/privacy', { method: 'PATCH', body: JSON.stringify({ allowDownloads: checked }) });
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+      $('settingsAllowDownloadsToggle').checked = !checked;
     }
   });
 

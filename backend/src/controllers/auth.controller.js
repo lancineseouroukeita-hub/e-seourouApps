@@ -46,6 +46,12 @@ function toPublicUser(user) {
     // côté client pour ne montrer la section Paramètres → Administration
     // qu'aux personnes concernées.
     isAdmin: Boolean(user.isAdmin),
+    // Autorise les AUTRES personnes à télécharger les publications "Clips" de
+    // cet utilisateur (voir schema.prisma, User.allowDownloads et
+    // videos.html, clipOptDownload) -- true par défaut si jamais absent (ex:
+    // avant la migration côté base), pour ne rien changer au comportement
+    // existant tant que la personne n'a pas explicitement désactivé.
+    allowDownloads: user.allowDownloads !== false,
   };
 }
 

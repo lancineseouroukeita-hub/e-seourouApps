@@ -136,6 +136,18 @@ model User {
   // video.controller.js, listVideos. Ne concerne QUE Clips, pas les statuts
   // ni les messages de seourouApps (voir hideLastSeen pour ceux-là).
   videosPrivate       Boolean             @default(false)
+  // "Parametres et confidentialite" (Diarala_Tiktak) : qui peut commenter mes
+  // publications "Clips" -- "everyone" (par defaut, comportement inchange),
+  // "followers" (seulement mes abonnes, voir modele Follow plus bas), ou
+  // "noone" (personne d'autre que moi). Verifie dans video.controller.js,
+  // createComment -- je peux toujours commenter mes PROPRES publications,
+  // quel que soit ce reglage.
+  commentPermission   String              @default("everyone")
+  // Autorise les AUTRES personnes a telecharger mes publications "Clips"
+  // depuis le menu d'appui long (voir videos.html, clipOptDownload) --
+  // n'empeche jamais de telecharger mes PROPRES publications. Comme
+  // "Autoriser le telechargement" chez TikTok.
+  allowDownloads      Boolean             @default(true)
 }
 
 // Mouvement de crédits "Solde" (voir User.creditsBalance ci-dessus) : positif
