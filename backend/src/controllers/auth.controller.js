@@ -52,6 +52,10 @@ function toPublicUser(user) {
     // avant la migration côté base), pour ne rien changer au comportement
     // existant tant que la personne n'a pas explicitement désactivé.
     allowDownloads: user.allowDownloads !== false,
+    // Bulle de note/question sur l'avatar (voir schema.prisma,
+    // User.avatarNote et videos.html, profileAvatarNote) -- null si rien
+    // n'a ete saisi.
+    avatarNote: user.avatarNote || null,
   };
 }
 

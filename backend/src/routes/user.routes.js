@@ -3,6 +3,7 @@ const {
   listUsers,
   updateMyAvatar,
   updateMyName,
+  updateMyAvatarNote,
   updateMyPassword,
   updateMyPrivacy,
   listBlockedUsers,
@@ -17,6 +18,7 @@ const router = express.Router();
 router.get('/', requireAuth, asyncHandler(listUsers));
 router.patch('/me/avatar', requireAuth, asyncHandler(updateMyAvatar));
 router.patch('/me/name', requireAuth, asyncHandler(updateMyName));
+router.patch('/me/note', requireAuth, asyncHandler(updateMyAvatarNote));
 router.patch('/me/password', requireAuth, asyncHandler(updateMyPassword));
 router.patch('/me/privacy', requireAuth, asyncHandler(updateMyPrivacy));
 router.get('/blocked', requireAuth, asyncHandler(listBlockedUsers));

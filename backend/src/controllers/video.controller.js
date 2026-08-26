@@ -288,6 +288,39 @@ async function listSavedVideos(req, res) {
   }
 }
 
+// GET /api/videos/liked — mes vidéos/photos aimées (même principe que
+// listSavedVideos juste au-dessus, mais via VideoLike) -- alimente l'onglet
+// ❤️ du profil (voir videos.html, profileTabs), demande de Lancine du
+// 26/08/2026, captures d'écran Instagram à l'appui.
+async function listLikedVideos(req, res) {
+  try {
+    const likes = await prisma.videoLike.findMany({
+      where: { userId: req.user.id },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        // select (pas include) sur "video" : voir VIDEO_LIST_SELECT plus haut.
+        video: {
+          select: {
+            ...VIDEO_LIST_SELECT,
+            author: true,
+            sound: { select: { id: true, name: true } },
+            likes: { where: { userId: req.user.id } },
+            saves: { where: { userId: req.user.id } },
+            _count: { select: { likes: true, comments: true, saves: true, views: true } },
+          },
+        },
+      },
+    });
+    // Une vidéo aimée peut avoir été supprimée depuis par son auteur (voir
+    // deleteVideo) -- même filtre de sécurité que listSavedVideos.
+    const videos = likes.map((l) => l.video).filter(Boolean);
+    return res.json({ videos: videos.map((v) => serializeVideo(v, req.user.id)) });
+  } catch (err) {
+    console.error('listLikedVideos error:', err);
+    return res.status(500).json({ error: 'Erreur serveur.' });
+  }
+}
+
 // PATCH /api/videos/settings/privacy — "Paramètres et confidentialité" du
 // menu ☰ : body { videosPrivate: boolean }. Ne concerne QUE les publications
 // "Clips" (voir schema.prisma, User.videosPrivate) — pas les statuts ni les
@@ -837,7 +870,7 @@ async function createComment(req, res) {
 }
 
 module.exports = {
-  listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
+  listVideos, listMyVideos, listSavedVideos, listLikedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
   saveVideo, unsaveVideo, listComments, createComment, reportVideo, shareVideo, getVideoMedia,
   recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 };

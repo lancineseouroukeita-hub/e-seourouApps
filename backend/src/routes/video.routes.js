@@ -1,6 +1,6 @@
 const express = require('express');
 const {
-  listVideos, listMyVideos, listSavedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
+  listVideos, listMyVideos, listSavedVideos, listLikedVideos, createVideo, deleteVideo, likeVideo, unlikeVideo,
   saveVideo, unsaveVideo, listComments, createComment, reportVideo, shareVideo, getVideoMedia,
   recordView, boostVideo, getMyStats, updateVideoPrivacy, getVideoPrivacy,
 } = require('../controllers/video.controller');
@@ -15,6 +15,7 @@ const router = express.Router();
 router.get('/', requireAuth, asyncHandler(listVideos));
 router.get('/mine', requireAuth, asyncHandler(listMyVideos));
 router.get('/saved', requireAuth, asyncHandler(listSavedVideos));
+router.get('/liked', requireAuth, asyncHandler(listLikedVideos));
 // "TikTok Studio" (menu ☰) — voir video.controller.js, getMyStats.
 router.get('/stats/mine', requireAuth, asyncHandler(getMyStats));
 // "Paramètres et confidentialité" (menu ☰) — compte "privé" pour Clips

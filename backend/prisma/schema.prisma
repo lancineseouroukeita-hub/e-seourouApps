@@ -148,6 +148,13 @@ model User {
   // n'empeche jamais de telecharger mes PROPRES publications. Comme
   // "Autoriser le telechargement" chez TikTok.
   allowDownloads      Boolean             @default(true)
+  // Petite note/question affichee en bulle sur la photo de profil (comme
+  // "The ou cafe ?" sur Instagram), demande de Lancine du 26/08/2026 --
+  // nullable, aucune valeur par defaut : rien affiche tant que la personne
+  // n'a rien saisi. Expose via toPublicUser pour pouvoir etre affichee
+  // partout ou un profil se montre plus tard dans seourouApps, pas
+  // seulement sur l'ecran Profil de Diarala_Tiktak.
+  avatarNote          String?
 }
 
 // Mouvement de crédits "Solde" (voir User.creditsBalance ci-dessus) : positif

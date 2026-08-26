@@ -121,6 +121,27 @@ async function updateMyName(req, res) {
   }
 }
 
+// PATCH /api/users/me/note — petite note/question en bulle sur l'avatar
+// (comme "Thé ou café ?" sur Instagram), demande de Lancine du 26/08/2026.
+// note vide/absente = efface la bulle (voir schema.prisma, User.avatarNote,
+// nullable). Contrairement à updateMyName, aucune valeur n'est requise ici.
+async function updateMyAvatarNote(req, res) {
+  try {
+    const raw = (req.body.avatarNote || '').trim();
+    if (raw.length > 60) return res.status(400).json({ error: 'Note trop longue (60 caractères maximum).' });
+    const avatarNote = raw || null;
+
+    const user = await prisma.user.update({
+      where: { id: req.user.id },
+      data: { avatarNote },
+    });
+    return res.json({ user: toPublicUser(user) });
+  } catch (err) {
+    console.error('updateMyAvatarNote error:', err);
+    return res.status(500).json({ error: 'Erreur serveur lors de la mise à jour de la note.' });
+  }
+}
+
 // Change le mot de passe de l'utilisateur connecté : vérifie l'ancien avant
 // d'enregistrer le nouveau, comme n'importe quel changement de mot de passe.
 async function updateMyPassword(req, res) {
@@ -184,6 +205,7 @@ module.exports = {
   listUsers,
   updateMyAvatar,
   updateMyName,
+  updateMyAvatarNote,
   updateMyPassword,
   updateMyPrivacy,
   listBlockedUsers,

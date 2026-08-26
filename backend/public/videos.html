@@ -238,6 +238,15 @@
   .profileInboxAvatar{width:26px;height:26px;border-radius:50%;background:var(--panel2);display:flex;align-items:center;justify-content:center;font-size:13px;overflow:hidden;cursor:pointer;border:none;color:inherit;}
   .profileInboxAvatar img{width:100%;height:100%;object-fit:cover;}
   .profileHead .userAvatar{width:78px;height:78px;font-size:30px;margin-bottom:10px;}
+  /* Bulle de note sur l'avatar (comme "Thé ou café ?" sur Instagram) et
+     onglets grille/enregistrées/aimées sous le profil -- demande de Lancine
+     du 26/08/2026, captures d'écran Instagram à l'appui. */
+  .profileAvatarWrap{position:relative;display:inline-block;}
+  #profileAvatarNoteBubble{position:absolute;top:-14px;left:50%;transform:translateX(-50%);max-width:170px;background:rgba(255,255,255,0.14);color:var(--text);border:1px solid var(--border);border-radius:14px;padding:6px 12px;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:2;}
+  #profileAvatarNoteBubble.hidden{display:none;}
+  .profileTabs{display:flex;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-top:6px;}
+  .profileTabBtn{flex:1;background:none;border:none;color:var(--muted);font-size:18px;padding:10px 0;cursor:pointer;border-bottom:2px solid transparent;}
+  .profileTabBtn.active{color:var(--text);border-bottom-color:var(--text);}
   .profileName{font-size:17px;font-weight:700;margin-bottom:2px;}
   .profilePhone{font-size:12.5px;color:var(--muted);margin-bottom:14px;}
   .profileCounts{display:flex;gap:26px;margin-bottom:16px;}
@@ -686,7 +695,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v46</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v47</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -806,7 +815,12 @@
       </div>
     </div>
     <div class="profileHead">
-      <div class="userAvatar" id="profileAvatar">👤</div>
+      <!-- Bulle de note sur l'avatar (voir editProfileAvatarNote) : on
+           appuie sur l'avatar OU la bulle pour ajouter/modifier/effacer. -->
+      <div class="profileAvatarWrap">
+        <button id="profileAvatarNoteBubble" class="hidden" type="button" title="Modifier la note"></button>
+        <div class="userAvatar" id="profileAvatar" role="button" title="Ajouter une note">👤</div>
+      </div>
       <div class="profileName" id="profileName">—</div>
       <div class="profilePhone" id="profilePhone"></div>
       <div class="profileCounts">
@@ -815,6 +829,14 @@
         <div><b id="profileFollowingCount">0</b><span>Abonnements</span></div>
       </div>
       <button id="logoutBtn2">Se déconnecter</button>
+    </div>
+    <!-- Onglets sous le profil (voir profileActiveTab/switchProfileTab) :
+         "mine" recharge toujours par défaut à l'ouverture du profil (voir
+         loadProfile). -->
+    <div class="profileTabs" id="profileTabs">
+      <button class="profileTabBtn active" type="button" data-tab="mine" title="Grille">▦</button>
+      <button class="profileTabBtn" type="button" data-tab="saved" title="Enregistrées">🔖</button>
+      <button class="profileTabBtn" type="button" data-tab="liked" title="Aimées">❤️</button>
     </div>
     <div class="myVideosGrid" id="myVideosGrid"></div>
   </div>
@@ -2264,17 +2286,30 @@
   // toucher un DOM qui appartient déjà à un chargement plus récent.
   let profileLoadToken = 0;
 
-  // Récupère TOUTES mes publications, page par page (voir la pagination de
-  // GET /api/videos/mine côté serveur, build v39) -- "onPage" est appelé
-  // pour CHAQUE page dès qu'elle arrive (affichage progressif) plutôt que
-  // d'attendre que tout soit chargé avant de montrer quoi que ce soit :
-  // c'est ce qui corrige la lenteur d'ouverture du profil (2 à 5 minutes
-  // signalées par Lancine) sur un compte avec beaucoup de publications.
-  async function fetchAllMyVideos(onPage) {
+  // Onglets sous le profil (voir le bloc HTML #profileTabs) -- le compteur
+  // d'en-tête "Publications" ne change JAMAIS selon l'onglet actif (comme
+  // Instagram/TikTok) : seule la grille en dessous change. Toujours remis à
+  // "mine" à l'OUVERTURE du profil (voir loadProfile) -- un onglet choisi
+  // avant de refermer l'écran ne reste pas actif à la prochaine ouverture.
+  let profileActiveTab = 'mine'; // 'mine' | 'saved' | 'liked'
+  const PROFILE_TAB_ENDPOINTS = { mine: '/api/videos/mine', saved: '/api/videos/saved', liked: '/api/videos/liked' };
+  const PROFILE_TAB_EMPTY_TEXT = {
+    mine: "Vous n'avez encore rien publié.",
+    saved: 'Aucune vidéo enregistrée.',
+    liked: 'Aucune vidéo aimée.',
+  };
+
+  // Récupère TOUTES les vidéos de l'onglet donné, page par page (voir la
+  // pagination côté serveur, build v39) -- généralisé (26/08/2026) à partir
+  // de l'ancien fetchAllMyVideos pour servir les 3 onglets avec le même
+  // affichage progressif ("onPage" appelé pour CHAQUE page dès qu'elle
+  // arrive, plutôt que d'attendre tout l'historique).
+  async function fetchAllVideosForTab(tab, onPage) {
+    const endpoint = PROFILE_TAB_ENDPOINTS[tab] || PROFILE_TAB_ENDPOINTS.mine;
     let cursor = null;
     for (;;) {
       const qs = cursor ? ('?before=' + encodeURIComponent(cursor)) : '';
-      const data = await api('/api/videos/mine' + qs);
+      const data = await api(endpoint + qs);
       if (onPage) onPage(data.videos);
       cursor = data.nextCursor;
       if (!cursor) break;
@@ -2320,46 +2355,106 @@
     }
   }
 
+  // Bulle de note sur l'avatar (voir le bloc HTML .profileAvatarWrap) --
+  // simple reflet de me.avatarNote, remis à jour après chaque loadProfile
+  // ET après chaque édition réussie (voir editProfileAvatarNote).
+  function updateProfileAvatarNoteBubble() {
+    const bubble = $('profileAvatarNoteBubble');
+    const note = me && me.avatarNote;
+    if (note) {
+      bubble.textContent = note;
+      bubble.classList.remove('hidden');
+    } else {
+      bubble.textContent = '';
+      bubble.classList.add('hidden');
+    }
+  }
+
+  // Ajoute/modifie/efface la note sur l'avatar -- prompt() natif, comme le
+  // "Nom du son" ailleurs dans l'appli (voir plus bas, ajout de son) : pas
+  // besoin d'une vraie modale pour un texte aussi court.
+  async function editProfileAvatarNote() {
+    const current = (me && me.avatarNote) || '';
+    const next = window.prompt('Petite note sur ta photo de profil (comme "Thé ou café ?"), 60 caractères max. Laisse vide pour l\'effacer :', current);
+    if (next === null) return; // annulé
+    const trimmed = next.trim().slice(0, 60);
+    if (trimmed === current) return; // rien à changer
+    try {
+      const data = await api('/api/users/me/note', { method: 'PATCH', body: JSON.stringify({ avatarNote: trimmed }) });
+      me = data.user;
+      updateProfileAvatarNoteBubble();
+    } catch (err) {
+      alert('Erreur : ' + err.message);
+    }
+  }
+  $('profileAvatar').addEventListener('click', editProfileAvatarNote);
+  $('profileAvatarNoteBubble').addEventListener('click', editProfileAvatarNote);
+
   async function loadProfile() {
     $('profileName').textContent = me ? me.name : '—';
     $('profilePhone').textContent = me ? me.phone : '';
     $('profileAvatar').innerHTML = (me && me.avatarUrl) ? `<img src="${me.avatarUrl}" alt="">` : '👤';
-    revokeClipBlobUrls($('myVideosGrid'));
-    $('myVideosGrid').innerHTML = '';
-    myProfileVideosList = [];
-    $('profileVideosCount').textContent = '…';
-    const loadToken = ++profileLoadToken;
+    updateProfileAvatarNoteBubble();
+    // Toujours remis sur "Grille" à l'ouverture du profil (comme
+    // Instagram/TikTok) -- un onglet choisi avant de refermer l'écran ne
+    // reste pas actif à la prochaine ouverture (voir profileActiveTab).
+    profileActiveTab = 'mine';
+    document.querySelectorAll('.profileTabBtn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === 'mine'));
 
     api('/api/follows/summary').then((followData) => {
-      if (loadToken !== profileLoadToken) return;
       $('profileFollowersCount').textContent = String(followData.myFollowersCount);
       $('profileFollowingCount').textContent = String(followData.myFollowingCount);
     }).catch((err) => console.error('loadProfile (follows/summary) error:', err));
 
-    // Chargement par pages (voir fetchAllMyVideos) : la grille se remplit
-    // au fur et à mesure que chaque page arrive, au lieu d'attendre tout
-    // l'historique -- c'est la première page qui rend le profil réactif.
+    await loadProfileGrid();
+  }
+
+  // Charge/recharge UNIQUEMENT la grille (pas le nom/l'avatar/les
+  // compteurs d'abonnés) -- appelée au premier affichage du profil ET à
+  // chaque changement d'onglet (voir switchProfileTab). Extrait de
+  // l'ancien loadProfile (build v39) pour être réutilisable par onglet.
+  async function loadProfileGrid() {
+    const tab = profileActiveTab;
+    revokeClipBlobUrls($('myVideosGrid'));
+    $('myVideosGrid').innerHTML = '';
+    myProfileVideosList = [];
+    if (tab === 'mine') $('profileVideosCount').textContent = '…';
+    const loadToken = ++profileLoadToken;
+
+    // Chargement par pages (voir fetchAllVideosForTab) : la grille se
+    // remplit au fur et à mesure que chaque page arrive, au lieu d'attendre
+    // tout l'historique -- c'est la première page qui rend le profil réactif.
     try {
       let receivedAny = false;
-      await fetchAllMyVideos((videos) => {
-        if (loadToken !== profileLoadToken) return; // écran rouvert entre-temps
+      await fetchAllVideosForTab(tab, (videos) => {
+        if (loadToken !== profileLoadToken) return; // onglet changé/écran refermé entre-temps
         if (!videos.length) return;
         receivedAny = true;
         myProfileVideosList = myProfileVideosList.concat(videos);
-        $('profileVideosCount').textContent = String(myProfileVideosList.length);
+        if (tab === 'mine') $('profileVideosCount').textContent = String(myProfileVideosList.length);
         videos.forEach((v) => appendMyVideoThumb(v));
       });
       if (loadToken !== profileLoadToken) return;
       if (!receivedAny) {
-        $('profileVideosCount').textContent = '0';
-        $('myVideosGrid').innerHTML = '<div class="screenEmpty">Vous n\'avez encore rien publié.</div>';
+        if (tab === 'mine') $('profileVideosCount').textContent = '0';
+        $('myVideosGrid').innerHTML = `<div class="screenEmpty">${PROFILE_TAB_EMPTY_TEXT[tab] || PROFILE_TAB_EMPTY_TEXT.mine}</div>`;
       }
     } catch (err) {
       if (loadToken !== profileLoadToken) return;
-      console.error('loadProfile error:', err);
+      console.error('loadProfileGrid error:', err);
       $('myVideosGrid').innerHTML = `<div class="screenEmpty">Erreur de chargement.${err && err.message ? ' (' + err.message + ')' : ''}</div>`;
     }
   }
+
+  function switchProfileTab(tab) {
+    if (tab === profileActiveTab) return;
+    profileActiveTab = tab;
+    document.querySelectorAll('.profileTabBtn').forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+    loadProfileGrid();
+  }
+  document.querySelectorAll('.profileTabBtn').forEach((btn) => {
+    btn.addEventListener('click', () => switchProfileTab(btn.dataset.tab));
+  });
 
   // ---------- Vue plein écran depuis la grille du profil (comme TikTok)
   // ----------
