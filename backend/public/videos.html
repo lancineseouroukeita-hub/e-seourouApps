@@ -339,7 +339,9 @@
   .cameraModeBtn{background:none;border:none;color:rgba(255,255,255,0.6);font-size:13.5px;font-weight:600;cursor:pointer;padding:4px 2px;border-bottom:2px solid transparent;}
   .cameraModeBtn.active{color:white;border-bottom-color:white;}
   .cameraControlsRow{width:100%;display:flex;align-items:center;justify-content:space-between;}
-  #cameraGalleryBtn{width:42px;height:42px;border-radius:8px;border:none;background:rgba(255,255,255,0.15);color:white;font-size:19px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent;}
+  #cameraGalleryBtn{position:relative;width:42px;height:42px;border-radius:8px;background:rgba(255,255,255,0.15);color:white;font-size:19px;display:inline-flex;align-items:center;justify-content:center;overflow:hidden;}
+  #cameraGalleryBtn span{pointer-events:none;}
+  #cameraGalleryBtn input[type=file]{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;opacity:0;cursor:pointer;-webkit-tap-highlight-color:transparent;}
   /* Journal de debogage TEMPORAIRE (voir galleryDebugLog) -- a retirer
      une fois le bug de la galerie reellement compris. */
   #galleryDebugLog{position:absolute;left:8px;right:8px;bottom:150px;color:#0f0;font-size:11px;font-family:monospace;background:rgba(0,0,0,0.7);padding:5px 8px;border-radius:6px;min-height:14px;white-space:pre-wrap;word-break:break-all;z-index:10;}
@@ -698,7 +700,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v49</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v50</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -1183,7 +1185,10 @@
         <button class="cameraModeBtn" data-mode="live" type="button">LIVE</button>
       </div>
       <div class="cameraControlsRow">
-        <label id="cameraGalleryBtn" for="videoFileInput" title="Choisir depuis la galerie">🖼️</label>
+        <div id="cameraGalleryBtn" title="Choisir depuis la galerie">
+          <span aria-hidden="true">🖼️</span>
+          <input id="videoFileInput" type="file" accept="video/*,image/*" aria-label="Choisir depuis la galerie">
+        </div>
         <button id="cameraShutterBtn" type="button" title="Filmer / photographier"><span id="cameraShutterInner"></span></button>
         <span class="cameraControlsSpacer"></span>
       </div>
@@ -1199,12 +1204,6 @@
       <button id="endLiveBtn" type="button">Terminer le direct</button>
     </div>
   </div>
-  <!-- Sélecteur de fichier caché, déclenché par #cameraGalleryBtn — plus de
-       bouton "Choisir le fichier" visible séparément, voir la discussion avec
-       Lancine ("+" doit ouvrir directement la caméra, comme TikTok). -->
-  <input id="videoFileInput" type="file" accept="video/*,image/*"
-    style="position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;opacity:0;">
-
   <!-- ---------- Visionnage d'un direct "LIVE" (voir joinLive) ---------- -->
   <div id="liveViewOverlay" class="hidden">
     <video id="liveViewVideo" autoplay playsinline></video>
@@ -4264,14 +4263,13 @@
   document.querySelectorAll('.cameraModeBtn').forEach((btn) => {
     btn.addEventListener('click', () => { if (!cameraRecording) setCameraMode(btn.dataset.mode); });
   });
-  // Depuis le correctif du 26/08/2026 (voir le commentaire sur le <label>
-  // #cameraGalleryBtn dans le HTML), ce n'est plus du code JS qui ouvre le
-  // sélecteur de fichier -- c'est le navigateur lui-même, nativement, via
-  // l'association <label for="videoFileInput">. Rien à faire ici sur le
-  // clic lui-même : fermer l'écran caméra se fait maintenant dans
-  // videoFileInput/change (voir plus haut, deuxième correctif du même
-  // jour) -- le faire ICI masquait le <label> avant que le navigateur
-  // n'ait fini d'ouvrir le sélecteur, ce qui l'empêchait de s'ouvrir.
+  // #cameraGalleryBtn n'a plus de vrai bouton JS : c'est directement
+  // l'<input type=file> superposé (voir le HTML/CSS, correctif du
+  // 26/08/2026 après le journal galleryDebugLog) qui reçoit le tap et
+  // ouvre lui-même le sélecteur natif -- rien à faire ici. Fermer l'écran
+  // caméra se fait dans videoFileInput/change (voir plus haut), jamais
+  // avant l'ouverture du sélecteur (ça l'empêcherait de s'ouvrir, comme
+  // observé lors d'un correctif précédent le même jour).
   $('cameraShutterBtn').addEventListener('click', async () => {
     // Le minuteur (voir cameraTimerBtn) ne retarde QUE le DÉMARRAGE d'une
     // photo/d'un enregistrement, jamais son arrêt (voir stopCameraRecording
