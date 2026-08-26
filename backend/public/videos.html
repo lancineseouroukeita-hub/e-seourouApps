@@ -686,7 +686,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v44</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v45</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -3490,9 +3490,22 @@
 
   // Choisi depuis la galerie (bouton 🖼️ de l'écran caméra) : on ferme la
   // caméra plein écran puis on va directement à l'aperçu + légende.
+  // BUG CORRIGÉ (26/08/2026, deuxième round) : fermer l'écran caméra était
+  // fait AVANT ce point, directement dans le clic sur le <label>
+  // #cameraGalleryBtn -- mais closeCameraScreen() masque #cameraScreen
+  // (display:none), qui est justement le PARENT de ce <label>. Le masquer
+  // pendant le même tick que le clic empêchait WebKit de terminer l'action
+  // par défaut du <label> (ouvrir le sélecteur natif) sur iPhone en PWA
+  // installée -- exactement le même symptôme ("le sélecteur ne s'ouvre
+  // pas") que le premier bug, mais réintroduit par le correctif lui-même.
+  // Fermer la caméra ICI (une fois qu'un fichier a vraiment été choisi,
+  // donc après que le sélecteur a fait son travail) règle ça -- et en
+  // prime, annuler le sélecteur laisse maintenant la caméra allumée au
+  // lieu de la couper pour rien.
   $('videoFileInput').addEventListener('change', async () => {
     const file = $('videoFileInput').files[0];
     if (!file) return;
+    closeCameraScreen();
     // Toujours afficher l'aperçu, même en cas d'échec (fichier trop gros,
     // vidéo trop longue...) : avant ce correctif, acceptMediaBlob() écrivait
     // bien un message d'erreur dans #uploadMsg, mais comme showPublishOverlay
@@ -4128,14 +4141,13 @@
     btn.addEventListener('click', () => { if (!cameraRecording) setCameraMode(btn.dataset.mode); });
   });
   // Depuis le correctif du 26/08/2026 (voir le commentaire sur le <label>
-  // #cameraGalleryBtn dans le HTML), ce n'est plus CE code qui ouvre le
+  // #cameraGalleryBtn dans le HTML), ce n'est plus du code JS qui ouvre le
   // sélecteur de fichier -- c'est le navigateur lui-même, nativement, via
-  // l'association <label for="videoFileInput">. On ne fait plus ici que
-  // fermer l'écran caméra (couper la webcam) avant que le sélecteur
-  // n'apparaisse.
-  $('cameraGalleryBtn').addEventListener('click', () => {
-    closeCameraScreen();
-  });
+  // l'association <label for="videoFileInput">. Rien à faire ici sur le
+  // clic lui-même : fermer l'écran caméra se fait maintenant dans
+  // videoFileInput/change (voir plus haut, deuxième correctif du même
+  // jour) -- le faire ICI masquait le <label> avant que le navigateur
+  // n'ait fini d'ouvrir le sélecteur, ce qui l'empêchait de s'ouvrir.
   $('cameraShutterBtn').addEventListener('click', async () => {
     // Le minuteur (voir cameraTimerBtn) ne retarde QUE le DÉMARRAGE d'une
     // photo/d'un enregistrement, jamais son arrêt (voir stopCameraRecording
