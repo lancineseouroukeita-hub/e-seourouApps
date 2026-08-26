@@ -684,7 +684,7 @@
        demande simplement à Lancine de lire ce qu'il voit ici. Si le numéro ne
        correspond pas à la dernière version envoyée, le problème est côté
        cache/déploiement, pas dans le code envoyé. -->
-  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v41</div>
+  <div style="position:fixed;bottom:2px;right:6px;z-index:99999;font-size:9px;color:rgba(255,255,255,0.4);pointer-events:none;font-family:monospace;">build v42</div>
   <button id="backToAppBtn" type="button" class="hidden" title="Retour à seourouApps">←</button>
 
   <!-- Caché par défaut : ne s'affiche que si une session enregistrée existe
@@ -1357,6 +1357,13 @@
   let editItems = [];
   let editNextItemId = 1;
   let editSelectedItemId = null;
+  // Id de l'élément texte "en cours de saisie" dans #editTextInput (ou null si
+  // aucune saisie en cours) : voir upsertEditTextDraft plus bas -- demande de
+  // Lancine du 26/08/2026, "faire en sorte qu'on peut déplacer l'écriture pour
+  // ne pas masquer la vidéo ou la photo". Le texte apparaît et devient
+  // déplaçable DÈS la première lettre tapée (pas seulement après "Ajouter"),
+  // pour qu'on puisse le glisser hors du panneau de saisie pendant qu'on écrit.
+  let editDraftTextId = null;
   let editTextColor = '#ffffff';
   const EDIT_TEXT_COLORS = ['#ffffff', '#000000', '#ff4d6d', '#ffd23f', '#3ea6ff', '#3ddc84', '#ff8a3d', '#c084fc'];
   const EDIT_STICKERS = ['❤️','🔥','👍','😂','😍','😮','😢','👏','🎉','💯','✨','⭐','👑','💋','✌️','💀','🌹','⚽','🎂','🙏','😎','🤝','💪','🎵','📍','☀️','🌙','⚡','🍀','🏆'];
@@ -3800,20 +3807,46 @@
     });
   }
 
-  function addEditTextItem(text, color) {
-    const trimmed = (text || '').trim();
-    if (!trimmed) return;
-    editItems.push({
-      id: editNextItemId++,
-      type: 'text',
-      content: trimmed,
-      x: 50,
-      y: 50,
-      color: color || editTextColor,
-      fontSize: 22,
-    });
+  // Crée (à la première lettre) ou met à jour (ensuite, à chaque frappe) le texte
+  // "en cours de saisie" dans editItems -- il apparaît donc et devient déplaçable
+  // immédiatement sur l'aperçu, avant même d'appuyer sur "Ajouter", justement
+  // pour pouvoir le glisser hors de la zone couverte par le panneau de saisie /
+  // le clavier. Si le texte redevient vide (tout effacé), le brouillon est
+  // retiré -- pas de point de texte fantôme sans contenu.
+  function upsertEditTextDraft(text, color) {
+    const trimmed = (text || '');
+    if (!trimmed.trim()) {
+      cancelEditTextDraft();
+      return;
+    }
+    let item = editItems.find((it) => it.id === editDraftTextId);
+    if (!item) {
+      item = { id: editNextItemId++, type: 'text', content: trimmed, x: 50, y: 50, color: color || editTextColor, fontSize: 22 };
+      editItems.push(item);
+      editDraftTextId = item.id;
+    } else {
+      item.content = trimmed;
+      item.color = color || editTextColor;
+    }
+    renderEditItems();
+  }
+
+  // Le brouillon reste déjà dans editItems, à l'endroit où il a été glissé
+  // pendant la saisie (voir upsertEditTextDraft) -- il suffit d'oublier son id
+  // pour qu'il devienne un élément normal (déplaçable/supprimable comme les
+  // autres, voir renderEditItems).
+  function commitEditTextDraft() {
+    editDraftTextId = null;
     editSelectedItemId = null;
     renderEditItems();
+  }
+
+  function cancelEditTextDraft() {
+    if (editDraftTextId !== null) {
+      editItems = editItems.filter((it) => it.id !== editDraftTextId);
+      editDraftTextId = null;
+      renderEditItems();
+    }
   }
 
   function addEditStickerItem(emoji) {
@@ -3837,6 +3870,9 @@
         editTextColor = color;
         colorRow.querySelectorAll('.editColorSwatch').forEach((n) => n.classList.remove('selected'));
         sw.classList.add('selected');
+        // Le texte affiché en ce moment (voir editDraftTextId) change de couleur
+        // tout de suite, sans attendre "Ajouter".
+        if (editDraftTextId !== null) upsertEditTextDraft($('editTextInput').value, editTextColor);
       });
       colorRow.appendChild(sw);
     });
@@ -3862,6 +3898,7 @@
     editFilterId = 'normal';
     editItems = [];
     editSelectedItemId = null;
+    editDraftTextId = null;
     editNextItemId = 1;
     updateEditPreviewFilter();
     renderEditItems();
@@ -3872,22 +3909,37 @@
 
   $('editFilterBtn').addEventListener('click', cycleEditFilter);
   $('editTextBtn').addEventListener('click', () => {
+    // Un brouillon d'une précédente ouverture du panneau Texte (fermé sans
+    // passer par Annuler, ex: en tapant directement sur Autocollant) reste déjà
+    // posé sur l'aperçu -- on le confirme tel quel plutôt que de continuer à le
+    // modifier par erreur au prochain "Aa".
+    commitEditTextDraft();
     $('editStickerPanel').classList.add('hidden');
     $('editTextPanel').classList.toggle('hidden');
     if (!$('editTextPanel').classList.contains('hidden')) $('editTextInput').focus();
   });
   $('editStickerBtn').addEventListener('click', () => {
+    commitEditTextDraft();
     $('editTextPanel').classList.add('hidden');
     $('editStickerPanel').classList.toggle('hidden');
   });
   $('editTextCancelBtn').addEventListener('click', () => {
+    cancelEditTextDraft();
     $('editTextPanel').classList.add('hidden');
     $('editTextInput').value = '';
   });
   $('editTextAddBtn').addEventListener('click', () => {
-    addEditTextItem($('editTextInput').value, editTextColor);
+    upsertEditTextDraft($('editTextInput').value, editTextColor);
+    commitEditTextDraft();
     $('editTextInput').value = '';
     $('editTextPanel').classList.add('hidden');
+  });
+  // Affiche/déplace le texte sur l'aperçu à CHAQUE lettre tapée (voir
+  // upsertEditTextDraft) -- c'est ce qui permet de le glisser hors du panneau de
+  // saisie / du clavier pendant qu'on écrit, plutôt que de découvrir sa position
+  // seulement après "Ajouter".
+  $('editTextInput').addEventListener('input', () => {
+    upsertEditTextDraft($('editTextInput').value, editTextColor);
   });
   $('editTextInput').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); $('editTextAddBtn').click(); }
