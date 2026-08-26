@@ -7,6 +7,20 @@ const prisma = require('../config/prisma');
 // tournent en parallèle (pas le cas ici, un seul service Render).
 const activeLives = new Map();
 
+// Delai de grace avant de considerer qu'un DIFFUSEUR a vraiment quitte son
+// direct apres une deconnexion involontaire du socket (coupure reseau,
+// changement wifi/4G, application mise en arriere-plan...) - meme principe
+// que DISCONNECT_GRACE_MS pour les appels (voir sockets/signaling.js).
+// Avant ce correctif (build v40, signale par Lancine), la moindre coupure de
+// quelques secondes cote diffuseur terminait le direct DEFINITIVEMENT pour
+// tout le monde, alors que Socket.io se reconnecte souvent tout seul en
+// quelques secondes. Un arret volontaire ("Terminer le direct", live:end)
+// reste lui immediat, jamais retarde.
+const RECONNECT_GRACE_MS = 20000;
+// liveId -> { timer } : permet d'annuler la fin differee si le diffuseur
+// revient (voir live:resume) avant l'expiration du delai de grace.
+const pendingHostDisconnects = new Map();
+
 function liveRoomName(liveId) {
   return `live:${liveId}`;
 }
@@ -105,6 +119,31 @@ function registerLiveHandlers(io, socket) {
   // Relaie les messages de signalisation WebRTC (offre/réponse SDP, candidats
   // ICE) entre le diffuseur et UN spectateur précis — le serveur ne comprend
   // pas le contenu, il relaie simplement, comme call:signal.
+  // Le diffuseur revient apres une coupure reseau (voir "disconnect" plus
+  // bas et scheduleHostDisconnectLeave) : si son direct est encore dans son
+  // delai de grace, on le "ranime" sur ce nouveau socket (son ancien socket
+  // Socket.io n'existe plus apres une reconnexion) plutot que d'obliger a
+  // redemarrer un direct tout neuf - les spectateurs encore presents sont
+  // prevenus pour renegocier une connexion WebRTC fraiche avec ce nouveau
+  // socket (voir videos.html, live:host-back).
+  socket.on('live:resume', ({ liveId } = {}, callback) => {
+    try {
+      const entry = activeLives.get(liveId);
+      if (!entry || entry.hostUserId !== userId) {
+        return callback && callback({ error: 'Ce direct est termine.' });
+      }
+      const pending = pendingHostDisconnects.get(liveId);
+      if (pending) { clearTimeout(pending.timer); pendingHostDisconnects.delete(liveId); }
+      entry.hostSocketId = socket.id;
+      socket.join(liveRoomName(liveId));
+      callback && callback({ ok: true, viewerCount: entry.viewers.size });
+      io.to(liveRoomName(liveId)).emit('live:host-back', { liveId });
+    } catch (err) {
+      console.error('live:resume error:', err);
+      callback && callback({ error: 'Erreur serveur lors de la reprise du direct.' });
+    }
+  });
+
   socket.on('live:signal', ({ liveId, to, signal } = {}) => {
     if (!liveId || !to || !signal) return;
     const entry = activeLives.get(liveId);
@@ -144,12 +183,34 @@ function registerLiveHandlers(io, socket) {
   socket.on('disconnect', () => {
     for (const [liveId, entry] of activeLives.entries()) {
       if (entry.hostSocketId === socket.id) {
-        endLive(io, liveId).catch((err) => console.error('endLive (disconnect) error:', err));
+        scheduleHostDisconnectLeave(io, liveId);
       } else if (entry.viewers.has(socket.id)) {
         removeViewer(io, liveId, socket.id);
       }
     }
   });
+}
+
+// Programme la fin differee d'un direct dont le diffuseur vient de se
+// deconnecter (coupure reseau probable) : les spectateurs sont prevenus tout
+// de suite d'une reconnexion en cours (pas d'un direct termine, voir
+// live:host-connection-lost) pour que leur ecran affiche un etat clair
+// plutot qu'une image figee sans explication. Si le diffuseur revient a
+// temps (live:resume ci-dessus), le direct continue normalement ; sinon, il
+// se termine reellement a l'expiration du delai, exactement comme avant ce
+// correctif.
+function scheduleHostDisconnectLeave(io, liveId) {
+  const existing = pendingHostDisconnects.get(liveId);
+  if (existing) clearTimeout(existing.timer);
+
+  io.to(liveRoomName(liveId)).emit('live:host-connection-lost', { liveId });
+
+  const timer = setTimeout(() => {
+    pendingHostDisconnects.delete(liveId);
+    endLive(io, liveId).catch((err) => console.error('endLive (grace expiree) error:', err));
+  }, RECONNECT_GRACE_MS);
+
+  pendingHostDisconnects.set(liveId, { timer });
 }
 
 function removeViewer(io, liveId, socketId) {
@@ -167,6 +228,8 @@ function removeViewer(io, liveId, socketId) {
 }
 
 async function endLive(io, liveId) {
+  const pending = pendingHostDisconnects.get(liveId);
+  if (pending) { clearTimeout(pending.timer); pendingHostDisconnects.delete(liveId); }
   const entry = activeLives.get(liveId);
   if (!entry) return;
   activeLives.delete(liveId);

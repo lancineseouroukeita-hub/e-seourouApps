@@ -284,6 +284,11 @@
   /* Coche simple = envoyé, double coche = lu par le(s) destinataire(s) (comme
      WhatsApp/iMessage) ; affichée uniquement sur nos propres messages. */
   .ticks{font-size:11px;opacity:.7;}
+  /* En attente/échec (voir buildPendingMessage/sendMessage, fiabilité des
+     messages) : ⚠️ reste cliquable pour réessayer (voir retryFailedMessage),
+     contrairement aux coches normales. */
+  .ticks.pending{opacity:.6;}
+  .ticks.failed{cursor:pointer;opacity:1;}
   .ticks.read{opacity:1;color:#63d4ff;}
   .deleteMsgBtn{background:none;border:none;cursor:pointer;font-size:11px;opacity:.55;padding:0;line-height:1;color:inherit;}
   .deleteMsgBtn:hover{opacity:1;}
@@ -1895,6 +1900,67 @@
   let contacts = [];
   let activeConversationId = null;
   let messagesByConv = {}; // conversationId -> [messages]
+  // ---------- Fiabilité des messages sur réseau faible ----------
+  // Boîte d'envoi persistante (IndexedDB -- survit à la fermeture de
+  // l'application, contrairement à une simple variable en mémoire) : chaque
+  // message est écrit ici AVANT même sa tentative d'envoi (voir
+  // sendMessage), et retiré seulement une fois confirmé par le serveur (voir
+  // reconcilePendingMessage). Un message encore présent ici au prochain
+  // démarrage est automatiquement renvoyé (voir flushOutbox), sans action de
+  // la personne.
+  const OUTBOX_DB_NAME = 'seourou-outbox';
+  const OUTBOX_STORE = 'pending';
+  let outboxDbPromise = null;
+  function openOutboxDb() {
+    if (outboxDbPromise) return outboxDbPromise;
+    outboxDbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB indisponible')); return; }
+      const req = indexedDB.open(OUTBOX_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(OUTBOX_STORE)) {
+          db.createObjectStore(OUTBOX_STORE, { keyPath: 'clientMsgId' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return outboxDbPromise;
+  }
+  async function outboxPut(entry) {
+    try {
+      const db = await openOutboxDb();
+      await new Promise((resolve) => {
+        const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+        tx.objectStore(OUTBOX_STORE).put(entry);
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+      });
+    } catch (err) { console.error('outboxPut error:', err); }
+  }
+  async function outboxDelete(clientMsgId) {
+    try {
+      const db = await openOutboxDb();
+      await new Promise((resolve) => {
+        const tx = db.transaction(OUTBOX_STORE, 'readwrite');
+        tx.objectStore(OUTBOX_STORE).delete(clientMsgId);
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+      });
+    } catch (err) { console.error('outboxDelete error:', err); }
+  }
+  async function outboxGetAll() {
+    try {
+      const db = await openOutboxDb();
+      return await new Promise((resolve, reject) => {
+        const tx = db.transaction(OUTBOX_STORE, 'readonly');
+        const req = tx.objectStore(OUTBOX_STORE).getAll();
+        req.onsuccess = () => resolve(req.result || []);
+        req.onerror = () => reject(req.error);
+      });
+    } catch (err) { console.error('outboxGetAll error:', err); return []; }
+  }
+
   // Si l'app a été ouverte depuis une notification (clic sur "nouveau message"/"appel
   // entrant" alors qu'aucun onglet n'était déjà ouvert), le service worker ajoute
   // "?c=<conversationId>" à l'URL d'ouverture : on retrouve la conversation visée ici.
@@ -3456,6 +3522,11 @@
 
     socket.on('connect', () => {
       setStatus(true, 'Connecté en temps réel (' + apiBase + ')');
+      // Reprend tout message resté dans la boîte d'envoi (voir
+      // outboxGetAll/flushOutbox) -- couvre aussi bien une coupure réseau
+      // brève qu'une fermeture complète de l'application entre-temps
+      // (IndexedDB survit, contrairement à messagesByConv).
+      flushOutbox();
       // Le socket vient de se (re)connecter alors qu'un appel était en cours
       // de notre côté (coupure réseau brève, changement wifi/4G, application
       // remise au premier plan...) : le serveur nous a peut-être déjà retirés
@@ -3498,6 +3569,18 @@
     });
 
     socket.on('message:new', (msg) => {
+      // Confirme un message qu'on avait affiché de façon optimiste (voir
+      // sendMessage/buildPendingMessage) : remplace la bulle "en attente"
+      // en place plutôt que d'en ajouter une seconde -- reconcilePendingMessage
+      // ne fait rien si ce clientMsgId ne correspond à aucun message encore
+      // en attente ici (ex: envoyé depuis un autre appareil/onglet).
+      if (msg.clientMsgId && reconcilePendingMessage(msg.clientMsgId, msg)) {
+        bumpConversationPreview(msg.conversationId, msg);
+        if (msg.conversationId === activeConversationId && msg.sender?.id !== me.id) {
+          socket.emit('conversation:read', { conversationId: msg.conversationId });
+        }
+        return;
+      }
       if (!messagesByConv[msg.conversationId]) messagesByConv[msg.conversationId] = [];
       messagesByConv[msg.conversationId].push(msg);
       bumpConversationPreview(msg.conversationId, msg);
@@ -4748,6 +4831,28 @@
         const data = await api('/api/conversations/' + convId + '/messages');
         messagesByConv[convId] = data.messages;
       } catch (err) { messagesByConv[convId] = []; }
+      // Réintègre les messages encore dans la boîte d'envoi (voir
+      // outboxGetAll) après un rechargement complet de l'application --
+      // IndexedDB survit à la fermeture, contrairement à messagesByConv
+      // (remis à {} à chaque démarrage). flushOutbox (voir connectSocket)
+      // les renvoie de toute façon dès que le socket se connecte ; ceci ne
+      // fait que les RÉAFFICHER comme "en attente" en attendant. Filtre
+      // grossier par contenu+horodatage proche : évite un doublon visible si
+      // le message avait en réalité déjà été confirmé juste avant la
+      // fermeture (accusé perdu de justesse, message bien présent dans
+      // l'historique récupéré ci-dessus).
+      try {
+        const outboxEntries = await outboxGetAll();
+        const mine = outboxEntries.filter((e) => e.conversationId === convId);
+        mine.forEach((entry) => {
+          const alreadyThere = messagesByConv[convId].some((m) => (
+            m.sender && m.sender.id === me.id && m.content === entry.content &&
+            Math.abs(new Date(m.createdAt).getTime() - new Date(entry.createdAt).getTime()) < 5 * 60 * 1000
+          ));
+          if (alreadyThere) { outboxDelete(entry.clientMsgId); return; }
+          messagesByConv[convId].push(buildPendingMessage(entry));
+        });
+      } catch (err) { console.error('fusion boîte d\'envoi error:', err); }
     }
     renderMessages();
   }
@@ -4810,7 +4915,16 @@
         ? `<div class="msgDeleted">🚫 Message supprimé${mine ? `<button class="eraseMsgBtn" data-id="${m.id}" title="Effacer définitivement cette trace">✕</button>` : ''}</div>`
         : renderMessageBody(m);
       const ticks = (mine && !m.deleted)
-        ? (() => { const read = isReadByOthers(m, conv); return `<span class="ticks${read ? ' read' : ''}">${read ? '✓✓' : '✓'}</span>`; })()
+        ? (() => {
+            // Fiabilité des messages (voir buildPendingMessage/sendMessage) :
+            // "en attente" (⏳) et "échec" (⚠️, appui pour réessayer) priment
+            // sur les coches habituelles tant que le message n'est pas
+            // confirmé par le serveur.
+            if (m._status === 'pending') return '<span class="ticks pending" title="Envoi en cours…">⏳</span>';
+            if (m._status === 'failed') return `<span class="ticks failed" data-retry-client-id="${m.clientMsgId}" title="Échec de l\'envoi — appuyez pour réessayer">⚠️</span>`;
+            const read = isReadByOthers(m, conv);
+            return `<span class="ticks${read ? ' read' : ''}">${read ? '✓✓' : '✓'}</span>`;
+          })()
         : '';
       // Aperçu du message cité, s'il s'agit d'une réponse (comme WhatsApp) :
       // cliquer sur la citation fait défiler jusqu'au message d'origine.
@@ -5144,6 +5258,14 @@
     const btn = e.target.closest('.eraseMsgBtn');
     if (!btn) return;
     eraseMessageTrace(btn.dataset.id);
+  });
+
+  // Appui sur ⚠️ (message en échec, voir renderMessages) : réessaie l'envoi.
+  $('messages').addEventListener('click', (e) => {
+    const btn = e.target.closest('.ticks.failed');
+    if (!btn) return;
+    const clientMsgId = btn.dataset.retryClientId;
+    if (clientMsgId) retryFailedMessage(clientMsgId);
   });
 
   // Clic sur "↩️" : prépare une réponse à ce message (bandeau au-dessus du composer).
@@ -5723,6 +5845,109 @@
     });
   });
 
+  // Construit un message "en attente" affiché immédiatement dans la
+  // conversation, avant même toute confirmation du serveur (voir
+  // sendMessage) -- même forme qu'un vrai message reçu via message:new pour
+  // que renderMessages/renderMessageBody n'aient rien à distinguer, à part
+  // le champ _status (voir les coches dans renderMessages).
+  function buildPendingMessage({ clientMsgId, conversationId, content, attachment, replyToPreview, createdAt }) {
+    return {
+      id: 'pending:' + clientMsgId,
+      clientMsgId,
+      conversationId,
+      content,
+      type: attachment ? attachment.type : 'text',
+      attachment: attachment || null,
+      createdAt: createdAt || new Date().toISOString(),
+      sender: me,
+      replyTo: replyToPreview || null,
+      reactions: [],
+      edited: false,
+      editedAt: null,
+      pinned: false,
+      pinnedAt: null,
+      forwarded: false,
+      deleted: false,
+      _status: 'pending',
+    };
+  }
+
+  // Remplace en place le message "en attente" clientMsgId par le message
+  // confirmé reçu du serveur -- appelée à la fois par l'accusé de
+  // sendMessage ET par la diffusion message:new (la première des deux
+  // arrivées gagne, voir chacune plus bas) : idempotente, sans effet si déjà
+  // reconciliée (le champ _status disparaît une fois fait). Retire aussi
+  // l'entrée de la boîte d'envoi (voir outboxDelete) : ce message n'a plus
+  // besoin d'être re-tenté.
+  function reconcilePendingMessage(clientMsgId, realMessage) {
+    if (!clientMsgId) return false;
+    outboxDelete(clientMsgId);
+    const list = messagesByConv[realMessage.conversationId];
+    if (!list) return false;
+    const idx = list.findIndex((m) => m.clientMsgId === clientMsgId && m._status);
+    if (idx === -1) return false;
+    list[idx] = realMessage;
+    if (realMessage.conversationId === activeConversationId) renderMessages();
+    return true;
+  }
+
+  function markMessageFailed(clientMsgId, conversationId) {
+    const list = messagesByConv[conversationId];
+    const m = list && list.find((x) => x.clientMsgId === clientMsgId && x._status);
+    if (!m) return;
+    m._status = 'failed';
+    if (conversationId === activeConversationId) renderMessages();
+  }
+
+  // Délai avant d'abandonner UNE tentative d'envoi (voir socket.timeout) --
+  // le message reste dans la boîte d'envoi, marqué "échec" (⚠️, appui pour
+  // réessayer) plutôt que "en attente" indéfiniment : sans ça, une connexion
+  // qui ne répond plus laissait le petit ⏳ affiché pour toujours, sans
+  // jamais prévenir la personne qu'il fallait réessayer.
+  const SEND_TIMEOUT_MS = 15000;
+  // Tente réellement l'envoi socket d'une entrée de la boîte d'envoi (envoi
+  // initial DEPUIS sendMessage, ou nouvelle tentative DEPUIS flushOutbox/
+  // retryFailedMessage) -- ne fait rien si le socket n'est pas connecté pour
+  // l'instant : flushOutbox() reprendra cette même entrée dès la prochaine
+  // reconnexion (voir connectSocket, 'connect').
+  function attemptSend(entry) {
+    if (!socket || !socket.connected) return;
+    socket.timeout(SEND_TIMEOUT_MS).emit('message:send', {
+      conversationId: entry.conversationId,
+      content: entry.content,
+      attachment: entry.attachment,
+      replyToId: entry.replyToId,
+      clientMsgId: entry.clientMsgId,
+    }, (err, res) => {
+      if (err) { markMessageFailed(entry.clientMsgId, entry.conversationId); return; }
+      if (res && res.error) { markMessageFailed(entry.clientMsgId, entry.conversationId); return; }
+      if (res && res.message) reconcilePendingMessage(entry.clientMsgId, res.message);
+    });
+  }
+  // Reprend l'envoi de tout ce qui reste dans la boîte d'envoi (voir
+  // outboxGetAll) -- appelée à chaque connexion/reconnexion du socket (voir
+  // connectSocket) : c'est ce qui renvoie automatiquement, sans aucune
+  // action de la personne, un message resté bloqué pendant une coupure
+  // réseau ou une fermeture complète de l'application.
+  async function flushOutbox() {
+    const all = await outboxGetAll();
+    all.forEach((entry) => attemptSend(entry));
+  }
+  // Appui sur ⚠️ (voir renderMessages) : redonne une chance à un message en
+  // échec, sans attendre la prochaine reconnexion.
+  async function retryFailedMessage(clientMsgId) {
+    const all = await outboxGetAll();
+    const entry = all.find((e) => e.clientMsgId === clientMsgId);
+    if (!entry) return;
+    const list = messagesByConv[entry.conversationId];
+    const m = list && list.find((x) => x.clientMsgId === clientMsgId);
+    if (m) {
+      m._status = 'pending';
+      if (entry.conversationId === activeConversationId) renderMessages();
+    }
+    attemptSend(entry);
+  }
+
   // "attachment", s'il est fourni, a la forme { data (base64), mime, name, size, duration?, type }.
   // Le texte de #msgInput sert alors de légende optionnelle (ex: une photo avec un petit mot).
   function sendMessage(attachment) {
@@ -5759,14 +5984,39 @@
     if (now < lastSendGuardUntil) return;
     lastSendGuardUntil = now + 500;
     const replyToId = replyingTo ? replyingTo.id : undefined;
+    const replyToPreview = replyingTo ? {
+      id: replyingTo.id,
+      senderName: replyingTo.sender ? replyingTo.sender.name : '',
+      content: replyingTo.deleted ? '' : replyingTo.content,
+      deleted: !!replyingTo.deleted,
+    } : null;
     // Identifiant propre à cette tentative d'envoi (et non au message lui-même) :
     // si le socket se reconnecte brièvement pendant l'envoi et que Socket.io
     // ré-émet ce même paquet en tampon, le serveur reconnaît le doublon grâce à
-    // cet identifiant et ne recrée pas un second message (voir chat.js).
+    // cet identifiant et ne recrée pas un second message (voir chat.js). Sert
+    // aussi à faire correspondre la bulle "en attente" affichée ci-dessous au
+    // message confirmé qui arrivera ensuite (voir reconcilePendingMessage).
     const clientMsgId = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now() + '-' + Math.random().toString(36).slice(2));
-    socket.emit('message:send', { conversationId: activeConversationId, content, attachment: finalAttachment, replyToId, clientMsgId }, (res) => {
-      if (res && res.error) alert('Erreur envoi: ' + res.error);
-    });
+    const conversationId = activeConversationId;
+    const createdAt = new Date().toISOString();
+    const outboxEntry = { clientMsgId, conversationId, content, attachment: finalAttachment, replyToId, replyToPreview, createdAt };
+
+    // Fiabilité des messages sur réseau faible (demande de Lancine) : le
+    // message s'affiche TOUT DE SUITE avec une icône "en cours" (voir
+    // buildPendingMessage et les coches dans renderMessages), survit à la
+    // fermeture de l'application (IndexedDB, voir outboxPut -- pas
+    // seulement cette variable en mémoire), et se renvoie automatiquement
+    // dès que la connexion revient (voir flushOutbox, appelée à chaque
+    // connexion du socket). Avant ce correctif, RIEN ne s'affichait tant
+    // que le serveur n'avait pas confirmé l'envoi.
+    const pendingMsg = buildPendingMessage(outboxEntry);
+    if (!messagesByConv[conversationId]) messagesByConv[conversationId] = [];
+    messagesByConv[conversationId].push(pendingMsg);
+    bumpConversationPreview(conversationId, pendingMsg);
+    if (conversationId === activeConversationId) renderMessages();
+    outboxPut(outboxEntry);
+    attemptSend(outboxEntry);
+
     input.value = '';
     pendingAttachment = null;
     renderAttachPreview();

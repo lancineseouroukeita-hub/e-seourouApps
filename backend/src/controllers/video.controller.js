@@ -216,13 +216,24 @@ async function listVideos(req, res) {
   });
 }
 
-// GET /api/videos/mine — mes propres vidéos publiées (pour un futur écran
-// "mon profil" sur ce produit ; pas encore utilisé côté client mais évite un
-// aller-retour supplémentaire à prévoir plus tard).
+// GET /api/videos/mine — mes propres vidéos publiées (grille du profil,
+// "Studio" pour Promouvoir...). PAGINÉ par curseur (même principe que
+// listVideos ci-dessus, paramètre "before") depuis le build v39 : sans ça,
+// un compte ayant publié beaucoup de vidéos renvoyait TOUT en un seul coup
+// (videoData inclus pour chacune, voir VIDEO_LIST_SELECT) — c'est ce qui
+// rendait l'ouverture du profil très lente (2 à 5 minutes signalées par
+// Lancine) sur un compte avec un historique conséquent. Le client charge
+// maintenant la première page tout de suite (affichage rapide) puis
+// continue de charger les pages suivantes en tâche de fond (voir videos.html,
+// loadProfile).
 async function listMyVideos(req, res) {
+  const { before } = req.query;
+  const where = { authorId: req.user.id };
+  if (before) where.createdAt = { lt: new Date(before) };
   const videos = await prisma.video.findMany({
-    where: { authorId: req.user.id },
+    where,
     orderBy: { createdAt: 'desc' },
+    take: FEED_PAGE_SIZE,
     // select (pas include) : voir VIDEO_LIST_SELECT plus haut.
     select: {
       ...VIDEO_LIST_SELECT,
@@ -235,7 +246,10 @@ async function listMyVideos(req, res) {
   });
   // Pas besoin de followingSet ici : ce sont mes propres vidéos, le badge
   // "suivre" ne s'affiche jamais sur ses propres publications côté client.
-  return res.json({ videos: videos.map((v) => serializeVideo(v, req.user.id)) });
+  return res.json({
+    videos: videos.map((v) => serializeVideo(v, req.user.id)),
+    nextCursor: videos.length === FEED_PAGE_SIZE ? videos[videos.length - 1].createdAt : null,
+  });
 }
 
 // GET /api/videos/saved — mes vidéos/photos enregistrées (bouton

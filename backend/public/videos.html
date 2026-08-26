@@ -176,6 +176,12 @@
   #accountSearchOverlay.hidden{display:none;}
   #accountSearchScreen{position:fixed;inset:0;background:var(--bg);overflow-y:auto;padding-bottom:calc(24px + env(safe-area-inset-bottom, 0));}
   #emptyFeed.hidden,#loadingFeed.hidden{display:none;}
+  /* Bandeau affiché en tête du fil quand on retombe sur le cache hors
+     ligne (voir renderOfflineFallbackFeed) -- même esprit que
+     #emptyFeed/#loadingFeed juste au-dessus, mais superposé EN HAUT du
+     fil (pas à la place) puisque des publications s'affichent quand
+     même en dessous. */
+  .offlineFeedBanner{position:sticky;top:0;z-index:3;background:rgba(0,0,0,0.55);color:#fff;font-size:12.5px;text-align:center;padding:8px 12px;}
 
   /* ---------- Barre de navigation basse (Accueil / Ami(e)s / + / Messages / Profil) ---------- */
   #bottomNav{position:fixed;left:0;right:0;bottom:0;z-index:15;display:flex;align-items:stretch;height:64px;background:linear-gradient(to top, rgba(0,0,0,0.92), rgba(0,0,0,0.55));border-top:1px solid rgba(255,255,255,0.06);padding-bottom:env(safe-area-inset-bottom, 0);}
@@ -303,6 +309,10 @@
   /* Mode beauté actif (voir beautyModeOn) — même traitement visuel que le
      minuteur actif, pour rester cohérent. */
   #cameraBeautyBtn.active{background:var(--accent, #ff2d55);}
+  /* Filtre de couleur actif (voir cameraFilterId) - meme traitement visuel
+     que la beaute/le minuteur actifs, texte plus petit pour le nom du filtre
+     (voir updateCameraFilterBtnLabel). */
+  #cameraFilterBtn.active{background:var(--accent, #ff2d55);font-size:11px;font-weight:700;}
   /* Repositionné juste au-dessus de l'obturateur (demande de Lancine,
      25/08/2026 : "exactement comme ça", capture d'écran TikTok) — texte
      simple sans pastille, ancré depuis le BAS de l'écran (indépendant de la
@@ -1066,6 +1076,13 @@
            compromis simple et fiable annoncé à Lancine en connaissance de
            cause plutôt qu'un vrai lissage sélectif du visage. -->
       <button id="cameraBeautyBtn" type="button" title="Beauté">✨</button>
+      <!-- Filtres de couleur (build v38, demande de Lancine) : un appui
+           fait défiler Normal -> N&B -> Sépia -> Vif -> Vintage -> Froid ->
+           Chaud -> Normal..., comme cameraTimerBtn ci-dessus (voir
+           CAMERA_FILTERS/cameraFilterId et updateCameraFilterBtnLabel plus
+           bas) -- reste choisi tant que l'écran caméra reste ouvert/rouvert,
+           comme le minuteur et la beauté. -->
+      <button id="cameraFilterBtn" type="button" title="Filtre">🎨</button>
     </div>
     <!-- Décompte plein écran pendant le minuteur (voir runCameraCountdown) —
          élément DISTINCT de #cameraTimer juste en dessous, qui affiche lui
@@ -1269,6 +1286,12 @@
   // juste après la connexion (doLogin) et fermée à la déconnexion (doLogout),
   // comme le socket de seourouApps dans index.html.
   let liveSocket = null;
+  // Vrai dès la toute première connexion de liveSocket -- permet de
+  // distinguer, dans son gestionnaire 'connect' (voir connectLiveSocket),
+  // une RECONNEXION (coupure réseau puis retour) de la connexion initiale :
+  // seule une reconnexion doit tenter de reprendre un direct en cours (voir
+  // build v40, fiabilité du direct sur coupure réseau).
+  let liveSocketConnectedOnce = false;
   let nextCursor = null;
   let loadingMore = false;
   let reachedEnd = false;
@@ -1358,6 +1381,27 @@
     try { data = await res.json(); } catch (e) { /* pas de corps */ }
     if (!res.ok) throw new Error((data && data.error) || ('Erreur HTTP ' + res.status));
     return data;
+  }
+
+  // Limite de temps posée sur un bouton (build v40, demande de Lancine :
+  // "commentaires/abonnements") -- api() peut rester indéfiniment "en
+  // attente" sur un réseau qui ne répond plus sans jamais rejeter ni
+  // résoudre (contrairement à une vraie erreur réseau immédiate, déjà gérée
+  // par api() ci-dessus) : sans ceci, le bouton restait desactivé pour
+  // toujours ("figé"). Ne coupe PAS la requête elle-même (elle peut encore
+  // aboutir en arrière-plan) -- rend juste la main à l'interface au bout de
+  // "ms" pour que la personne puisse réessayer.
+  const ACTION_TIMEOUT_MS = 15000;
+  function withTimeout(promise, ms) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error('Délai dépassé — vérifiez votre connexion et réessayez.'));
+      }, ms || ACTION_TIMEOUT_MS);
+      promise.then(
+        (v) => { clearTimeout(timer); resolve(v); },
+        (err) => { clearTimeout(timer); reject(err); }
+      );
+    });
   }
 
   // Publier une vidéo/photo envoie potentiellement plusieurs dizaines de Mo
@@ -1543,6 +1587,95 @@
   // synchrone) : voir attachVideoSrc/attachSoundToClip/getSoundBlobUrl pour
   // les appels (await/.then) — gardé async pour que ces appelants n'aient
   // rien à changer si l'implémentation évolue encore.
+  // ---------- Lecture hors ligne des vidéos vues récemment (build v38) ----------
+  // Contrairement à "Vidéos hors ligne" (menu ☰, téléchargement manuel des
+  // publications enregistrées, voir loadOffline plus bas), ceci est
+  // automatique : chaque publication réellement VUE (voir onClipIntersect,
+  // même compteur que la vue Studio) est gardée en cache localement
+  // (IndexedDB -- plus de place que localStorage pour du contenu vidéo en
+  // base64) pour pouvoir être rejouée si la connexion venait à manquer au
+  // moment de rouvrir l'application. Nombre borné (OFFLINE_CACHE_MAX) pour
+  // ne pas remplir indéfiniment le stockage de l'appareil -- la plus
+  // ancienne est retirée dès que la limite est dépassée (LRU simple).
+  const OFFLINE_CACHE_MAX = 20;
+  const OFFLINE_DB_NAME = 'diarala-offline-cache';
+  const OFFLINE_STORE = 'videos';
+  let offlineDbPromise = null;
+  function openOfflineDb() {
+    if (offlineDbPromise) return offlineDbPromise;
+    offlineDbPromise = new Promise((resolve, reject) => {
+      if (!window.indexedDB) { reject(new Error('IndexedDB indisponible')); return; }
+      const req = indexedDB.open(OFFLINE_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains(OFFLINE_STORE)) {
+          db.createObjectStore(OFFLINE_STORE, { keyPath: 'id' });
+        }
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return offlineDbPromise;
+  }
+  function offlineGetAll() {
+    return openOfflineDb().then((db) => new Promise((resolve, reject) => {
+      const tx = db.transaction(OFFLINE_STORE, 'readonly');
+      const req = tx.objectStore(OFFLINE_STORE).getAll();
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    })).catch(() => []);
+  }
+  // Sauvegarde/rafraîchit une publication dans le cache hors ligne --
+  // silencieux en cas d'échec (IndexedDB indisponible/plein) : ce n'est
+  // qu'un confort, jamais une fonctionnalité dont dépend l'affichage normal.
+  async function cacheVideoForOffline(v) {
+    if (!v || !v.id) return;
+    try {
+      const db = await openOfflineDb();
+      const entry = {
+        id: v.id, type: v.type, caption: v.caption, author: v.author,
+        videoData: v.videoData, videoMime: v.videoMime,
+        photoData: v.photoData, photoMime: v.photoMime,
+        thumbnailData: v.thumbnailData, thumbnailMime: v.thumbnailMime,
+        sound: v.sound, personalSoundName: v.personalSoundName,
+        likesCount: v.likesCount || 0, commentsCount: v.commentsCount || 0,
+        savesCount: v.savesCount || 0, sharesCount: v.sharesCount || 0,
+        cachedAt: Date.now(),
+      };
+      await new Promise((resolve) => {
+        const tx = db.transaction(OFFLINE_STORE, 'readwrite');
+        tx.objectStore(OFFLINE_STORE).put(entry);
+        tx.oncomplete = resolve;
+        tx.onerror = resolve;
+      });
+      const all = await offlineGetAll();
+      if (all.length > OFFLINE_CACHE_MAX) {
+        all.sort((a, b) => a.cachedAt - b.cachedAt);
+        const toDrop = all.slice(0, all.length - OFFLINE_CACHE_MAX);
+        const tx2 = db.transaction(OFFLINE_STORE, 'readwrite');
+        const store2 = tx2.objectStore(OFFLINE_STORE);
+        toDrop.forEach((e) => store2.delete(e.id));
+      }
+    } catch (err) {
+      console.error('cacheVideoForOffline error:', err);
+    }
+  }
+  // Reconstruit le fil à partir du cache hors ligne quand le tout premier
+  // chargement échoue faute de réseau (voir loadFeed) -- mieux qu'un fil
+  // vide sans explication.
+  async function renderOfflineFallbackFeed(container) {
+    const all = await offlineGetAll();
+    if (!all.length) return false;
+    all.sort((a, b) => b.cachedAt - a.cachedAt);
+    const banner = document.createElement('div');
+    banner.className = 'offlineFeedBanner';
+    banner.textContent = '📡 Hors ligne — publications récemment vues';
+    container.appendChild(banner);
+    all.forEach((v) => container.appendChild(renderClip(v)));
+    setupObserver();
+    return true;
+  }
+
   async function base64ToBlobUrl(base64, mime) {
     try {
       const chunks = await base64ToBytesChunks(base64);
@@ -2006,7 +2139,9 @@
       const nowFollowing = !btn.classList.contains('following');
       btn.disabled = true;
       try {
-        await api('/api/follows/' + u.id, { method: nowFollowing ? 'POST' : 'DELETE' });
+        // withTimeout (build v40) : évite ce bouton durablement désactivé
+        // si la requête ne répond jamais (voir sa définition).
+        await withTimeout(api('/api/follows/' + u.id, { method: nowFollowing ? 'POST' : 'DELETE' }));
         u.following = nowFollowing;
         btn.classList.toggle('following', nowFollowing);
         btn.textContent = nowFollowing ? 'Abonné' : "S'abonner";
@@ -2025,6 +2160,67 @@
   // vrai fil défilant sur TOUTES ces publications (comme TikTok), pas
   // seulement la vignette précise sur laquelle on vient d'appuyer.
   let myProfileVideosList = [];
+  // Jeton incrémenté à chaque loadProfile() : si l'écran Profil est refermé
+  // puis rouvert pendant qu'un chargement par pages tourne encore en tâche
+  // de fond (voir fetchAllMyVideos), ses pages restantes ne doivent plus
+  // toucher un DOM qui appartient déjà à un chargement plus récent.
+  let profileLoadToken = 0;
+
+  // Récupère TOUTES mes publications, page par page (voir la pagination de
+  // GET /api/videos/mine côté serveur, build v39) -- "onPage" est appelé
+  // pour CHAQUE page dès qu'elle arrive (affichage progressif) plutôt que
+  // d'attendre que tout soit chargé avant de montrer quoi que ce soit :
+  // c'est ce qui corrige la lenteur d'ouverture du profil (2 à 5 minutes
+  // signalées par Lancine) sur un compte avec beaucoup de publications.
+  async function fetchAllMyVideos(onPage) {
+    let cursor = null;
+    for (;;) {
+      const qs = cursor ? ('?before=' + encodeURIComponent(cursor)) : '';
+      const data = await api('/api/videos/mine' + qs);
+      if (onPage) onPage(data.videos);
+      cursor = data.nextCursor;
+      if (!cursor) break;
+    }
+  }
+
+  // Construit et insère UNE vignette de la grille du profil -- extrait de
+  // loadProfile (build v39) pour être appelé à chaque page reçue (voir
+  // fetchAllMyVideos) plutôt qu'une seule fois sur la liste complète.
+  function appendMyVideoThumb(v) {
+    const thumb = document.createElement('div');
+    thumb.className = 'myVideoThumb';
+    thumb.dataset.videoId = v.id;
+    // Comme dans renderClip : jamais de src="data:...;base64,..." direct
+    // pour une vidéo (ça se bloque silencieusement sur certains mobiles
+    // pour les grosses vidéos, voir base64ToBlobUrl) — on utilise la
+    // vignette (le cas courant) et on ne retombe sur une <video> (avec
+    // blob: URL posée après coup) que si aucune vignette n'existe.
+    const needsBlobVideo = v.type !== 'photo' && !v.thumbnailData;
+    const mediaHtml = v.type === 'photo'
+      ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">`
+      : (v.thumbnailData
+        ? `<img src="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}" alt="">`
+        : `<video muted playsinline></video>`);
+    thumb.innerHTML = mediaHtml + `<span class="myVideoThumbLikes">❤️ ${v.likesCount}</span>`;
+    // Comme TikTok : appuyer sur une vignette de la grille du profil
+    // ouvre CETTE publication précise en plein écran (voir
+    // openProfileClipView) — la suppression (🗑️) est accessible depuis
+    // cette vue individuelle, pas directement sur la vignette.
+    thumb.addEventListener('click', () => openProfileClipView(v.id));
+    $('myVideosGrid').appendChild(thumb);
+    if (needsBlobVideo) {
+      const videoEl = thumb.querySelector('video');
+      // fetchVideoMedia : simple filet de sécurité, v.videoData est déjà
+      // présent ici (voir VIDEO_LIST_SELECT côté serveur) donc l'appel
+      // retourne immédiatement sans requête réseau (voir sa définition).
+      fetchVideoMedia(v).then(() => {
+        if (!v.videoData) return;
+        base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime)).then((blobUrl) => {
+          if (videoEl && blobUrl) videoEl.src = blobUrl;
+        });
+      });
+    }
+  }
 
   async function loadProfile() {
     $('profileName').textContent = me ? me.name : '—';
@@ -2032,55 +2228,36 @@
     $('profileAvatar').innerHTML = (me && me.avatarUrl) ? `<img src="${me.avatarUrl}" alt="">` : '👤';
     revokeClipBlobUrls($('myVideosGrid'));
     $('myVideosGrid').innerHTML = '';
-    try {
-      const [followData, videosData] = await Promise.all([
-        api('/api/follows/summary'),
-        api('/api/videos/mine'),
-      ]);
+    myProfileVideosList = [];
+    $('profileVideosCount').textContent = '…';
+    const loadToken = ++profileLoadToken;
+
+    api('/api/follows/summary').then((followData) => {
+      if (loadToken !== profileLoadToken) return;
       $('profileFollowersCount').textContent = String(followData.myFollowersCount);
       $('profileFollowingCount').textContent = String(followData.myFollowingCount);
-      $('profileVideosCount').textContent = String(videosData.videos.length);
-      myProfileVideosList = videosData.videos;
-      if (!videosData.videos.length) {
-        $('myVideosGrid').innerHTML = '<div class="screenEmpty">Vous n\'avez encore rien publié.</div>';
-        return;
-      }
-      videosData.videos.forEach((v) => {
-        const thumb = document.createElement('div');
-        thumb.className = 'myVideoThumb';
-        thumb.dataset.videoId = v.id;
-        // Comme dans renderClip : jamais de src="data:...;base64,..." direct
-        // pour une vidéo (ça se bloque silencieusement sur certains mobiles
-        // pour les grosses vidéos, voir base64ToBlobUrl) — on utilise la
-        // vignette (le cas courant) et on ne retombe sur une <video> (avec
-        // blob: URL posée après coup) que si aucune vignette n'existe.
-        const needsBlobVideo = v.type !== 'photo' && !v.thumbnailData;
-        const mediaHtml = v.type === 'photo'
-          ? `<img src="data:${v.photoMime};base64,${v.photoData}" alt="">`
-          : (v.thumbnailData
-            ? `<img src="data:${v.thumbnailMime || 'image/jpeg'};base64,${v.thumbnailData}" alt="">`
-            : `<video muted playsinline></video>`);
-        thumb.innerHTML = mediaHtml + `<span class="myVideoThumbLikes">❤️ ${v.likesCount}</span>`;
-        // Comme TikTok : appuyer sur une vignette de la grille du profil
-        // ouvre CETTE publication précise en plein écran (voir
-        // openProfileClipView) — la suppression (🗑️) est accessible depuis
-        // cette vue individuelle, pas directement sur la vignette.
-        thumb.addEventListener('click', () => openProfileClipView(v.id));
-        $('myVideosGrid').appendChild(thumb);
-        if (needsBlobVideo) {
-          const videoEl = thumb.querySelector('video');
-          // fetchVideoMedia : simple filet de sécurité, v.videoData est déjà
-          // présent ici (voir VIDEO_LIST_SELECT côté serveur) donc l'appel
-          // retourne immédiatement sans requête réseau (voir sa définition).
-          fetchVideoMedia(v).then(() => {
-            if (!v.videoData) return;
-            base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime)).then((blobUrl) => {
-              if (videoEl && blobUrl) videoEl.src = blobUrl;
-            });
-          });
-        }
+    }).catch((err) => console.error('loadProfile (follows/summary) error:', err));
+
+    // Chargement par pages (voir fetchAllMyVideos) : la grille se remplit
+    // au fur et à mesure que chaque page arrive, au lieu d'attendre tout
+    // l'historique -- c'est la première page qui rend le profil réactif.
+    try {
+      let receivedAny = false;
+      await fetchAllMyVideos((videos) => {
+        if (loadToken !== profileLoadToken) return; // écran rouvert entre-temps
+        if (!videos.length) return;
+        receivedAny = true;
+        myProfileVideosList = myProfileVideosList.concat(videos);
+        $('profileVideosCount').textContent = String(myProfileVideosList.length);
+        videos.forEach((v) => appendMyVideoThumb(v));
       });
+      if (loadToken !== profileLoadToken) return;
+      if (!receivedAny) {
+        $('profileVideosCount').textContent = '0';
+        $('myVideosGrid').innerHTML = '<div class="screenEmpty">Vous n\'avez encore rien publié.</div>';
+      }
     } catch (err) {
+      if (loadToken !== profileLoadToken) return;
       console.error('loadProfile error:', err);
       $('myVideosGrid').innerHTML = `<div class="screenEmpty">Erreur de chargement.${err && err.message ? ' (' + err.message + ')' : ''}</div>`;
     }
@@ -2400,6 +2577,11 @@
         if (viewedVideoId && !viewedVideoIds.has(viewedVideoId)) {
           viewedVideoIds.add(viewedVideoId);
           api('/api/videos/' + viewedVideoId + '/view', { method: 'POST' }).catch(() => {});
+          // Lecture hors ligne des vidéos vues récemment (build v38, voir
+          // cacheVideoForOffline) -- même déclencheur que la vue comptée
+          // ci-dessus, sans rapport avec elle (l'échec de l'une n'affecte
+          // jamais l'autre).
+          if (entry.target._video) cacheVideoForOffline(entry.target._video);
         }
       } else {
         entry.target.dataset.shouldPlay = '0';
@@ -2485,6 +2667,14 @@
       setupObserver();
     } catch (err) {
       console.error(err);
+      // Hors ligne dès le tout premier chargement (voir
+      // renderOfflineFallbackFeed) : on retombe sur les publications
+      // récemment vues, gardées en local, plutôt que de laisser le fil
+      // complètement vide sans explication (build v38, demande de Lancine).
+      if (reset && $('feed').children.length === 0) {
+        const hadOffline = await renderOfflineFallbackFeed($('feed'));
+        if (!hadOffline) $('emptyFeed').classList.remove('hidden');
+      }
     } finally {
       loadingMore = false;
       $('loadingFeed').classList.add('hidden');
@@ -2581,6 +2771,10 @@
     const el = document.createElement('div');
     el.className = 'clip';
     el.dataset.videoId = v.id;
+    // Reference gardee sur l'element (pas seulement dataset.videoId) pour
+    // que onClipIntersect puisse mettre cette publication en cache hors
+    // ligne (voir cacheVideoForOffline) des qu'elle est reellement vue.
+    el._video = v;
     const isPhoto = v.type === 'photo';
     const isMine = me && v.author && v.author.id === me.id;
     // Vue plein écran depuis LA GRILLE DU PROFIL (voir openProfileClipView) —
@@ -2770,7 +2964,9 @@
         e.stopPropagation();
         followBadge.disabled = true;
         try {
-          await api('/api/follows/' + v.author.id, { method: 'POST' });
+          // withTimeout (build v40) : évite ce bouton durablement désactivé
+          // si la requête ne répond jamais (voir sa définition).
+          await withTimeout(api('/api/follows/' + v.author.id, { method: 'POST' }));
           followBadge.classList.add('hidden');
         } catch (err) {
           followBadge.disabled = false;
@@ -2953,10 +3149,12 @@
     if (!text || !activeCommentsVideo) return;
     $('commentSendBtn').disabled = true;
     try {
-      const data = await api('/api/videos/' + activeCommentsVideo.id + '/comments', {
+      // withTimeout (build v40) : évite un bouton "Envoyer" durablement
+      // désactivé si la requête ne répond jamais (voir sa définition).
+      const data = await withTimeout(api('/api/videos/' + activeCommentsVideo.id + '/comments', {
         method: 'POST',
         body: JSON.stringify({ text }),
-      });
+      }));
       if ($('commentsList').querySelector('.commentsEmpty')) $('commentsList').innerHTML = '';
       $('commentsList').appendChild(renderCommentRow(data.comment));
       $('commentsList').scrollTop = $('commentsList').scrollHeight;
@@ -3261,6 +3459,33 @@
   let beautyModeOn = false;
   let beautyRafId = null;
 
+  // Filtres de couleur (build v38) : meme mecanisme que beautyModeOn
+  // ci-dessus (canvas cameraBeautyCanvas redessine en continu, voir
+  // startBeautyRenderLoop) -- appliques VIA ctx.filter (technique deja
+  // utilisee par applyBeautySoftening) plutot qu'un vrai traitement pixel
+  // par pixel, pour rester simple et fiable sans pouvoir tester en direct.
+  // "normal" = aucun filtre (comportement d'origine, ctx.filter='none').
+  const CAMERA_FILTERS = [
+    { id: 'normal', label: 'Normal', css: 'none' },
+    { id: 'bw', label: 'N&B', css: 'grayscale(1)' },
+    { id: 'sepia', label: 'Sépia', css: 'sepia(0.8)' },
+    { id: 'vif', label: 'Vif', css: 'saturate(1.6) contrast(1.15)' },
+    { id: 'vintage', label: 'Vintage', css: 'sepia(0.35) contrast(0.9) brightness(1.05) saturate(0.8)' },
+    { id: 'froid', label: 'Froid', css: 'saturate(1.1) contrast(1.05) brightness(1.02) hue-rotate(-8deg)' },
+    { id: 'chaud', label: 'Chaud', css: 'sepia(0.25) saturate(1.3) hue-rotate(6deg) brightness(1.03)' },
+  ];
+  let cameraFilterId = 'normal';
+  // Vrai des qu'un effet (beaute ET/OU filtre) doit passer par le canvas --
+  // remplace les anciens tests "if (beautyModeOn)" isoles un peu partout
+  // (demarrage de la boucle de rendu, visibilite du canvas, flux enregistre)
+  // pour que les deux fonctionnalites cohabitent proprement.
+  function effectsCanvasNeeded() {
+    return beautyModeOn || cameraFilterId !== 'normal';
+  }
+  function updateEffectsCanvasVisibility() {
+    $('cameraBeautyCanvas').classList.toggle('hidden', !effectsCanvasNeeded());
+  }
+
   function pickVideoMimeType() {
     // mp4/H.264 EN PREMIER : c'est le format qu'un iPhone (Safari) sait
     // lire de façon fiable. Safari ne sait PAS du tout décoder du WebM/VP8/
@@ -3331,7 +3556,7 @@
     // cameraFlipBtn — ou juste après avoir rouvert l'écran caméra) : la
     // boucle de rendu ne dépend d'aucun état propre au flux, la relancer ici
     // ne fait rien si elle tourne déjà (voir startBeautyRenderLoop).
-    if (beautyModeOn) startBeautyRenderLoop();
+    if (effectsCanvasNeeded()) startBeautyRenderLoop();
   }
 
   function updateBeautyCanvasMirror() {
@@ -3346,7 +3571,7 @@
   function startBeautyRenderLoop() {
     if (beautyRafId) return; // déjà en cours, voir le commentaire d'appel ci-dessus
     const tick = () => {
-      if (!beautyModeOn) { beautyRafId = null; return; }
+      if (!effectsCanvasNeeded()) { beautyRafId = null; return; }
       const liveVideo = $('cameraLiveVideo');
       const canvas = $('cameraBeautyCanvas');
       if (liveVideo.readyState >= 2 && liveVideo.videoWidth) {
@@ -3359,7 +3584,11 @@
         // miroir n'est qu'un confort d'affichage (transform CSS), jamais
         // dans le contenu réellement dessiné/enregistré.
         ctx.drawImage(liveVideo, 0, 0, canvas.width, canvas.height);
-        applyBeautySoftening(ctx, canvas);
+        // Filtre de couleur (voir CAMERA_FILTERS) AVANT l'adoucissement
+        // beauté -- l'ordre n'a pas d'incidence visible, mais reste cohérent
+        // avec capturePhotoFromCamera plus bas.
+        applyColorFilterEffect(ctx, canvas);
+        if (beautyModeOn) applyBeautySoftening(ctx, canvas);
       }
       beautyRafId = requestAnimationFrame(tick);
     };
@@ -3383,6 +3612,18 @@
     ctx.filter = 'blur(3px) brightness(1.04) saturate(1.05)';
     ctx.drawImage(canvas, 0, 0);
     ctx.restore();
+    ctx.filter = 'none';
+  }
+
+  // Applique le filtre de couleur choisi (voir CAMERA_FILTERS) à un canvas
+  // qui contient déjà l'image de la caméra -- même technique que
+  // applyBeautySoftening (dessiner le canvas sur lui-même avec ctx.filter
+  // actif) : no-op immédiat si "Normal" est sélectionné.
+  function applyColorFilterEffect(ctx, canvas) {
+    const f = CAMERA_FILTERS.find((x) => x.id === cameraFilterId);
+    if (!f || !f.css || f.css === 'none') return;
+    ctx.filter = f.css;
+    ctx.drawImage(canvas, 0, 0);
     ctx.filter = 'none';
   }
 
@@ -3479,10 +3720,30 @@
   $('cameraBeautyBtn').addEventListener('click', () => {
     beautyModeOn = !beautyModeOn;
     $('cameraBeautyBtn').classList.toggle('active', beautyModeOn);
-    $('cameraBeautyCanvas').classList.toggle('hidden', !beautyModeOn);
-    if (beautyModeOn) { updateBeautyCanvasMirror(); startBeautyRenderLoop(); }
+    updateEffectsCanvasVisibility();
+    if (effectsCanvasNeeded()) { updateBeautyCanvasMirror(); startBeautyRenderLoop(); }
     else { stopBeautyRenderLoop(); }
   });
+
+  // Filtres de couleur (voir CAMERA_FILTERS/cameraFilterId) : un appui fait
+  // défiler la liste, comme cameraTimerBtn -- même mécanisme canvas que la
+  // beauté ci-dessus (voir effectsCanvasNeeded).
+  function updateCameraFilterBtnLabel() {
+    const btn = $('cameraFilterBtn');
+    const f = CAMERA_FILTERS.find((x) => x.id === cameraFilterId) || CAMERA_FILTERS[0];
+    const isNormal = f.id === 'normal';
+    btn.textContent = isNormal ? '🎨' : f.label;
+    btn.classList.toggle('active', !isNormal);
+  }
+  $('cameraFilterBtn').addEventListener('click', () => {
+    const idx = CAMERA_FILTERS.findIndex((f) => f.id === cameraFilterId);
+    cameraFilterId = CAMERA_FILTERS[(idx + 1) % CAMERA_FILTERS.length].id;
+    updateCameraFilterBtnLabel();
+    updateEffectsCanvasVisibility();
+    if (effectsCanvasNeeded()) { updateBeautyCanvasMirror(); startBeautyRenderLoop(); }
+    else { stopBeautyRenderLoop(); }
+  });
+  updateCameraFilterBtnLabel();
 
   $('navUploadBtn').addEventListener('click', openCameraScreen);
   $('cameraCloseBtn').addEventListener('click', () => {
@@ -3569,12 +3830,54 @@
     if (liveSocket) return;
     liveSocket = io({ auth: { token } });
 
+    // Reconnexion du socket (coupure réseau, changement wifi/4G...) --
+    // 'connect' se déclenche aussi bien à la connexion initiale qu'à chaque
+    // reconnexion automatique de Socket.io, d'où liveSocketConnectedOnce
+    // pour ne réagir qu'aux VRAIES reconnexions (build v40, fiabilité du
+    // direct sur coupure réseau, demande de Lancine).
+    liveSocket.on('connect', () => {
+      if (!liveSocketConnectedOnce) { liveSocketConnectedOnce = true; return; }
+      if (broadcastLiveId) {
+        // Je diffusais : voir live:resume côté serveur -- si le délai de
+        // grâce a expiré entre-temps, le direct est réellement terminé.
+        liveSocket.emit('live:resume', { liveId: broadcastLiveId }, (res) => {
+          if (!res || res.error) {
+            alert('Le direct a été interrompu (coupure réseau trop longue).');
+            stopGoingLiveCleanup();
+            closeCameraScreen();
+          }
+        });
+      }
+      if (viewerLiveId) {
+        // Je regardais : ma propre connexion WebRTC est probablement morte
+        // avec la coupure -- on en redemande une fraîche (voir
+        // rejoinLiveAsViewer).
+        rejoinLiveAsViewer(viewerLiveId);
+      }
+    });
+
     // Un direct a démarré ou s'est terminé QUELQUE PART (pas forcément le
     // mien) : on se contente de rafraîchir la liste si elle est à l'écran,
     // plutôt que de recevoir le détail ici — reste toujours cohérent avec la
     // base sans payload à maintenir à jour côté serveur.
     liveSocket.on('live:list-changed', () => {
       if (feedMode === 'live' && $('feedScreen').classList.contains('show')) loadLiveList();
+    });
+
+    // Le diffuseur d'un direct que je regarde vient de perdre sa connexion
+    // (voir sockets/live.js, scheduleHostDisconnectLeave) -- le direct n'est
+    // PAS terminé (délai de grâce en cours), juste un état visible pendant
+    // qu'on attend qu'il revienne (voir live:host-back ci-dessous) plutôt
+    // qu'une image figée sans explication.
+    liveSocket.on('live:host-connection-lost', ({ liveId }) => {
+      if (viewerLiveId === liveId) $('liveViewStatus').textContent = 'Reconnexion en cours…';
+    });
+
+    // Le diffuseur est revenu à temps (voir sockets/live.js, live:resume) --
+    // sa connexion WebRTC signalée via son ANCIEN socket n'est plus valable,
+    // on en redemande une fraîche.
+    liveSocket.on('live:host-back', ({ liveId }) => {
+      if (viewerLiveId === liveId) rejoinLiveAsViewer(liveId);
     });
 
     liveSocket.on('live:viewer-count', ({ liveId, count }) => {
@@ -3733,22 +4036,20 @@
     return card;
   }
 
-  // Rejoint un direct comme spectateur (voir la liste ci-dessus).
-  async function joinLive(l) {
-    closeLiveView(); // sécurité si un précédent visionnage traînait encore
-    $('liveViewVideo').srcObject = null;
-    $('liveViewHostName').textContent = l.host.name;
-    $('liveViewViewerCount').textContent = `👁️ ${l.viewerCount || 0}`;
-    $('liveViewStatus').textContent = 'Connexion…';
-    $('liveViewOverlay').classList.remove('hidden');
-
-    liveSocket.emit('live:join', { liveId: l.id }, async (res) => {
+  // Demande à rejoindre un direct donné -- factorisé (build v40) pour être
+  // appelé aussi bien au premier visionnage (voir joinLive) qu'après le
+  // retour du diffuseur suite à une coupure réseau (voir rejoinLiveAsViewer
+  // / live:host-back).
+  function requestJoinLive(liveId) {
+    liveSocket.emit('live:join', { liveId }, async (res) => {
       if (!res || res.error) {
-        alert(res && res.error ? res.error : 'Impossible de rejoindre ce direct.');
-        closeLiveView();
+        if (viewerLiveId === liveId || !viewerLiveId) {
+          alert(res && res.error ? res.error : 'Impossible de rejoindre ce direct.');
+          closeLiveView();
+        }
         return;
       }
-      viewerLiveId = l.id;
+      viewerLiveId = liveId;
       viewerHostSocketId = res.hostSocketId;
       try {
         const iceServers = await getLiveIceServers();
@@ -3760,17 +4061,41 @@
         };
         viewerPc.onicecandidate = (e) => {
           if (e.candidate && viewerHostSocketId) {
-            liveSocket.emit('live:signal', { liveId: l.id, to: viewerHostSocketId, signal: { type: 'ice-candidate', candidate: e.candidate } });
+            liveSocket.emit('live:signal', { liveId, to: viewerHostSocketId, signal: { type: 'ice-candidate', candidate: e.candidate } });
           }
         };
         // L'offre arrive ensuite via l'événement live:signal global (voir
         // connectLiveSocket) — le diffuseur l'envoie dès qu'il reçoit
         // live:viewer-joined, déclenché côté serveur par ce live:join.
       } catch (err) {
-        console.error('joinLive error:', err);
+        console.error('requestJoinLive error:', err);
         $('liveViewStatus').textContent = 'Erreur de connexion.';
       }
     });
+  }
+
+  // Rejoint un direct comme spectateur (voir la liste ci-dessus).
+  async function joinLive(l) {
+    closeLiveView(); // sécurité si un précédent visionnage traînait encore
+    $('liveViewVideo').srcObject = null;
+    $('liveViewHostName').textContent = l.host.name;
+    $('liveViewViewerCount').textContent = `👁️ ${l.viewerCount || 0}`;
+    $('liveViewStatus').textContent = 'Connexion…';
+    $('liveViewOverlay').classList.remove('hidden');
+    requestJoinLive(l.id);
+  }
+
+  // Le diffuseur est revenu après une coupure réseau (voir
+  // live:host-connection-lost/live:host-back ci-dessus, build v40) : on
+  // referme l'ancienne connexion WebRTC (liée à son ancien socket, plus
+  // valable) et on redemande une offre fraîche -- sans fermer/rouvrir tout
+  // l'écran du direct, pour rester le moins perturbant possible.
+  function rejoinLiveAsViewer(liveId) {
+    if (viewerPc) { viewerPc.close(); viewerPc = null; }
+    if ($('liveViewOverlay') && !$('liveViewOverlay').classList.contains('hidden')) {
+      $('liveViewStatus').textContent = 'Reconnexion…';
+    }
+    requestJoinLive(liveId);
   }
 
   function closeLiveView() {
@@ -4111,6 +4436,7 @@
     // mode beauté est actif — appliqué APRÈS le retournement miroir
     // ci-dessus, comme pour startBeautyRenderLoop (l'ordre n'a pas
     // d'importance ici puisque tout le cadre est traité de la même façon).
+    applyColorFilterEffect(ctx, canvas);
     if (beautyModeOn) applyBeautySoftening(ctx, canvas);
     canvas.toBlob(async (blob) => {
       closeCameraScreen();
@@ -4278,12 +4604,12 @@
     // directement cameraStream comme avant, sans passer par un canvas —
     // aucun risque de régression pour le cas le plus courant.
     let recordStream = cameraStream;
-    if (beautyModeOn) {
+    if (effectsCanvasNeeded()) {
       try {
         const canvasStream = $('cameraBeautyCanvas').captureStream(30);
         recordStream = new MediaStream([...canvasStream.getVideoTracks(), ...cameraStream.getAudioTracks()]);
       } catch (err) {
-        console.error('captureStream (mode beauté) échoué, on filme sans adoucissement :', err);
+        console.error('captureStream (beauté/filtre) échoué, on filme sans effet :', err);
         recordStream = cameraStream;
       }
     }
@@ -5074,17 +5400,20 @@
     $('boostIntro').textContent = 'Chargement…';
     $('boostVideoList').innerHTML = '';
     try {
-      const [walletData, videosData] = await Promise.all([
-        api('/api/wallet'),
-        api('/api/videos/mine'),
-      ]);
+      const walletData = await api('/api/wallet');
       $('boostIntro').textContent = `Solde actuel : ${walletData.balance} crédit(s). Promouvoir une publication coûte ${BOOST_COST_CREDITS} crédits et la fait remonter en tête du fil "Pour toi" pendant ${BOOST_DURATION_HOURS} heures.`;
-      if (!videosData.videos.length) {
+      // Chargement par pages (voir fetchAllMyVideos, build v39) : affiche
+      // les premières publications tout de suite plutôt que d'attendre tout
+      // l'historique d'un compte qui en a publié beaucoup.
+      let receivedAny = false;
+      await fetchAllMyVideos((videos) => {
+        if (!videos.length) return;
+        receivedAny = true;
+        videos.forEach((v) => $('boostVideoList').appendChild(renderBoostVideoRow(v, walletData.balance)));
+      });
+      if (!receivedAny) {
         $('boostVideoList').innerHTML = '<div class="screenEmpty">Publiez une vidéo ou une photo pour pouvoir la promouvoir.</div>';
-        return;
       }
-      $('boostVideoList').innerHTML = '';
-      videosData.videos.forEach((v) => $('boostVideoList').appendChild(renderBoostVideoRow(v, walletData.balance)));
     } catch (err) {
       $('boostIntro').textContent = 'Erreur de chargement.';
     }

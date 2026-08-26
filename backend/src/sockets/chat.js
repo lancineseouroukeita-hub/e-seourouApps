@@ -165,6 +165,14 @@ function registerChatHandlers(io, socket) {
       const payload = {
         id: message.id,
         conversationId,
+        // clientMsgId (pas persisté en base, voir "data" ci-dessus) : renvoyé
+        // tel quel dans la diffusion "message:new" pour que l'expéditeur
+        // puisse faire correspondre ce message confirmé à la bulle "en cours
+        // d'envoi" affichée de façon optimiste (voir index.html,
+        // reconcilePendingMessage / fiabilité des messages, build "réseau
+        // faible") — sans ça, impossible côté client de savoir QUEL message
+        // en attente vient d'être confirmé par le serveur.
+        clientMsgId: clientMsgId || null,
         content: message.content,
         type: message.type,
         deleted: false,
