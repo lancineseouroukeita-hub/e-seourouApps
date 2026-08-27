@@ -123,6 +123,7 @@ model User {
   // source de vérité en cas de doute.
   creditsBalance      Int                 @default(0)
   creditTransactions  CreditTransaction[]
+  creditPurchases     CreditPurchase[]
   // Vues de mes vidéos, pour "TikTok Studio" (voir modèle VideoView plus bas).
   videoViews          VideoView[]
   // Signalements que j'ai envoyés (menu d'appui long → "Signaler", voir
@@ -763,4 +764,39 @@ model Follow {
   following User @relation("Followers", fields: [followingId], references: [id], onDelete: Cascade)
 
   @@unique([followerId, followingId])
+}
+
+// Achat de credits "Solde" avec du vrai argent (mobile money), voir
+// User.creditsBalance plus haut. Une ligne par tentative d'achat : status
+// commence a "pending" (juste apres la demande de paiement, avant que
+// l'operateur/l'agregateur ait confirme), passe a "completed" une fois le
+// paiement confirme (c'est SEULEMENT a ce moment-la que creditsBalance sera
+// credite) ou "failed" si le paiement echoue ou expire. providerReference
+// garde l'identifiant renvoye par l'agregateur de paiement, utile pour
+// retrouver/verifier une transaction en cas de litige. Pas encore branche
+// sur un vrai prestataire a ce stade (voir plan-monetisation-seourouApps.md)
+// -- ce modele prepare juste la structure du flux.
+model CreditPurchase {
+  id                String    @id @default(uuid())
+  userId            String
+  // Montant paye par l'utilisateur, en francs guineens (GNF) -- pas de
+  // sous-unite utilisee en pratique pour le mobile money en Guinee.
+  amountGnf         Int
+  // Nombre de credits "Solde" accordes une fois le paiement confirme --
+  // fixe au moment de la demande selon le bareme en vigueur a ce moment.
+  creditsGranted    Int
+  // "pending" | "completed" | "failed"
+  status            String    @default("pending")
+  // Nom du prestataire utilise (ex: "kkiapay", "orange_money", "mtn_momo")
+  // -- laisse libre plutot qu'un enum, le choix n'etant pas encore fige.
+  provider          String?
+  // Identifiant de la transaction cote prestataire, une fois connu.
+  providerReference String?
+  createdAt         DateTime  @default(now())
+  completedAt       DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([status])
 }
