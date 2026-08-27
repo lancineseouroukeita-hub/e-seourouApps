@@ -1,25 +1,26 @@
 const prisma = require('../config/prisma');
 
-// "Solde" (menu ☰ de Diarala_Tiktak) : des crédits INTERNES à l'application,
-// pas de l'argent réel — voir schema.prisma, User.creditsBalance et modèle
-// CreditTransaction. Aucun vrai paiement/virement n'est géré ici (ça
-// demanderait un prestataire de paiement, une immatriculation, etc., bien
-// au-delà de ce produit de test) : c'est une monnaie de jeu qui se gagne en
-// étant aimé/suivi et se dépense pour "Promouvoir" une publication.
+// "Solde" (menu ☰ de Diarala_Tiktak) : des credits qui se gagnent en etant
+// aime/suivi, se depensent pour "Promouvoir" une publication (voir
+// schema.prisma, User.creditsBalance et modele CreditTransaction) -- et,
+// depuis l'ajout de creditPurchase.controller.js, peuvent AUSSI s'acheter
+// avec du vrai argent (mobile money, via CinetPay) : voir
+// creditPurchase.controller.js pour cette partie-la.
 
-// Libellés affichés côté client pour chaque "reason" technique stockée en
-// base (voir schema.prisma, CreditTransaction.reason) — centralisés ici pour
-// rester cohérents même si la clé technique ne change jamais.
+// Libelles affiches cote client pour chaque "reason" technique stockee en
+// base (voir schema.prisma, CreditTransaction.reason) — centralises ici pour
+// rester coherents meme si la cle technique ne change jamais.
 const REASON_LABELS = {
   like_recu: 'Un like reçu sur une publication',
   abonne_gagne: 'Un nouvel abonné',
   boost_video: 'Publication mise en avant ("Promouvoir")',
   bonus_bienvenue: 'Bonus de bienvenue',
+  achat_credits: 'Crédits achetés',
 };
 
-// Enregistre un mouvement de crédits ET met à jour le total dénormalisé
-// (User.creditsBalance) dans la même transaction — pour ne jamais les
-// laisser désynchronisés si l'un des deux réussissait sans l'autre.
+// Enregistre un mouvement de credits ET met a jour le total denormalise
+// (User.creditsBalance) dans la meme transaction — pour ne jamais les
+// laisser desynchronises si l'un des deux reussissait sans l'autre.
 async function awardCredits(userId, amount, reason, relatedVideoId = null) {
   await prisma.$transaction([
     prisma.creditTransaction.create({ data: { userId, amount, reason, relatedVideoId } }),
@@ -28,7 +29,7 @@ async function awardCredits(userId, amount, reason, relatedVideoId = null) {
 }
 
 // GET /api/wallet — solde actuel + historique des mouvements (le plus
-// récent en premier), pour l'écran "Solde" (menu ☰).
+// recent en premier), pour l'ecran "Solde" (menu ☰).
 async function getWallet(req, res) {
   try {
     const [user, transactions] = await Promise.all([
