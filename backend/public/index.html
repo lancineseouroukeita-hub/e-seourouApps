@@ -2166,6 +2166,21 @@
       console.error('Impossible de récupérer la config des serveurs ICE depuis le serveur, on garde les valeurs de secours :', err);
     }
   }
+  // Résolution/fréquence vidéo plafonnées pour un appel (29/08/2026) : sans
+  // ça, getUserMedia demandait la résolution native de la caméra (parfois
+  // 1080p ou plus sur un téléphone récent) et WebRTC tentait de l'envoyer
+  // telle quelle. Entre deux appareils proches sur un bon réseau ça passe,
+  // mais signalé par Lancine pour un appel à ~15 km : l'appel vidéo se
+  // dégrade progressivement jusqu'à complètement figer — symptôme classique
+  // d'un appareil qui s'épuise à encoder/envoyer un flux trop lourd pour la
+  // liaison disponible. On plafonne donc à une résolution/fréquence
+  // raisonnable pour un appel (comme WhatsApp/Messenger), voir aussi le
+  // plafond de débit posé juste après addTrack dans createPeerConnection.
+  const VIDEO_CALL_CONSTRAINTS = {
+    width: { ideal: 640, max: 1280 },
+    height: { ideal: 480, max: 720 },
+    frameRate: { ideal: 24, max: 30 },
+  };
   let localStream = null;
   let currentCall = null; // { callId, conversationId, type }
   let peerConnections = {}; // socketId -> RTCPeerConnection
@@ -6281,7 +6296,7 @@
   async function startCall(type) {
     if (!activeConversationId) return;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video', audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video' ? VIDEO_CALL_CONSTRAINTS : false, audio: true });
     } catch (err) {
       alert('Impossible d\'accéder à la caméra/micro : ' + err.message);
       return;
@@ -6474,7 +6489,23 @@
     peerLastSeen[socketId] = Date.now();
 
     if (localStream) {
-      localStream.getTracks().forEach((track) => pc.addTrack(track, localStream));
+      localStream.getTracks().forEach((track) => {
+        const sender = pc.addTrack(track, localStream);
+        // Plafonne le débit ENVOYÉ (pas juste la résolution demandée à la
+        // caméra, voir VIDEO_CALL_CONSTRAINTS plus haut) : c'est ce qui évite
+        // de saturer une liaison faible/longue distance et de faire
+        // "planter" l'appel (voir le commentaire de VIDEO_CALL_CONSTRAINTS).
+        // ~700 kbps est une valeur raisonnable pour un appel vidéo mobile
+        // (comparable à WhatsApp/Messenger) ; setParameters() peut échouer
+        // silencieusement sur d'anciens navigateurs, sans gravité (on
+        // retombe juste sur le débit par défaut du navigateur).
+        if (track.kind === 'video' && sender) {
+          const params = sender.getParameters();
+          if (!params.encodings || !params.encodings.length) params.encodings = [{}];
+          params.encodings[0].maxBitrate = 700000;
+          sender.setParameters(params).catch(() => { /* ignore si non supporté */ });
+        }
+      });
     }
 
     pc.onicecandidate = (e) => {
@@ -6596,7 +6627,7 @@
     stopRingtone();
     const { conversationId, callId, type } = pendingIncomingCall;
     try {
-      localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video', audio: true });
+      localStream = await navigator.mediaDevices.getUserMedia({ video: type === 'video' ? VIDEO_CALL_CONSTRAINTS : false, audio: true });
     } catch (err) {
       alert('Impossible d\'accéder à la caméra/micro : ' + err.message);
       return;
