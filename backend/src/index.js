@@ -48,13 +48,32 @@ const corsOrigin = corsOriginEnv === '*' ? '*' : corsOriginEnv.split(',');
 
 app.use(cors({ origin: corsOrigin }));
 // Compresse (gzip/brotli selon ce que le client accepte) toutes les réponses
-// HTTP — surtout utile ici pour les réponses JSON contenant du contenu
-// encodé en base64 (photos, sons, et désormais UNIQUEMENT le contenu vidéo
-// réel via GET /api/videos/:id/media, voir video.controller.js), qui
-// compresse raisonnablement bien même si la vidéo/l'image d'origine est déjà
-// elle-même compressée. Sans impact sur Socket.io (compression HTTP
-// classique, pas liée à la négociation WebSocket).
-app.use(compression());
+// HTTP — utile pour les réponses JSON "normales" (texte, listes...). Sans
+// impact sur Socket.io (compression HTTP classique, pas liée à la
+// négociation WebSocket).
+//
+// EXCEPTION volontaire (29/08/2026) : GET /api/videos/:id/media, qui renvoie
+// le contenu vidéo réel encodé en base64 (jusqu'à ~107 Mo pour une vidéo de
+// 80 Mo, voir utils/limits.js MAX_VIDEO_BYTES) est exclu de la compression.
+// Mesuré en local (voir historique de ce commit) : traiter UNE requête pour
+// une vidéo proche de 80 Mo fait déjà grimper la mémoire du processus à
+// ~650 Mo à elle seule (plusieurs copies inévitables du contenu : lecture
+// Postgres, réponse HTTP...) — au-delà des 512 Mo du plan gratuit Render.
+// La compression ajouterait une copie de plus (tampon zlib) par-dessus pour
+// un gain quasi nul (le base64 d'une vidéo déjà compressée par son codec ne
+// se compresse presque pas) : pas un compromis intéressant face au risque
+// de plantage en pleine requête (vu côté client comme un échec réseau
+// soudain — "Vidéo illisible sur cet appareil (téléchargement échoué...)",
+// signalé par Lancine). Ça ne résout pas à soi seul le cas d'une vidéo
+// proche du maximum (voir la discussion du 29/08/2026 dans l'historique),
+// mais retire une source de surcharge mémoire évitable. Les autres réponses
+// (photos, sons, listes...) restent compressées normalement.
+app.use(compression({
+  filter: (req, res) => {
+    if (req.path.endsWith('/media')) return false;
+    return compression.filter(req, res);
+  },
+}));
 // Limite par défaut d'express.json() : 100 Ko, trop petit pour la photo de
 // profil (jusqu'à ~2 Mo, voir user.controller.js), une photo de statut
 // (jusqu'à 5 Mo, voir status.controller.js) ou une vidéo "Clips" (jusqu'à
