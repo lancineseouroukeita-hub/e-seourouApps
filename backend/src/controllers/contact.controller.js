@@ -1,7 +1,7 @@
 const prisma = require('../config/prisma');
 const { toPublicUser } = require('./auth.controller');
 const { isOnline } = require('../utils/presence');
-const { normalizePhone, PHONE_REGEX } = require('../utils/phone');
+const { normalizePhone, PHONE_REGEX, extractDialCode } = require('../utils/phone');
 
 // Limite raisonnable pour un import en une fois (répertoire de téléphone
 // entier) : évite qu'une requête malformée n'essaie d'insérer des dizaines de
@@ -71,6 +71,9 @@ async function importContacts(req, res) {
     }
 
     const me = await prisma.user.findUnique({ where: { id: req.user.id } });
+    // Indicatif de MON compte (ex: "+224"), utilisé comme valeur par défaut
+    // pour les numéros importés sans indicatif — voir normalizePhone().
+    const myDial = me ? extractDialCode(me.phone) : null;
 
     const seen = new Set();
     const toUpsert = [];
@@ -78,7 +81,7 @@ async function importContacts(req, res) {
       const rawPhones = Array.isArray(entry.phones) ? entry.phones : entry.phone ? [entry.phone] : [];
       const name = String(entry.name || '').trim().slice(0, 120) || null;
       for (const p of rawPhones) {
-        const phone = normalizePhone(p);
+        const phone = normalizePhone(p, myDial);
         if (!phone || !PHONE_REGEX.test(phone)) continue;
         if (me && phone === me.phone) continue; // pas moi-même
         if (seen.has(phone)) continue;
@@ -117,13 +120,14 @@ async function importContacts(req, res) {
 // téléphone, ou pas d'accès au Contact Picker sur ce navigateur/appareil).
 async function addContact(req, res) {
   try {
-    const phone = normalizePhone(req.body.phone);
+    const me = await prisma.user.findUnique({ where: { id: req.user.id } });
+    const myDial = me ? extractDialCode(me.phone) : null;
+    const phone = normalizePhone(req.body.phone, myDial);
     const name = String(req.body.name || '').trim().slice(0, 120) || null;
     if (!phone || !PHONE_REGEX.test(phone)) {
       return res.status(400).json({ error: 'Numéro de téléphone invalide.' });
     }
 
-    const me = await prisma.user.findUnique({ where: { id: req.user.id } });
     if (me && phone === me.phone) {
       return res.status(400).json({ error: 'Vous ne pouvez pas vous ajouter vous-même.' });
     }
