@@ -1814,18 +1814,15 @@
     }
   }
 
-  // Les listings (fil, profil, enregistrées) renvoient à nouveau videoData
-  // directement (voir VIDEO_LIST_SELECT côté serveur) : une tentative
-  // précédente le chargeait à la demande via GET /api/videos/:id/media pour
-  // réduire le volume transféré, mais ça a cassé la lecture des vidéos en
-  // production (build v23, signalé par Lancine) et je n'ai pas pu tester en
-  // conditions réelles pour en trouver la vraie cause. Cette fonction reste
-  // donc en place uniquement comme filet de sécurité (si "v" n'a vraiment
-  // aucun videoData pour une raison quelconque, ex: ancien objet en mémoire),
-  // mais son premier if la rend inoffensive dans le cas normal : elle
-  // retourne immédiatement sans le moindre appel réseau dès que videoData
-  // est déjà présent, ce qui est maintenant TOUJOURS le cas dès la première
-  // récupération du clip.
+  // Les listings (fil, profil, enregistrées — voir VIDEO_LIST_SELECT côté
+  // serveur) n'incluent PLUS videoData directement : cette fonction va le
+  // chercher à la demande via GET /api/videos/:id/media (retesté le
+  // 28/08/2026 avec un vrai navigateur, voir le commentaire de
+  // VIDEO_LIST_SELECT côté serveur pour l'historique). Son premier "if"
+  // reste utile pour les cas où videoData est DÉJÀ présent (ex: la réponse
+  // de createVideo, qui inclut la vidéo qu'on vient de publier en entier
+  // pour l'afficher tout de suite sans aller-retour réseau superflu) : dans
+  // ce cas précis, retour immédiat sans appel réseau.
   async function fetchVideoMedia(v) {
     if (v.videoData) return v;
     if (!v._mediaFetchPromise) {
@@ -2349,9 +2346,9 @@
     $('myVideosGrid').appendChild(thumb);
     if (needsBlobVideo) {
       const videoEl = thumb.querySelector('video');
-      // fetchVideoMedia : simple filet de sécurité, v.videoData est déjà
-      // présent ici (voir VIDEO_LIST_SELECT côté serveur) donc l'appel
-      // retourne immédiatement sans requête réseau (voir sa définition).
+      // fetchVideoMedia va chercher videoData à la demande (voir sa
+      // définition et VIDEO_LIST_SELECT côté serveur — pas inclus dans le
+      // listing).
       fetchVideoMedia(v).then(() => {
         if (!v.videoData) return;
         base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime)).then((blobUrl) => {
@@ -5967,8 +5964,9 @@
           blobUrl = await base64ToBlobUrl(v.photoData, baseMimeType(v.photoMime));
           filename = 'diarala_' + v.id + '.jpg';
         } else {
-          // fetchVideoMedia : simple filet de sécurité, v.videoData est déjà
-          // présent ici (voir VIDEO_LIST_SELECT côté serveur).
+          // fetchVideoMedia va chercher videoData à la demande (voir sa
+          // définition et VIDEO_LIST_SELECT côté serveur — pas inclus dans
+          // le listing "/api/videos/saved" qui a rempli data.videos).
           await fetchVideoMedia(v);
           blobUrl = await base64ToBlobUrl(v.videoData, baseMimeType(v.videoMime));
           filename = 'diarala_' + v.id + '.mp4';

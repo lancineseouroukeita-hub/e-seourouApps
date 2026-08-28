@@ -12,23 +12,38 @@ const {
 const FEED_PAGE_SIZE = 6;
 
 // Champs de Video à renvoyer pour un LISTING (fil, profil, enregistrées...).
-// NOTE : une tentative précédente excluait volontairement "videoData" d'ici
-// (chargement différé via une route dédiée) pour réduire le volume transféré
-// — REVERTÉE : elle a cassé la lecture des vidéos en production (build v23,
-// signalé par Lancine) et je n'ai aucun moyen de tester en conditions
-// réelles (pas de navigateur/appareil disponible dans cet environnement) pour
-// diagnostiquer la vraie cause en confiance avant de la corriger. On revient
-// donc au comportement d'origine (videoData inclus directement dans le
-// listing, comme avant) — quitte à retenter cette optimisation plus tard,
-// de façon plus prudente et testée. Les autres allègements de requêtes
-// (select minimal sur like/save/commentaire/boost, qui ne touchent jamais à
-// la diffusion vidéo elle-même) restent en place, eux, sans risque connu.
+// NOTE : "videoData" est délibérément ABSENT d'ici (chargement différé via
+// GET /api/videos/:id/media, voir getVideoMedia plus bas et videos.html,
+// fetchVideoMedia) — jusqu'à 80 Mo par vidéo (voir utils/limits.js), et une
+// page de fil peut contenir jusqu'à FEED_PAGE_SIZE vidéos : les inclure
+// toutes directement ici forçait le navigateur à attendre le téléchargement
+// ET le décodage de la page ENTIÈRE avant de pouvoir jouer ne serait-ce que
+// la première, ce qui se manifestait comme des vidéos "bloquées" sur
+// connexion lente.
+//
+// Historique (pour ne pas refaire les mêmes erreurs) : une première
+// tentative de ce même changement avait été REVERTÉE (build v23, signalé par
+// Lancine, "cassé la lecture des vidéos en production") faute de pouvoir
+// tester en conditions réelles à l'époque (pas de navigateur disponible dans
+// l'environnement de l'époque). Re-testé le 28/08/2026 avec un vrai
+// navigateur (Chromium via Playwright, backend + Postgres locaux, vidéos de
+// test réelles) : fil principal, grille de profil (appendMyVideoThumb) et
+// téléchargement hors-ligne (renderOfflineRow) fonctionnent tous
+// correctement — chaque appelant de v.videoData passe déjà par
+// fetchVideoMedia() côté client, cette infra étant restée en place comme
+// "filet de sécurité" même après le revert. La cause du problème du build
+// v23 n'a pas pu être identifiée rétroactivement (le code actuel n'a
+// reproduit aucun bug), donc si un souci de lecture vidéo réapparaît après
+// ce changement, vérifier D'ABORD les journaux serveur pour GET
+// /api/videos/:id/media (ex: erreurs 404/500) avant de soupçonner autre
+// chose. Les autres allègements de requêtes (select minimal sur
+// like/save/commentaire/boost) restent inchangés, eux aussi sans risque
+// connu.
 const VIDEO_LIST_SELECT = {
   id: true,
   authorId: true,
   caption: true,
   type: true,
-  videoData: true,
   videoMime: true,
   photoData: true,
   photoMime: true,
@@ -83,12 +98,13 @@ function serializeVideo(video, currentUserId, followingSet) {
     // "video" (par défaut, y compris les publications créées avant l'ajout
     // des photos) ou "photo" — voir schema.prisma, modèle Video.
     type: video.type || 'video',
-    // videoData renvoyé directement ici (voir VIDEO_LIST_SELECT plus haut) —
-    // une tentative précédente le chargeait à la demande via une route dédiée
-    // (GET /api/videos/:id/media) pour réduire le volume transféré, mais ça a
-    // cassé la lecture des vidéos en production (build v23, signalé par
-    // Lancine) et je n'ai pas pu diagnostiquer la vraie cause sans navigateur
-    // pour tester en conditions réelles. Retour au comportement d'origine.
+    // null pour un LISTING (voir VIDEO_LIST_SELECT plus haut, qui exclut
+    // volontairement videoData) — le client le récupère à la demande via
+    // GET /api/videos/:id/media (voir getVideoMedia). Pour un appel qui
+    // sélectionne explicitement videoData (ex: juste après createVideo,
+    // pour afficher immédiatement la publication qu'on vient de créer sans
+    // aller-retour réseau supplémentaire), video.videoData est bien présent
+    // ici et renvoyé normalement.
     videoData: video.videoData || null,
     videoMime: video.videoMime || null,
     photoData: video.photoData || null,
