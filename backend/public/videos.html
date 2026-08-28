@@ -2674,6 +2674,40 @@
       if (audio) audio.muted = !enabled; else if (video) video.muted = !enabled;
     });
     document.querySelectorAll('.clip .muteBtn .discVolumeBadge').forEach((badge) => { badge.innerHTML = enabled ? VOLUME_ON_SVG : VOLUME_OFF_SVG; });
+    // Rattrape un <audio> de "son ajouté" resté bloqué en pause (voir
+    // retryStuckClipAudio plus bas) : cet appui est un VRAI geste de la
+    // personne, donc le bon moment pour retenter play() sur celui qu'on
+    // vient justement de rendre audible.
+    retryStuckClipAudio();
+  }
+
+  // Rejoue l'<audio> "son ajouté" (voir renderClip, hasAttachedSound) de
+  // chaque clip actuellement censé jouer (data-should-play="1", posé par
+  // onClipIntersect) mais dont l'audio est resté en pause -- constaté
+  // (Lancine, 28/08/2026, "la vidéo marche mais la musique ne joue pas ou se
+  // crack") : CET élément <audio> est distinct de la <video> (voir plus haut,
+  // "vidéo TOUJOURS muette" pour un clip avec son ajouté) et Chrome/Safari
+  // refusent play() dessus tant qu'aucun geste réel n'a eu lieu sur la page --
+  // MÊME muet, contrairement à <video muted> qui est explicitement autorisé à
+  // s'auto-jouer sans geste (politique "autoplay" du navigateur, l'exception
+  // "muet" ne s'étend pas de la même façon à un <audio> tout seul). Résultat
+  // observé (reproduit ici avec Playwright, sans le flag de test qui
+  // désactive cette politique) : le PREMIER clip vu à l'ouverture de l'appli
+  // reste avec sa musique bloquée en pause pour toujours, rien ne la relance
+  // jamais -- exactement le symptôme "des fois la musique ne joue pas".
+  // Comme pour acquireScreenWakeLock (même page, même contrainte "geste réel
+  // requis"), on retente donc à CHAQUE tap n'importe où dans l'appli (voir le
+  // gestionnaire 'click'/'touchend' plus bas) tant qu'un clip est censé jouer
+  // -- sans risque de doublon : .play() sur un <audio> déjà en lecture ne
+  // fait rien.
+  function retryStuckClipAudio() {
+    document.querySelectorAll('.clip[data-should-play="1"]').forEach((clipEl) => {
+      const audio = clipEl.querySelector('.clipAudio');
+      const video = clipEl.querySelector('video');
+      if (!audio || !audio.src || !audio.paused) return;
+      try { audio.currentTime = video ? video.currentTime : 0; } catch (err) { /* ignoré */ }
+      audio.play().catch(() => {});
+    });
   }
 
   // Extrait de setupObserver (voir plus bas) pour être partagé avec
@@ -2743,6 +2777,11 @@
   ['click', 'touchend'].forEach((evt) => {
     document.addEventListener(evt, () => {
       if (document.querySelector('.clip[data-should-play="1"]')) acquireScreenWakeLock();
+      // Même geste réel réutilisé pour rattraper un "son ajouté" resté bloqué
+      // en pause (voir retryStuckClipAudio) — n'importe quel tap suffit, pas
+      // besoin d'attendre que la personne appuie spécifiquement sur l'icône
+      // son.
+      retryStuckClipAudio();
     }, { passive: true });
   });
 
@@ -3098,6 +3137,17 @@
       videoEl.loop = !autoScrollEnabled;
       videoEl.playbackRate = globalPlaybackRate;
       videoEl.addEventListener('ended', () => {
+        // Ne se déclenche que si la vidéo NE boucle PAS (videoEl.loop=false,
+        // donc autoScrollEnabled=true — voir plus haut, une vidéo qui boucle
+        // ne déclenche jamais 'ended'). Le "son ajouté" éventuel (voir
+        // hasAttachedSound) a lui SA PROPRE boucle indépendante
+        // (<audio loop>, voir plus bas) : sans ce pause() explicite, il
+        // continuerait de jouer seul pendant la transition vers le clip
+        // suivant (défilement automatique), avant qu'onClipIntersect ne le
+        // rattrape en le marquant "non visible" — d'où un bref chevauchement
+        // audible avec la musique du clip suivant.
+        const endedAudio = el.querySelector('.clipAudio');
+        if (endedAudio) endedAudio.pause();
         if (!autoScrollEnabled) return;
         const next = el.nextElementSibling;
         if (next) next.scrollIntoView({ behavior: 'smooth', block: 'start' });
